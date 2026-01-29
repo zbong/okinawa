@@ -88,6 +88,8 @@ body {
 .nav-tabs {
   display: flex;
   padding: 10px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  gap: 4px;
   gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
