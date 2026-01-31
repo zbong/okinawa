@@ -156,7 +156,6 @@ const MapComponent: React.FC<MapProps> = ({ points, selectedPoint, onPointClick 
                             }
                         });
 
-                    marker.bindPopup(`<b>${index + 1}. ${p.name}</b>`);
                     marker.bindTooltip(p.name, {
                         permanent: false,
                         direction: 'top',
@@ -164,11 +163,6 @@ const MapComponent: React.FC<MapProps> = ({ points, selectedPoint, onPointClick 
                         opacity: 0.9
                     });
                     markersRef.current.push(marker);
-
-                    // If this is the selected point, open popup
-                    if (selectedPoint && selectedPoint.id === p.id) {
-                        marker.openPopup();
-                    }
                 } catch (e) {
                     console.warn("Error creating marker:", e);
                 }

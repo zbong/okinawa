@@ -377,7 +377,7 @@ const App: React.FC = () => {
 
                             {overviewMode === 'map' ? (
                                 <div style={{ flex: 1, width: '100%', borderRadius: '16px', overflow: 'hidden', minHeight: '300px' }}>
-                                    <MapComponent points={okinawaData} selectedPoint={null} onPointClick={() => { }} />
+                                    <MapComponent points={okinawaData} selectedPoint={selectedPoint} onPointClick={(p) => { setSelectedPoint(p); setSelectedWeatherLocation(p); }} />
                                 </div>
                             ) : (
                                 <>
@@ -621,7 +621,7 @@ const App: React.FC = () => {
                             {/* Map - 지도 보기일 때만 렌더링 */}
                             {scheduleViewMode === 'map' && (
                                 <div style={{ height: '350px', width: '100%', flexShrink: 0, borderRadius: '16px', overflow: 'hidden' }}>
-                                    <MapComponent points={getPoints()} selectedPoint={null} onPointClick={() => { }} />
+                                    <MapComponent points={getPoints()} selectedPoint={selectedPoint} onPointClick={(p) => { setSelectedPoint(p); setSelectedWeatherLocation(p); }} />
                                 </div>
                             )}
 
