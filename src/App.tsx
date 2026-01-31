@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './styles/design-system.css';
 import { okinawaData, travelFiles } from './data';
 import { LocationPoint } from './types';
@@ -72,7 +72,25 @@ const App: React.FC = () => {
     const [weatherIndex, setWeatherIndex] = useState(0);
     const [selectedWeatherLocation, setSelectedWeatherLocation] = useState<LocationPoint | null>(null);
     const [expandedSection, setExpandedSection] = useState<'review' | 'log' | null>(null);
-    const [allPoints, setAllPoints] = useState<LocationPoint[]>(okinawaData);
+    // Saved Points Order State
+    const [allPoints, setAllPoints] = useState<LocationPoint[]>(() => {
+        const saved = localStorage.getItem('okinawa_points_order');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error("Failed to parse saved order:", e);
+                return okinawaData;
+            }
+        }
+        return okinawaData;
+    });
+
+    const isDraggingRef = useRef(false);
+
+    useEffect(() => {
+        localStorage.setItem('okinawa_points_order', JSON.stringify(allPoints));
+    }, [allPoints]);
 
     // Checklist State
     const [completedItems, setCompletedItems] = useState<Record<string, boolean>>(() => {
@@ -626,8 +644,22 @@ const App: React.FC = () => {
                                 {getPoints().map(p => {
                                     const isDone = !!completedItems[p.id];
                                     return (
-                                        <Reorder.Item key={p.id} value={p} style={{ marginBottom: 12 }}>
-                                            <div className="glass-card" onClick={() => { setSelectedPoint(p); setSelectedWeatherLocation(p); }} style={{ display: 'flex', alignItems: 'center', opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s', cursor: 'grab', userSelect: 'none' }}>
+                                        <Reorder.Item
+                                            key={p.id}
+                                            value={p}
+                                            style={{ marginBottom: 12 }}
+                                            onDragStart={() => { isDraggingRef.current = true; }}
+                                            onDragEnd={() => { setTimeout(() => { isDraggingRef.current = false; }, 100); }}
+                                        >
+                                            <div
+                                                className="glass-card"
+                                                onClick={() => {
+                                                    if (isDraggingRef.current) return;
+                                                    setSelectedPoint(p);
+                                                    setSelectedWeatherLocation(p);
+                                                }}
+                                                style={{ display: 'flex', alignItems: 'center', opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s', cursor: 'grab', userSelect: 'none' }}
+                                            >
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ fontWeight: 700, color: 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none' }}>{p.name}</div>
                                                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.category.toUpperCase()}</div>
