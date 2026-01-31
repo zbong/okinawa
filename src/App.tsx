@@ -369,7 +369,7 @@ const App: React.FC = () => {
                     {activeTab === 'summary' && (
                         <div className="overview-content">
                             {/* Toggle Switch */}
-                            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.1)', padding: 4, borderRadius: 24, marginBottom: 20, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', padding: 4, borderRadius: 24, marginBottom: 20, flexShrink: 0 }}>
                                 <button
                                     onClick={() => setOverviewMode('map')}
                                     style={{ flex: 1, padding: '8px', borderRadius: 20, border: 'none', background: overviewMode === 'map' ? 'var(--primary)' : 'transparent', color: overviewMode === 'map' ? 'var(--text-on-primary)' : 'var(--text-secondary)', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}
@@ -516,7 +516,7 @@ const App: React.FC = () => {
                     {activeTab === 'schedule' && (
                         <div className="list-view">
                             {/* View Mode Toggle */}
-                            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.1)', padding: 4, borderRadius: 24, marginBottom: 16, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', padding: 4, borderRadius: 24, marginBottom: 16, flexShrink: 0 }}>
                                 <button onClick={() => setScheduleViewMode('map')} style={{ flex: 1, padding: '8px', borderRadius: 20, border: 'none', background: scheduleViewMode === 'map' ? 'var(--primary)' : 'transparent', color: scheduleViewMode === 'map' ? 'var(--text-on-primary)' : 'var(--text-secondary)', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}>
                                     지도 보기
                                 </button>
