@@ -361,12 +361,44 @@ body {
   font-size: 24px;
 }
 
-.exchange-info {
-  text-align: center;
+
+
+/* Custom Map Marker with Number */
+.custom-marker {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  border: 2px solid white;
+  border-radius: 50%;
+  color: black;
+  font-weight: 800;
   font-size: 14px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s;
+}
+
+.custom-marker:hover {
+  transform: scale(1.1);
+  z-index: 9999 !important;
+}
+
+/* Reorder Item Styles */
+.reorder-item {
+  position: relative;
+  touch-action: none;
+}
+
+.drag-handle {
+  cursor: grab;
+  padding: 8px;
   color: var(--text-dim);
-  margin: 24px 0;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 12px;
-  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  color: var(--primary);
 }

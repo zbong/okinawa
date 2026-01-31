@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles/design-system.css';
-import { okinawaData, travelFiles } from './data';
+import { okinawaData, travelFiles, okinawaSpeechData } from './data';
 import { LocationPoint } from './types';
 import {
     LayoutDashboard,
@@ -23,7 +23,8 @@ import {
     ChevronUp,
     Upload,
     Trash2,
-    Paperclip
+    MessageCircle,
+    Volume2
 } from 'lucide-react';
 
 interface CustomFile {
@@ -68,10 +69,9 @@ const App: React.FC = () => {
     const [scheduleDay, setScheduleDay] = useState<number>(1);
     const [scheduleViewMode, setScheduleViewMode] = useState<'map' | 'list'>('list');
     const [selectedPoint, setSelectedPoint] = useState<LocationPoint | null>(null);
-    const [fullImg, setFullImg] = useState<string | null>(null);
     const [weatherIndex, setWeatherIndex] = useState(0);
     const [selectedWeatherLocation, setSelectedWeatherLocation] = useState<LocationPoint | null>(null);
-    const [expandedSection, setExpandedSection] = useState<'review' | 'log' | null>(null);
+    const [expandedSection, setExpandedSection] = useState<'review' | 'log' | 'localSpeech' | null>(null);
     // Saved Points Order State
     const [allPoints, setAllPoints] = useState<LocationPoint[]>(() => {
         const saved = localStorage.getItem('okinawa_points_order');
@@ -172,7 +172,6 @@ const App: React.FC = () => {
     };
 
     // Currency
-    const [showConverter, setShowConverter] = useState(false);
     const [jpyAmount, setJpyAmount] = useState('1000');
     const [krwAmount, setKrwAmount] = useState('9000');
     const [rate, setRate] = useState(9.0);
@@ -213,6 +212,13 @@ const App: React.FC = () => {
             ...prev,
             [id]: text
         }));
+    };
+
+    const speak = (text: string) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ja-JP';
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
     };
 
     const convert = (val: string, type: 'jpy' | 'krw') => {
@@ -268,24 +274,6 @@ const App: React.FC = () => {
         // 아니면 그냥 합치면 됨. 어차피 렌더링할 때 filter(day === x) 하니까.
 
         setAllPoints([...otherPoints, ...newOrder]);
-    };
-
-    // Get current weather to display (from selected location or default)
-    const getCurrentWeather = () => {
-        if (selectedWeatherLocation?.weather) {
-            return {
-                location: selectedWeatherLocation.name,
-                ...selectedWeatherLocation.weather
-            };
-        }
-        // Default weather (Naha)
-        return {
-            location: '오키나와 (나하)',
-            temp: '22°',
-            condition: '맑음',
-            wind: '3 m/s',
-            humidity: '60%'
-        };
     };
 
     // Get formatted date string
@@ -359,6 +347,9 @@ const App: React.FC = () => {
                     </button>
                     <button className={`tab ${activeTab === 'exchange' ? 'active' : ''}`} onClick={() => setActiveTab('exchange')}>
                         <RefreshCw size={18} /> <span style={{ marginLeft: '4px' }}>환율</span>
+                    </button>
+                    <button className={`tab ${activeTab === 'speech' ? 'active' : ''}`} onClick={() => setActiveTab('speech')}>
+                        <MessageCircle size={18} /> <span style={{ marginLeft: '4px' }}>회화</span>
                     </button>
                     <button className="tab" onClick={toggleTheme} style={{ marginLeft: 'auto', padding: '6px 10px', minWidth: 'auto' }}>
                         {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -694,7 +685,7 @@ const App: React.FC = () => {
 
                             {/* Custom Files */}
                             {customFiles.map(f => (
-                                <div key={f.id} className="file-card" onClick={() => setFullImg(f.data)}>
+                                <div key={f.id} className="file-card">
                                     <img src={f.data} alt={f.name} className="file-img" />
                                     <div className="file-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>{f.name}</span>
@@ -712,7 +703,7 @@ const App: React.FC = () => {
 
                             {/* Default Files */}
                             {travelFiles.map(f => (
-                                <div key={f.name} className="file-card" onClick={() => setFullImg(f.path)}>
+                                <div key={f.name} className="file-card">
                                     <img src={f.path} alt={f.name} className="file-img" />
                                     <div className="file-info">{f.name}</div>
                                 </div>
@@ -748,6 +739,53 @@ const App: React.FC = () => {
                                 <p style={{ textAlign: 'center', color: 'var(--text-dim)', fontSize: 12, marginBottom: 20 }}>
                                     100 JPY ≈ {Math.round(rate * 100).toLocaleString()} KRW
                                 </p>
+                            </div>
+                        </div>
+                    )}
+                    {activeTab === 'speech' && (
+                        <div className="speech-view" style={{ padding: '16px' }}>
+                            <h2 style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, fontSize: '18px' }}>
+                                <MessageCircle size={20} color="var(--primary)" />
+                                일본어 필수 회화
+                            </h2>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {okinawaSpeechData.filter(item => item.category === 'basic').map(item => (
+                                    <div
+                                        key={item.id}
+                                        className="glass-card"
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '10px 14px'
+                                        }}
+                                    >
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', opacity: 0.8 }}>{item.kor}</div>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.jp}</div>
+                                                <div style={{ fontSize: '12px', color: 'var(--primary)', opacity: 0.9 }}>{item.pron}</div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => speak(item.jp)}
+                                            style={{
+                                                background: 'var(--primary)',
+                                                border: 'none',
+                                                borderRadius: '50%',
+                                                width: 32,
+                                                height: 32,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: 'black'
+                                            }}
+                                        >
+                                            <Volume2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -863,7 +901,6 @@ const App: React.FC = () => {
                                             customFiles.filter(f => f.linkedTo === selectedPoint.id).map(f => (
                                                 <div key={f.id} style={{ minWidth: 100, width: 100, position: 'relative' }}>
                                                     <div
-                                                        onClick={() => setFullImg(f.data)}
                                                         style={{ width: '100%', height: 100, borderRadius: 12, overflow: 'hidden', marginBottom: 4, cursor: 'pointer', border: '1px solid var(--glass-border)' }}
                                                     >
                                                         <img src={f.data} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -880,6 +917,63 @@ const App: React.FC = () => {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Local Conversation Section */}
+                                {(okinawaSpeechData.some(s => s.category === selectedPoint.category) || selectedPoint.category === 'sightseeing') && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <button
+                                            onClick={() => setExpandedSection(expandedSection === 'localSpeech' ? null : 'localSpeech')}
+                                            style={{
+                                                width: '100%',
+                                                padding: '16px',
+                                                background: 'var(--glass-bg)',
+                                                borderRadius: '16px',
+                                                border: '1px solid var(--glass-border)',
+                                                color: 'var(--text-primary)',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                fontWeight: 600
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <MessageCircle size={18} color="var(--primary)" />
+                                                <span>현지 회화 (추천)</span>
+                                            </div>
+                                            {expandedSection === 'localSpeech' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                        </button>
+
+                                        {expandedSection === 'localSpeech' && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                style={{ overflow: 'hidden', marginTop: 8, padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '16px' }}
+                                            >
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    {okinawaSpeechData
+                                                        .filter(s => s.category === selectedPoint.category || (selectedPoint.category === 'sightseeing' && s.category === 'shopping'))
+                                                        .map(item => (
+                                                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '8px 12px', borderRadius: '8px' }}>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{item.kor}</div>
+                                                                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.jp} <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 500, marginLeft: 4 }}>{item.pron}</span></div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => speak(item.jp)}
+                                                                    style={{ background: 'var(--primary)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'black' }}
+                                                                >
+                                                                    <Volume2 size={12} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Rating & Review Section Toggle */}
                                 <div style={{ marginTop: 16 }}>
@@ -1005,7 +1099,7 @@ const App: React.FC = () => {
                     )}
                 </AnimatePresence>
             </div>
-        </ErrorBoundary>
+        </ErrorBoundary >
     );
 };
 

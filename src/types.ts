@@ -16,3 +16,11 @@ export interface TravelFile {
     name: string;
     path: string;
 }
+
+export interface SpeechItem {
+    id: string;
+    kor: string;
+    jp: string;
+    pron: string;
+    category: 'basic' | 'shopping' | 'food' | 'emergency' | 'stay';
+}

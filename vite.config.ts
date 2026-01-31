@@ -28,6 +28,54 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait'
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        runtimeCaching: [
+          {
+            // Google Maps Tiles Caching
+            urlPattern: /^https:\/\/mt0\.google\.com\/vt\/lyrs=m/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-maps-tiles',
+              expiration: {
+                maxEntries: 1000,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // 1년 보관
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            // Pretendard Font Caching
+            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/gh\/orioncactus\/pretendard/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'web-fonts',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // 1년 보관
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            // Exchange Rate API (Network First, fallback to Offline Cache)
+            urlPattern: /^https:\/\/open\.er-api\.com\/v6\/latest\/JPY/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'exchange-rate',
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 60 * 24 // 24시간 보관
+              },
+              networkTimeoutSeconds: 3
+            }
+          }
+        ]
       }
     })
   ],
