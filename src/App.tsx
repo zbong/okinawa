@@ -66,6 +66,7 @@ const App: React.FC = () => {
     const [activeTab, setActiveTab] = useState<string>('summary');
     const [overviewMode, setOverviewMode] = useState<'map' | 'text'>('map');
     const [scheduleDay, setScheduleDay] = useState<number>(1);
+    const [scheduleViewMode, setScheduleViewMode] = useState<'map' | 'list'>('list');
     const [selectedPoint, setSelectedPoint] = useState<LocationPoint | null>(null);
     const [fullImg, setFullImg] = useState<string | null>(null);
     const [weatherIndex, setWeatherIndex] = useState(0);
@@ -460,7 +461,17 @@ const App: React.FC = () => {
 
                     {activeTab === 'schedule' && (
                         <div className="list-view">
-                            <section style={{ marginBottom: 16 }}>
+                            {/* View Mode Toggle */}
+                            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.1)', padding: 4, borderRadius: 24, marginBottom: 16, flexShrink: 0 }}>
+                                <button onClick={() => setScheduleViewMode('map')} style={{ flex: 1, padding: '8px', borderRadius: 20, border: 'none', background: scheduleViewMode === 'map' ? 'var(--primary)' : 'transparent', color: scheduleViewMode === 'map' ? 'var(--text-on-primary)' : 'var(--text-secondary)', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                    지도 보기
+                                </button>
+                                <button onClick={() => setScheduleViewMode('list')} style={{ flex: 1, padding: '8px', borderRadius: 20, border: 'none', background: scheduleViewMode === 'list' ? 'var(--primary)' : 'transparent', color: scheduleViewMode === 'list' ? 'var(--text-on-primary)' : 'var(--text-secondary)', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                    목록 보기
+                                </button>
+                            </div>
+
+                            <section style={{ marginBottom: 16, display: scheduleViewMode === 'list' ? 'block' : 'none' }}>
                                 <div style={{ position: 'relative', width: '100%', height: '180px' }}>
                                     <motion.div
                                         key={weatherIndex}
@@ -564,26 +575,33 @@ const App: React.FC = () => {
                                 ))}
                             </div>
 
-                            <div style={{ height: '350px', width: '100%', flexShrink: 0, borderRadius: '16px', overflow: 'hidden' }}>
-                                <MapComponent points={getPoints()} selectedPoint={null} onPointClick={() => { }} />
-                            </div>
-                            {getPoints().map(p => {
-                                const isDone = !!completedItems[p.id];
-                                return (
-                                    <div key={p.id} className="glass-card" onClick={() => { setSelectedPoint(p); setSelectedWeatherLocation(p); }} style={{ display: 'flex', alignItems: 'center', opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s' }}>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none' }}>{p.name}</div>
-                                            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.category.toUpperCase()}</div>
+                            {/* Map - 지도 보기일 때만 렌더링 */}
+                            {scheduleViewMode === 'map' && (
+                                <div style={{ height: '350px', width: '100%', flexShrink: 0, borderRadius: '16px', overflow: 'hidden' }}>
+                                    <MapComponent points={getPoints()} selectedPoint={null} onPointClick={() => { }} />
+                                </div>
+                            )}
+
+                            {/* List - 목록 보기일 때만 표시 */}
+                            <div style={{ display: scheduleViewMode === 'list' ? 'block' : 'none' }}>
+                                {getPoints().map(p => {
+                                    const isDone = !!completedItems[p.id];
+                                    return (
+                                        <div key={p.id} className="glass-card" onClick={() => { setSelectedPoint(p); setSelectedWeatherLocation(p); }} style={{ display: 'flex', alignItems: 'center', opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 700, color: 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none' }}>{p.name}</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.category.toUpperCase()}</div>
+                                            </div>
+                                            <button
+                                                onClick={(e) => toggleComplete(p.id, e)}
+                                                style={{ background: 'transparent', border: 'none', color: isDone ? 'var(--primary)' : 'var(--text-secondary)', cursor: 'pointer', padding: 5 }}
+                                            >
+                                                {isDone ? <CheckCircle size={24} /> : <Circle size={24} />}
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={(e) => toggleComplete(p.id, e)}
-                                            style={{ background: 'transparent', border: 'none', color: isDone ? 'var(--primary)' : 'var(--text-secondary)', cursor: 'pointer', padding: 5 }}
-                                        >
-                                            {isDone ? <CheckCircle size={24} /> : <Circle size={24} />}
-                                        </button>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 
