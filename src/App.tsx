@@ -34,7 +34,7 @@ interface CustomFile {
     linkedTo?: string; // Point ID
     date: string;
 }
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 
 import MapComponent from './components/MapComponent';
 
@@ -72,6 +72,7 @@ const App: React.FC = () => {
     const [weatherIndex, setWeatherIndex] = useState(0);
     const [selectedWeatherLocation, setSelectedWeatherLocation] = useState<LocationPoint | null>(null);
     const [expandedSection, setExpandedSection] = useState<'review' | 'log' | null>(null);
+    const [allPoints, setAllPoints] = useState<LocationPoint[]>(okinawaData);
 
     // Checklist State
     const [completedItems, setCompletedItems] = useState<Record<string, boolean>>(() => {
@@ -213,7 +214,42 @@ const App: React.FC = () => {
     };
 
     const getPoints = () => {
-        return okinawaData.filter(p => p.day === scheduleDay);
+        return allPoints.filter(p => p.day === scheduleDay);
+    };
+
+    const handleReorder = (newOrder: LocationPoint[]) => {
+        // 현재 선택된 날짜가 아닌 포인트들 분리
+        const otherPoints = allPoints.filter(p => p.day !== scheduleDay);
+        // 새 순서와 합치기 (주의: newOrder는 현재 날짜의 포인트들만 담고 있음)
+        // 원래 데이터 순서를 유지하기 위해, 날짜별로 다시 정렬하거나 하는 것이 좋겠지만
+        // 여기서는 간단히 다른 날짜 데이터를 앞/뒤에 붙이는 식으로 처리하기엔 원래 순서가 섞일 수 있음.
+        // 가장 안전한 방법: 전체 리스트에서 해당 포인트들의 위치만 교체.
+
+        // 하지만 더 간단한 방법:
+        // 1. 현재 날짜의 포인트들을 제외한 리스트를 만듦.
+        // 2. 현재 날짜의 포인트들을 newOrder로 대체.
+        // 3. 다시 날짜별로 정렬하거나, 그냥 합침 (일차별 필터링을 하므로 순서만 맞으면 됨).
+
+        // 구현:
+        // 다른 날짜의 데이터는 그대로 유지하고, 현재 날짜의 데이터만 newOrder로 교체
+        // 단, allPoints 배열 내에서의 상대적 위치는 유지되지 않을 수 있음.
+        // 하지만 getPoints()는 filter로 가져오므로, allPoints 내의 순서는 중요하지 않고
+        // filter된 결과 내의 순서가 중요함.
+        // -> 아님. filter 결과의 순서는 allPoints 내의 순서를 따름.
+        // 따라서 allPoints 내에서도 순서를 맞춰줘야 함.
+
+        // 개선된 로직:
+        // 전체 리스트 재구성: [Day 1, Day 2, ...] 순서로 정렬되어 있다고 가정하면 쉬움.
+        // 그냥 날짜와 상관없이 다른 포인트 + 새 순서 포인트 로 합치면 됨.
+        // 다만 날짜별 그룹핑을 유지하고 싶다면, scheduleDay를 기준으로 정렬 로직이 필요.
+
+        // 여기서는 간단하게:
+        // 1. 현재 날짜가 아닌 것들 (otherPoints)
+        // 2. 현재 날짜인 것들 (newOrder)
+        // 3. 합쳐서 날짜순, 그리고 인덱스순 정렬? 
+        // 아니면 그냥 합치면 됨. 어차피 렌더링할 때 filter(day === x) 하니까.
+
+        setAllPoints([...otherPoints, ...newOrder]);
     };
 
     // Get current weather to display (from selected location or default)
@@ -472,9 +508,9 @@ const App: React.FC = () => {
                             </div>
 
                             <section style={{ marginBottom: 16, display: scheduleViewMode === 'list' ? 'block' : 'none' }}>
-                                <div style={{ position: 'relative', width: '100%', height: '180px' }}>
+                                <div style={{ position: 'relative', width: '100%', height: '72px' }}>
                                     <motion.div
-                                        key={weatherIndex}
+                                        key={`schedule-weather-${weatherIndex}`}
                                         className="glass-card"
                                         drag="x"
                                         dragConstraints={{ left: 0, right: 0 }}
@@ -482,13 +518,10 @@ const App: React.FC = () => {
                                         whileTap={{ cursor: 'grabbing' }}
                                         whileDrag={{ scale: 0.98, cursor: 'grabbing' }}
                                         onDragEnd={(_, info) => {
-                                            console.log('Schedule drag ended, offset:', info.offset.x);
                                             const threshold = 40;
                                             if (info.offset.x > threshold) {
-                                                console.log('Swiped right - going to previous day');
                                                 setWeatherIndex((prev) => (prev - 1 + 3) % 3);
                                             } else if (info.offset.x < -threshold) {
-                                                console.log('Swiped left - going to next day');
                                                 setWeatherIndex((prev) => (prev + 1) % 3);
                                             }
                                         }}
@@ -498,34 +531,35 @@ const App: React.FC = () => {
                                             background: weatherIndex === 0 ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
                                                 weatherIndex === 1 ? 'linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%)' :
                                                     'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
-                                            border: 'none', position: 'absolute', top: 0, left: 0, right: 0, height: '100%', padding: '16px', cursor: 'grab', touchAction: 'pan-y'
+                                            border: 'none', position: 'absolute', top: 0, left: 0, right: 0, height: '100%', padding: '0 16px', display: 'flex', alignItems: 'center', cursor: 'grab', touchAction: 'pan-y'
                                         }}
                                     >
-                                        <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-                                            <div>
-                                                <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.7, marginBottom: 2 }}>
-                                                    {getFormattedDate(weatherIndex)}
-                                                </div>
-                                                <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, marginBottom: 4 }}>
-                                                    {getWeatherForDay(weatherIndex).location}
-                                                </div>
-                                                <div style={{ fontSize: 36, fontWeight: 800 }}>
+                                        <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', color: 'white', gap: 12 }}>
+                                            {/* 날짜 */}
+                                            <div style={{ fontSize: 13, fontWeight: 600, minWidth: '60px' }}>
+                                                {getFormattedDate(weatherIndex).split(' ')[1]} {getFormattedDate(weatherIndex).split(' ')[2]}
+                                            </div>
+
+                                            {/* 구분선 */}
+                                            <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.4)' }}></div>
+
+                                            {/* 지역 */}
+                                            <div style={{ fontSize: 13, fontWeight: 500, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {getWeatherForDay(weatherIndex).location}
+                                            </div>
+
+                                            {/* 날씨 아이콘 및 온도 */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <CloudSun size={24} color="white" />
+                                                <div style={{ fontSize: 20, fontWeight: 700 }}>
                                                     {getWeatherForDay(weatherIndex).temp}
                                                 </div>
-                                                <div style={{ fontSize: 13, fontWeight: 500 }}>
-                                                    {getWeatherForDay(weatherIndex).condition}
-                                                </div>
                                             </div>
-                                            <div style={{ textAlign: 'right' }}>
-                                                <CloudSun size={48} color="white" />
-                                            </div>
-                                        </div>
-                                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.2)', display: 'flex', gap: 16, color: 'white' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                                                <Wind size={14} /> <span>{getWeatherForDay(weatherIndex).wind}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                                                <Droplets size={14} /> <span>습도 {getWeatherForDay(weatherIndex).humidity}</span>
+
+                                            {/* 습도 */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, opacity: 0.9, background: 'rgba(0,0,0,0.1)', padding: '4px 8px', borderRadius: '12px' }}>
+                                                <Droplets size={12} />
+                                                <span>{getWeatherForDay(weatherIndex).humidity}</span>
                                             </div>
                                         </div>
                                     </motion.div>
@@ -583,25 +617,32 @@ const App: React.FC = () => {
                             )}
 
                             {/* List - 목록 보기일 때만 표시 */}
-                            <div style={{ display: scheduleViewMode === 'list' ? 'block' : 'none' }}>
+                            <Reorder.Group
+                                axis="y"
+                                values={getPoints()}
+                                onReorder={handleReorder}
+                                style={{ display: scheduleViewMode === 'list' ? 'block' : 'none', padding: 0, margin: 0, listStyle: 'none' }}
+                            >
                                 {getPoints().map(p => {
                                     const isDone = !!completedItems[p.id];
                                     return (
-                                        <div key={p.id} className="glass-card" onClick={() => { setSelectedPoint(p); setSelectedWeatherLocation(p); }} style={{ display: 'flex', alignItems: 'center', opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s' }}>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontWeight: 700, color: 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none' }}>{p.name}</div>
-                                                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.category.toUpperCase()}</div>
+                                        <Reorder.Item key={p.id} value={p} style={{ marginBottom: 12 }}>
+                                            <div className="glass-card" onClick={() => { setSelectedPoint(p); setSelectedWeatherLocation(p); }} style={{ display: 'flex', alignItems: 'center', opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s', cursor: 'grab', userSelect: 'none' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none' }}>{p.name}</div>
+                                                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.category.toUpperCase()}</div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => toggleComplete(p.id, e)}
+                                                    style={{ background: 'transparent', border: 'none', color: isDone ? 'var(--primary)' : 'var(--text-secondary)', cursor: 'pointer', padding: 5 }}
+                                                >
+                                                    {isDone ? <CheckCircle size={24} /> : <Circle size={24} />}
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={(e) => toggleComplete(p.id, e)}
-                                                style={{ background: 'transparent', border: 'none', color: isDone ? 'var(--primary)' : 'var(--text-secondary)', cursor: 'pointer', padding: 5 }}
-                                            >
-                                                {isDone ? <CheckCircle size={24} /> : <Circle size={24} />}
-                                            </button>
-                                        </div>
+                                        </Reorder.Item>
                                     );
                                 })}
-                            </div>
+                            </Reorder.Group>
                         </div>
                     )}
 
