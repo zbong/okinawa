@@ -1,6 +1,6 @@
-import { LocationPoint, TravelFile, SpeechItem, TripPlan } from './types';
+import { LocationPoint, TravelFile } from './types';
 
-const okinawaPoints: LocationPoint[] = [
+export const okinawaData: LocationPoint[] = [
   {
     id: 'airport',
     name: '나하 공항',
@@ -109,46 +109,38 @@ const okinawaPoints: LocationPoint[] = [
   }
 ];
 
-const okinawaFiles: TravelFile[] = [
+export const travelFiles: TravelFile[] = [
   { name: '최원봉 탑승권', path: 'https://images.unsplash.com/photo-1544013508-222839a973db?auto=format&fit=crop&q=80&w=400' },
   { name: '장주미 탑승권', path: 'https://images.unsplash.com/photo-1544013508-222839a973db?auto=format&fit=crop&q=80&w=400' },
   { name: '렌터카 예약확인서', path: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=400' }
 ];
 
-const okinawaSpeechData: SpeechItem[] = [
+import { SpeechItem } from './types';
+
+export const okinawaSpeechData: SpeechItem[] = [
   { id: 'hello_day', kor: '안녕하세요 (낮)', jp: 'こんにちは', pron: '곤니찌와', category: 'basic' },
   { id: 'thank_you', kor: '감사합니다', jp: 'ありがとうございます', pron: '아리가또- 고자이마스', category: 'basic' },
   { id: 'sorry', kor: '죄송합니다 / 실례합니다', jp: 'すみません', pron: '스미마센', category: 'basic' },
   { id: 'yes_no', kor: '네 / 아니요', jp: 'はい / いいえ', pron: '하이 / 이이에', category: 'basic' },
-  { id: 'toilet', kor: '화장실은 어디인가요?', jp: 'トイレは도코데스까', pron: '토이레와 도코데스까', category: 'basic' },
+  { id: 'toilet', kor: '화장실은 어디인가요?', jp: 'トイレはどこですか', pron: '토이레와 도코데스까', category: 'basic' },
   { id: 'help', kor: '도와주세요', jp: '助けてください', pron: '타스케떼 쿠다사이', category: 'basic' },
-  { id: 'pic', kor: '사진 좀 찍어주시겠어요?', jp: '写真を撮ってもらえますか', pron: '샤신오 톳떼 모라에마스까', category: 'basic' },
+  { id: 'pic', kor: '사진 좀 찍어주시겠어요?', jp: '写真を撮っても라えますか', pron: '샤신오 톳떼 모라에마스까', category: 'basic' },
+
+  // 식당용 (food)
   { id: 'order', kor: '주문할게요', jp: '注文お願いします', pron: '츄-몬 오네가이시마스', category: 'food' },
   { id: 'water', kor: '물 좀 주세요', jp: 'お水ください', pron: '오미즈 쿠다사이', category: 'food' },
   { id: 'delicious', kor: '맛있어요', jp: 'おいしいです', pron: '오이시-데스', category: 'food' },
   { id: 'bill', kor: '계산해 주세요', jp: 'お会計お願いします', pron: '오카이케이 오네가이시마스', category: 'food' },
   { id: 'no_wasabi', kor: '와사비 빼주세요', jp: 'わさび抜きでお願いします', pron: '와사비누키데 오네가이시마스', category: 'food' },
-  { id: 'how_much', kor: ' 얼마인가요?', jp: 'いくらですか', pron: '이쿠라데스까', category: 'shopping' },
+
+  // 쇼핑용 (shopping)
+  { id: 'how_much', kor: '얼마인가요?', jp: 'いくらですか', pron: '이쿠라데스까', category: 'shopping' },
   { id: 'bag', kor: '봉투 주세요', jp: '袋ください', pron: '후쿠로 쿠다사이', category: 'shopping' },
-  { id: 'card', kor: '카드 되나요?', jp: '카드 츠카에마스카', pron: '카-도 츠카에마스까', category: 'shopping' },
+  { id: 'card', kor: '카드 되나요?', jp: 'カード使えますか', pron: '카-도 츠카에마스까', category: 'shopping' },
   { id: 'tax_free', kor: '면세 되나요?', jp: '免税できますか', pron: '멘제- 데키마스까', category: 'shopping' },
-  { id: 'checkin', kor: '체크인 부탁합니다', jp: 'チェック인 오네가이시마스', pron: '첵쿠인 오네가이시마스', category: 'stay' },
+
+  // 숙소용 (stay)
+  { id: 'checkin', kor: '체크인 부탁합니다', jp: 'チェックインお願いします', pron: '첵쿠인 오네가이시마스', category: 'stay' },
   { id: 'towel', kor: '수건 더 주세요', jp: 'タオル追加でください', pron: '타오루 츠이카데 쿠다사이', category: 'stay' },
   { id: 'luggage', kor: '짐 좀 맡아주실 수 있나요?', jp: '荷物を預かってもらえますか', pron: '니모츠오 아즈캇떼 모라에마스까', category: 'stay' },
 ];
-
-export const okinawaTrip: TripPlan = {
-  id: 'trip-okinawa-default',
-  metadata: {
-    destination: 'Okinawa',
-    title: '오키나와 가족 여행',
-    period: '2026.01.16 - 01.19',
-    startDate: '2026-01-16',
-    endDate: '2026-01-19',
-    useRentalCar: true,
-    primaryColor: '#4facfe'
-  },
-  points: okinawaPoints,
-  defaultFiles: okinawaFiles,
-  speechData: okinawaSpeechData
-};

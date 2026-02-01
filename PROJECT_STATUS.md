@@ -2,7 +2,7 @@
 
 **프로젝트명**: 오키나와 가족 여행 가이드 앱  
 **기간**: 2026.01.16 - 01.19  
-**최종 업데이트**: 2026-02-01 (08:18)
+**최종 업데이트**: 2026-02-01 (21:10)
 
 ---
 
@@ -60,6 +60,19 @@
 - **음성 안내 강화**: 0.9배속 TTS 적용으로 정확한 발음 청취 가능
 - **UI 일관성**: Collapsible UI를 활용한 깔끔한 바텀 시트 레이아웃 유지
 
+### 23. ✅ 범용 여행 엔진 개편 (Universal Architecture - Phase 1)
+- **데이터 구조 표준화**: TripPlan/Metadata 인터페이스 도입
+- **복슬복슬 백업**: 기존 오키나와 전용 코드를 src_backup_okinawa로 보존
+- **동적 로딩 체계**: localStorage 키값을 여행지(destination)별로 분리 관리
+- **코드 리팩토링**: 하드코딩된 오키나와 참조를 전역 trip 상태로 전환
+
+### 24. ✅ Google Maps 마이그레이션 및 마커 안정화 (Map Switch)
+- **엔진 교체**: Leaflet -> Google Maps Platform으로 전면 교체 (기존 Leaflet 관련 이슈 해결)
+- **마커 디자인 고도화**: 파란색 원형 + 흰색 테두리 + 내부 순서 번호 표시 (가독성/심미성 강화)
+- **좌표 보정 시스템**: AI 생성 계획의 잘못된 좌표(0,0)를 기존 관광지 DB (`dynamicAttractions`)를 통해 자동 보정
+- **렌더링 안정성**: 지도 초기화 시점과 마커 추가 시점 간의 경쟁 상태(Race Condition) 해결 (`isMapInstanceReady`)
+- **오류 해결**: `mapId` 권한 문제 해결을 위해 표준 마커 + 커스텀 SVG 로직으로 전환
+
 ---
 
 ## 📝 남은 할 일 (TODO)
@@ -75,12 +88,12 @@
 
 ## 📌 중요 노트
 
-### localStorage 키
-- `okinawa_checklist`: 체크리스트 상태
-- `okinawa_reviews`: 사용자 평점 및 리뷰
-- `okinawa_logs`: 사용자 개인 메모
-- `okinawa_files`: 업로드된 서류 파일 데이터
-- `okinawa_points_order`: 변경된 일정 순서 데이터
+### localStorage 키 (Destination 접미사 사용)
+- `checklist_{Dest}`: 체크리스트 상태
+- `reviews_{Dest}`: 사용자 평점 및 리뷰
+- `logs_{Dest}`: 사용자 개인 메모
+- `files_{Dest}`: 업로드된 서류 파일 데이터
+- `points_order_{Dest}`: 변경된 일정 순서 데이터
 - `theme`: 다크/라이트 모드 설정
 
 ### PWA & 배포
@@ -92,5 +105,5 @@
   1. **Git 백업**: `git add .` -> `git commit -m "..."` -> `git push`
   2. **문서 업데이트**: `PROJECT_STATUS.md`의 '최종 업데이트' 날짜 갱신 및 진행 상황(완료/예정) 현행화
 
-**마지막 작업**: 회화 고도화(상황별 추천 및 TTS), 지도 마커 클릭 시 상세보기 연결 및 팝업 제거, 코드 클린업 
-**다음 작업 예정**: 이미지 최적화 및 추가 콘텐츠 보강
+**마지막 작업**: 범용 여행 엔진 물리 공사 (Phase 1 완료), 데이터 구조 표준화 및 백업 생성
+**다음 작업 예정**: AI 플래너 UI (Setup Wizard) 및 여행지 생성 팝업 구축 (Phase 2)
