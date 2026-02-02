@@ -40,6 +40,7 @@ export interface TripPlan {
     id: string;
     metadata: TripMetadata;
     points: LocationPoint[];
+    days?: { day: number; points: LocationPoint[] }[]; // Added for AI generated structure
     speechData: SpeechItem[];
     defaultFiles: TravelFile[];
 }

@@ -43,7 +43,9 @@ import {
     Car,
     Bus,
     ExternalLink,
-    Hotel
+    Hotel,
+    Edit3,
+    Save
 } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 
@@ -139,6 +141,8 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
     useEffect(() => {
         if (!isMapInstanceReady || !googleMapRef.current || !window.google) return;
 
+        let isMounted = true;
+
         const updateMap = async () => {
             // Filter valid points
             const validPoints = (points || []).filter(p => {
@@ -147,52 +151,68 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
                 return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
             });
 
-            // Clear existing markers
-            markersRef.current.forEach(m => m.setMap(null));
-            markersRef.current = [];
+            // Clear existing markers safely
+            if (markersRef.current) {
+                markersRef.current.forEach(m => {
+                    try { if (m) m.setMap(null); } catch (e) { } // Ignore cleanup errors
+                });
+                markersRef.current = [];
+            }
 
             try {
+                if (!isMounted) return;
+
                 const { Marker } = await window.google.maps.importLibrary("marker") as any;
                 const { LatLngBounds } = await window.google.maps.importLibrary("core") as any;
                 const bounds = new LatLngBounds();
 
+                // Double check before creating markers
+                if (!isMounted || !googleMapRef.current) return;
 
                 validPoints.forEach((p, i) => {
+                    if (!isMounted) return;
+
                     const position = { lat: Number(p.coordinates.lat), lng: Number(p.coordinates.lng) };
                     const isSelected = p.id === selectedPoint?.id;
 
-                    const marker = new Marker({
-                        position,
-                        map: googleMapRef.current,
-                        title: p.name,
-                        label: {
-                            text: (i + 1).toString(),
-                            color: 'white',
-                            fontWeight: 'bold',
-                            fontSize: isSelected ? '16px' : '12px',
-                        },
-                        icon: {
-                            path: window.google.maps.SymbolPath.CIRCLE,
-                            scale: isSelected ? 14 : 10,
-                            fillColor: '#00D4FF',
-                            fillOpacity: 1,
-                            strokeColor: '#ffffff',
-                            strokeWeight: 3,
-                        },
-                        zIndex: isSelected ? 999 : 1,
-                    });
+                    try {
+                        const marker = new Marker({
+                            position,
+                            map: googleMapRef.current,
+                            title: p.name,
+                            label: {
+                                text: (i + 1).toString(),
+                                color: 'white',
+                                fontWeight: 'bold',
+                                fontSize: isSelected ? '16px' : '12px',
+                            },
+                            icon: {
+                                path: window.google.maps.SymbolPath.CIRCLE,
+                                scale: isSelected ? 14 : 10,
+                                fillColor: '#00D4FF',
+                                fillOpacity: 1,
+                                strokeColor: '#ffffff',
+                                strokeWeight: 3,
+                            },
+                            zIndex: isSelected ? 999 : 1,
+                        });
 
-                    marker.addListener('click', () => onPointClick(p));
-                    markersRef.current.push(marker);
-                    bounds.extend(position);
+                        marker.addListener('click', () => {
+                            if (onPointClick) onPointClick(p);
+                        });
+                        markersRef.current.push(marker);
+                        bounds.extend(position);
+                    } catch (markerErr) {
+                        console.warn("Error creating individual marker:", markerErr);
+                    }
                 });
 
-                if (validPoints.length > 0) {
+                if (validPoints.length > 0 && googleMapRef.current) {
                     googleMapRef.current.fitBounds(bounds);
                 }
 
-                // Route Logic (Unchanged)
-                if (validPoints.length >= 2) {
+                // Route Logic based on Google Maps Limits (Max 25 waypoints + Origin + Destination = 27 total)
+                if (validPoints.length >= 2 && validPoints.length <= 25 && directionsRendererRef.current) {
                     const { DirectionsService } = await window.google.maps.importLibrary("routes") as any;
                     const directionsService = new DirectionsService();
                     const origin = { lat: Number(validPoints[0].coordinates.lat), lng: Number(validPoints[0].coordinates.lng) };
@@ -201,28 +221,52 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
                         location: { lat: Number(p.coordinates.lat), lng: Number(p.coordinates.lng) },
                         stopover: true
                     }));
-                    directionsService.route({
-                        origin,
-                        destination,
-                        waypoints,
-                        travelMode: window.google.maps.TravelMode.DRIVING,
-                    }, (result: any, status: string) => {
-                        if (status === 'OK') {
-                            directionsRendererRef.current.setDirections(result);
-                        } else {
-                            directionsRendererRef.current?.setDirections({ routes: [] });
-                        }
-                    });
+
+                    if (isMounted) {
+                        directionsService.route({
+                            origin,
+                            destination,
+                            waypoints,
+                            travelMode: window.google.maps.TravelMode.DRIVING,
+                        }, (result: any, status: string) => {
+                            if (!isMounted) return;
+                            try {
+                                if (status === 'OK' && directionsRendererRef.current) {
+                                    directionsRendererRef.current.setDirections(result);
+                                } else {
+                                    directionsRendererRef.current?.setDirections({ routes: [] });
+                                }
+                            } catch (cbErr) {
+                                console.warn("Directions callback error:", cbErr);
+                            }
+                        });
+                    }
                 } else {
+                    console.log('🗺️ No valid points for route or renderer missing');
                     directionsRendererRef.current?.setDirections({ routes: [] });
                 }
 
             } catch (e) {
-                console.error("Error updating map:", e);
+                console.error("🔥 Error updating map (Critical):", e);
             }
         };
 
         updateMap();
+
+        return () => {
+            isMounted = false;
+            // Cleanup markers on unmount
+            if (markersRef.current) {
+                markersRef.current.forEach(m => {
+                    try { if (m) m.setMap(null); } catch (e) { }
+                });
+                markersRef.current = [];
+            }
+            // Also cleanup directions renderer to prevent glitches
+            if (directionsRendererRef.current) {
+                try { directionsRendererRef.current.setMap(null); } catch (e) { }
+            }
+        };
     }, [points, selectedPoint, onPointClick, isMapLoaded, isMapInstanceReady]);
 
     return (
@@ -316,12 +360,48 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 }
 
 const App: React.FC = () => {
+    // DEBUG: Global Error Handler & Render Log
+    useEffect(() => {
+        const errorHandler = (event: ErrorEvent) => console.error('🔥🔥🔥 GLOBAL ERROR:', event.error);
+        const promiseHandler = (event: PromiseRejectionEvent) => console.error('🔥🔥🔥 UNHANDLED PROMISE:', event.reason);
+        window.addEventListener('error', errorHandler);
+        window.addEventListener('unhandledrejection', promiseHandler);
+        console.log('✅ Global Error Handlers Attached');
+        return () => {
+            window.removeEventListener('error', errorHandler);
+            window.removeEventListener('unhandledrejection', promiseHandler);
+        };
+    }, []);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('trip_draft_v1');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && parsed.data) {
+                    const hasData = (parsed.data.destination || '').trim() !== '' || (parsed.data.title || '').trim() !== '';
+                    if (!hasData && parsed.step === 0) {
+                        localStorage.removeItem('trip_draft_v1');
+                        console.log('🧹 Cleaned up empty draft.');
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Draft cleanup error:", e);
+        }
+    }, []);
+
     // Top Level Navigation State
+    // DEV MODE: Force login state, but start at landing (list view)
     const [view, setView] = useState<'landing' | 'login' | 'signup' | 'app' | 'debug'>('landing');
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [currentUser, setCurrentUser] = useState<{ name: string, homeAddress?: string } | null>(null);
+
+    console.log(`🎨 App Re-render. Current View: ${view}`);
+
+    const [isLoggedIn, setIsLoggedIn] = useState(true);
+    const [currentUser, setCurrentUser] = useState<{ name: string, homeAddress?: string } | null>({ name: 'Tester', homeAddress: '경기도 평택시 서재로 36 자이아파트' });
     const [dynamicAttractions, setDynamicAttractions] = useState<any[]>([]);
     const [isSearchingAttractions, setIsSearchingAttractions] = useState(false);
+    const [attractionCategoryFilter, setAttractionCategoryFilter] = useState<'all' | 'sightseeing' | 'food' | 'cafe'>('all');
 
     // Fetch dynamic attractions using AI with Caching
     const fetchAttractionsWithAI = async (destination: string) => {
@@ -352,27 +432,30 @@ const App: React.FC = () => {
             const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
             const prompt = `
-              Search for top 6 tourist attractions in "${destination}".
-              For each place, provide detailed info including accurate coordinates.
+              Search for top 15 tourist attractions in "${destination}" including popular restaurants and cafes.
               
-              Instructions:
-              1. Return EXACTLY a JSON array of objects.
-              2. Do not include any markdown formatting like \`\`\`json.
-              3. Coordinates MUST be correct for ${destination}.
-              4. Language: Korean.
+              Requirements:
+              Requirements:
+              1. Diversity: Provide a mix of Sightseeing (6), Restaurants (4), Cafes (3), and Activities (2).
+              2. Quality: Select places with high reputation (implicitly 4.0+ rating).
+              3. Context: Strongly consider the companion type ("${plannerData.companion || 'Not specified'}") for recommendations.
+              4. Info: accurate coordinates, estimated rating, and price level.
+              5. Language: Korean.
 
-              Structure:
+              Return EXACTLY a JSON array of objects with this structure (no markdown):
               [{
-                "id": "unique_string",
-                "name": "장소 이름",
-                "desc": "매력적인 짧은 설명",
-                "longDesc": "상세한 장소 설명 (1-2단락)",
-                "history": "역사와 유래",
-                "attractions": ["볼거리 1", "볼거리 2"],
-                "tips": ["여행 팁 1", "여행 팁 2"],
-                "access": "찾아가는 법",
-                "coordinates": {"lat": 12.34, "lng": 123.45},
-                "link": "https://www.google.com/search?q=장소이름"
+                "id": "unique_id",
+                "name": "Place Name",
+                "category": "sightseeing" | "food" | "cafe" | "activity",
+                "desc": "Short attractive description",
+                "longDesc": "Detailed description why it's popular",
+                "rating": 4.5,
+                "reviewCount": 1200,
+                "priceLevel": "Cheap" | "Moderate" | "Expensive",
+                "attractions": ["Highlight 1", "Highlight 2"],
+                "tips": ["Best time to visit", "Signature dish if restaurant"],
+                "coordinates": {"lat": 26.123, "lng": 127.123},
+                "link": "https://www.google.com/search?q=PlaceName"
               }]
             `;
 
@@ -432,7 +515,22 @@ const App: React.FC = () => {
               - Destination Entry Point: ${plannerData.entryPoint}
               - Selected Attractions: ${selectedPlaces.map(p => p.name).join(', ')}
               - Mode of Transport: ${plannerData.transport} (Rental: ${plannerData.useRentalCar})
-              - Preferred Accommodations (Already Booked): ${plannerData.accommodations.length > 0 ? plannerData.accommodations.map(a => `${a.name} (From ${a.startDate} To ${a.endDate})`).join(', ') : 'Not specified'}
+              - Companion: ${plannerData.companion || 'Not specified'} (Adjust pace accordingly)
+              - Travel Pace: ${plannerData.pace} (Important: Respect this setting!)
+               - Preferred Accommodations (Already Booked): ${plannerData.accommodations.length > 0 ? plannerData.accommodations.map((a: any) => `${a.name} (From ${a.startDate} To ${a.endDate})`).join(', ') : 'Not specified'}
+               
+               [USER'S SPECIAL REQUEST]:
+               "${customAiPrompt || 'No special requests. Just optimize the route.'}"
+               (Please prioritized this request above all else if it conflicts with default logic.)
+
+               CRITICAL INSTRUCTION:
+              If the number of "Selected Attractions" is too high for the duration and pace:
+              1. Prioritize MUST-GO places.
+              2. BOLDLY OMIT less important places to fit the schedule.
+              3. Do NOT create an impossible, rushed itinerary.
+              4. You MUST generate a daily itinerary for EVERY SINGLE DAY from ${plannerData.startDate} to ${plannerData.endDate}.
+              5. Example: If the trip is 7 days, the "days" array MUST contain 7 objects (day 1 to day 7). Do not skip any days.
+              6. Even if there are few attractions, fill the schedule with logical activities (e.g., "Relax at hotel", "Shopping", "Beach walk").
 
               Please return ONLY a JSON object exactly matching this structure (no other text):
               {
@@ -473,8 +571,9 @@ const App: React.FC = () => {
                         if (dayObj.points && Array.isArray(dayObj.points)) {
                             dayObj.points.forEach((p: any) => {
                                 // Try to find better coordinates from known attractions if available
-                                const knownAttraction = dynamicAttractions.find(a => a.id === p.id || a.name === p.name);
+                                const knownAttraction = dynamicAttractions.find((a: any) => a.id === p.id || a.name === p.name);
                                 const validCoords = knownAttraction?.coordinates || p.coordinates || { lat: 0, lng: 0 };
+
 
                                 flattenedPoints.push({
                                     ...p,
@@ -497,7 +596,7 @@ const App: React.FC = () => {
                     metadata: {
                         ...okinawaTrip.metadata,
                         destination: plannerData.destination,
-                        title: planData.title || `${plannerData.destination} 맞춤 여행`,
+                        title: plannerData.title || planData.title || `${plannerData.destination} 맞춤 여행`,
                         period: planData.period || `${plannerData.startDate} ~ ${plannerData.endDate}`,
                         startDate: plannerData.startDate,
                         endDate: plannerData.endDate,
@@ -545,29 +644,90 @@ const App: React.FC = () => {
     const [weatherIndex, setWeatherIndex] = useState(0);
     const [selectedWeatherLocation, setSelectedWeatherLocation] = useState<LocationPoint | null>(null);
     const [expandedSection, setExpandedSection] = useState<'review' | 'log' | 'localSpeech' | null>(null);
-    const [trip, setTrip] = useState<TripPlan>(okinawaTrip);
+    const [trip, setTrip] = useState<TripPlan>(okinawaTrip); // Default to okinawaTrip for types, but logic handles view switching
+
+    // Toast Notification State
+    const [toast, setToast] = useState<{ message: string, visible: boolean }>({ message: '', visible: false });
+    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+    const [customAiPrompt, setCustomAiPrompt] = useState('');
+    const [lastUpdate, setLastUpdate] = useState(Date.now());
+
+    const showToast = (message: string) => {
+        setToast({ message, visible: true });
+        setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2000);
+    };
 
     // Planning State
-    const [isPlanning, setIsPlanning] = useState(false);
-    const [plannerStep, setPlannerStep] = useState(0);
-    const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
-    const [activePlannerDetail, setActivePlannerDetail] = useState<any | null>(null);
-    const [plannerData, setPlannerData] = useState({
-        destination: '',
-        startDate: '',
-        endDate: '',
-        arrivalTime: '10:00',
-        departureTime: '18:00',
-        departurePoint: '', // 출발지 (집)
-        entryPoint: '',
-        travelMode: 'plane', // plane, ship, car
-        useRentalCar: false,
-        companion: '',
-        transport: 'rental',
-        accommodations: [] as { name: string, startDate: string, endDate: string }[], // 등록된 숙소 리스트
-        theme: '',
-        pace: 'normal', // relaxed, normal, busy
+    // Planning State - With Draft Restoration
+    const [isPlanning, setIsPlanning] = useState(() => {
+        // Always start at landing, even if draft exists
+        return false;
     });
+
+    const [plannerStep, setPlannerStep] = useState(() => {
+        const saved = localStorage.getItem('trip_draft_v1');
+        return saved ? JSON.parse(saved).step : 0;
+    });
+
+    const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>(() => {
+        const saved = localStorage.getItem('trip_draft_v1');
+        return saved ? JSON.parse(saved).selectedIds : [];
+    });
+
+    const [activePlannerDetail, setActivePlannerDetail] = useState<any | null>(null);
+
+    const [plannerData, setPlannerData] = useState(() => {
+        const saved = localStorage.getItem('trip_draft_v1');
+        const defaultData = {
+            title: '',
+            destination: '',
+            startDate: '',
+            endDate: '',
+            arrivalTime: '10:00',
+            departureTime: '18:00',
+            departurePoint: '',
+            entryPoint: '',
+            travelMode: 'plane',
+            useRentalCar: false,
+            companion: '',
+            transport: 'rental',
+            accommodations: [] as { name: string, startDate: string, endDate: string }[],
+            theme: '',
+            pace: 'normal',
+        };
+        return saved ? { ...defaultData, ...JSON.parse(saved).data } : defaultData;
+    });
+
+    // Restore dynamic attractions if available in draft
+    useEffect(() => {
+        const saved = localStorage.getItem('trip_draft_v1');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.attractions && parsed.attractions.length > 0) {
+                setDynamicAttractions(parsed.attractions);
+            }
+        }
+    }, []);
+
+    // Auto-Save Draft Effect
+    useEffect(() => {
+        if (isPlanning) {
+            // Only save if there's some data or we've moved past step 0
+            const hasData = plannerData.destination.trim() !== '' || (plannerData as any).title?.trim() !== '';
+            if (!hasData && plannerStep === 0) return;
+
+            const draft = {
+                step: plannerStep,
+                data: plannerData,
+                selectedIds: selectedPlaceIds,
+                attractions: dynamicAttractions
+            };
+            localStorage.setItem('trip_draft_v1', JSON.stringify(draft));
+        }
+    }, [isPlanning, plannerStep, plannerData, selectedPlaceIds, dynamicAttractions]);
+
+
+
 
     // Saved Points Order State
     const [allPoints, setAllPoints] = useState<LocationPoint[]>(() => {
@@ -678,6 +838,18 @@ const App: React.FC = () => {
         e?.stopPropagation();
         if (window.confirm('정말 이 파일을 삭제하시겠습니까?')) {
             setCustomFiles(prev => prev.filter(f => f.id !== id));
+        }
+    };
+
+    const deleteTrip = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (id === 'okinawa' || id === okinawaTrip.id) {
+            alert('기본 오키나와 가이드는 삭제할 수 없습니다.');
+            return;
+        }
+        if (window.confirm('정말 이 여행 계획을 삭제하시겠습니까?')) {
+            setTrips(prev => prev.filter(t => t.id !== id));
+            showToast('여행 계획이 삭제되었습니다.');
         }
     };
 
@@ -920,8 +1092,9 @@ const App: React.FC = () => {
                 Debug: App Rendered
             </div>
             <div className="app">
-                <AnimatePresence mode="wait">
-                    {view === 'landing' && (
+                {/* AnimatePresence removed to fix black screen crash */}
+                <>
+                    {view === 'landing' && !isPlanning && (
                         <motion.div
                             key="landing"
                             initial={{ opacity: 0 }}
@@ -932,7 +1105,9 @@ const App: React.FC = () => {
                                 display: 'flex',
                                 flexDirection: 'column',
                                 padding: '30px',
-                                background: 'radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)'
+                                background: 'radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)',
+                                zIndex: 999999,
+                                position: 'relative'
                             }}
                         >
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
@@ -969,12 +1144,30 @@ const App: React.FC = () => {
                                             <div style={{ display: 'flex', gap: 10 }}>
                                                 <button
                                                     onClick={() => {
+                                                        // Always start fresh new trip
+                                                        localStorage.removeItem('trip_draft_v1');
+
                                                         setIsPlanning(true);
                                                         setPlannerStep(0);
                                                         setPlannerData({
-                                                            ...plannerData,
-                                                            departurePoint: currentUser?.homeAddress || ''
+                                                            title: '',
+                                                            destination: '',
+                                                            startDate: '',
+                                                            endDate: '',
+                                                            arrivalTime: '10:00',
+                                                            departureTime: '18:00',
+                                                            departurePoint: currentUser?.homeAddress || '',
+                                                            entryPoint: '',
+                                                            travelMode: 'plane',
+                                                            useRentalCar: false,
+                                                            companion: '',
+                                                            transport: 'rental',
+                                                            accommodations: [],
+                                                            theme: '',
+                                                            pace: 'normal',
                                                         });
+                                                        setSelectedPlaceIds([]);
+                                                        setDynamicAttractions([]);
                                                     }}
                                                     style={{ background: 'var(--primary)', border: 'none', borderRadius: '12px', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 6, color: 'black', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,212,255,0.3)' }}
                                                 >
@@ -996,6 +1189,58 @@ const App: React.FC = () => {
                                         </div>
                                         {/* Trip List with Grouping */}
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto', paddingRight: '4px', flex: 1, textAlign: 'left' }}>
+
+                                            {/* Draft Section */}
+                                            {localStorage.getItem('trip_draft_v1') && (() => {
+                                                const draft = JSON.parse(localStorage.getItem('trip_draft_v1')!);
+                                                const dest = draft.data.destination || '여행지 미정';
+                                                const step = draft.step || 0;
+                                                return (
+                                                    <div>
+                                                        <div style={{ padding: '0 8px 12px', fontSize: '12px', fontWeight: 900, color: '#f59e0b', letterSpacing: '2px', opacity: 0.8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                            <div style={{ height: 1, flex: 1, background: 'linear-gradient(to right, rgba(245,158,11,0.5), transparent)' }} />
+                                                            작성 중인 여행
+                                                            <div style={{ height: 1, flex: 1, background: 'linear-gradient(to left, rgba(245,158,11,0.5), transparent)' }} />
+                                                        </div>
+                                                        <motion.div
+                                                            whileTap={{ scale: 0.98 }}
+                                                            className="glass-card"
+                                                            style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer', position: 'relative' }}
+                                                            onClick={() => {
+                                                                // Resume Draft
+                                                                setIsPlanning(true);
+                                                                setPlannerStep(step);
+                                                                setPlannerData(draft.data);
+                                                                setSelectedPlaceIds(draft.selectedIds);
+                                                                if (draft.attractions) setDynamicAttractions(draft.attractions);
+                                                            }}
+                                                        >
+                                                            <div style={{ width: 50, height: 50, borderRadius: '12px', background: 'rgba(245,158,11,0.2)', border: '1px solid rgba(245,158,11,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
+                                                                <Edit3 size={24} />
+                                                            </div>
+                                                            <div style={{ flex: 1, textAlign: 'left' }}>
+                                                                <div style={{ fontWeight: 800, fontSize: '16px', color: 'white' }}>{dest} <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>작성 중...</span></div>
+                                                                <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 2 }}>
+                                                                    Step {step + 1} 진행 중
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (window.confirm('작성 중인 내용을 삭제하시겠습니까?')) {
+                                                                        localStorage.removeItem('trip_draft_v1');
+                                                                        showToast('작성 중인 내용이 삭제되었습니다.');
+                                                                        setLastUpdate(Date.now());
+                                                                    }
+                                                                }}
+                                                                style={{ padding: 8, background: 'rgba(0,0,0,0.3)', borderRadius: '50%', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                                                            >
+                                                                <X size={16} />
+                                                            </button>
+                                                        </motion.div>
+                                                    </div>
+                                                );
+                                            })()}
                                             {(() => {
                                                 const groups: Record<string, { title: string, items: any[] }> = {};
                                                 const groupKeys: string[] = [];
@@ -1071,9 +1316,17 @@ const App: React.FC = () => {
                                                                             <div style={{ fontWeight: 800, fontSize: '16px', color: 'white' }}>{displayTitle}</div>
                                                                             <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: 2 }}>{displayPeriod}</div>
                                                                         </div>
-                                                                        <div style={{ textAlign: 'right' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                                            <div style={{ textAlign: 'right' }}>
                                                                             <div style={{ fontSize: '14px', fontWeight: 800, color: displayColor }}>{tripItem.progress}%</div>
                                                                             <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>달성도</div>
+                                                                        </div>
+                                                                            <button
+                                                                                onClick={(e) => deleteTrip(tripItem.id, e)}
+                                                                                style={{ padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '50%', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer' }}
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
                                                                         </div>
                                                                     </motion.div>
                                                                 );
@@ -1191,24 +1444,40 @@ const App: React.FC = () => {
                         >
                             <nav className="nav-tabs">
                                 <button
-                                    onClick={() => setView('landing')}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        console.log('🔄 Main Nav X Clicked. Returning to landing...');
+                                        setSelectedPoint(null);
+                                        setActivePlannerDetail(null);
+                                        // Force clear any pending map states
+                                        // Small delay to allow map cleanup
+                                        setTimeout(() => {
+                                            console.log('⏰ Timeout Executed. Calling setView("landing")...');
+                                            try {
+                                                setView('landing');
+                                                console.log('✅ setView("landing") called successfully.');
+                                            } catch (err) {
+                                                console.error('❌ Error during setView:', err);
+                                            }
+                                        }, 50);
+                                    }}
                                     style={{ padding: '8px', background: 'transparent', border: 'none', color: 'var(--text-primary)', marginRight: '8px' }}
                                 >
                                     <X size={20} />
                                 </button>
-                                <button className={`tab ${activeTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveTab('summary')}>
+                                <button className={`tab ${activeTab === 'summary' ? 'active' : ''}`} onClick={() => { setSelectedPoint(null); setActivePlannerDetail(null); setActiveTab('summary'); }}>
                                     <LayoutDashboard size={18} /> <span style={{ marginLeft: '4px' }}>개요</span>
                                 </button>
-                                <button className={`tab ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>
+                                <button className={`tab ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setSelectedPoint(null); setActivePlannerDetail(null); setActiveTab('schedule'); }}>
                                     <Calendar size={18} /> <span style={{ marginLeft: '4px' }}>일정</span>
                                 </button>
-                                <button className={`tab ${activeTab === 'files' ? 'active' : ''}`} onClick={() => setActiveTab('files')}>
+                                <button className={`tab ${activeTab === 'files' ? 'active' : ''}`} onClick={() => { setSelectedPoint(null); setActivePlannerDetail(null); setActiveTab('files'); }}>
                                     <FileText size={18} /> <span style={{ marginLeft: '4px' }}>서류</span>
                                 </button>
-                                <button className={`tab ${activeTab === 'exchange' ? 'active' : ''}`} onClick={() => setActiveTab('exchange')}>
+                                <button className={`tab ${activeTab === 'exchange' ? 'active' : ''}`} onClick={() => { setSelectedPoint(null); setActivePlannerDetail(null); setActiveTab('exchange'); }}>
                                     <RefreshCw size={18} /> <span style={{ marginLeft: '4px' }}>환율</span>
                                 </button>
-                                <button className={`tab ${activeTab === 'speech' ? 'active' : ''}`} onClick={() => setActiveTab('speech')}>
+                                <button className={`tab ${activeTab === 'speech' ? 'active' : ''}`} onClick={() => { setSelectedPoint(null); setActivePlannerDetail(null); setActiveTab('speech'); }}>
                                     <MessageCircle size={18} /> <span style={{ marginLeft: '4px' }}>회화</span>
                                 </button>
                                 <button className="tab" onClick={toggleTheme} style={{ marginLeft: 'auto', padding: '6px 10px', minWidth: 'auto' }}>
@@ -1463,26 +1732,113 @@ const App: React.FC = () => {
                                             </div>
                                         </section>
 
-                                        <div className="day-tabs" style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
-                                            {[1, 2, 3].map(d => (
-                                                <button
-                                                    key={d}
-                                                    onClick={() => setScheduleDay(d)}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '8px 16px',
-                                                        borderRadius: '20px',
-                                                        border: '1px solid var(--glass-border)',
-                                                        background: scheduleDay === d ? 'var(--primary)' : 'var(--tab-inactive)',
-                                                        color: scheduleDay === d ? 'var(--text-on-primary)' : 'var(--text-secondary)',
-                                                        fontWeight: 600,
-                                                        cursor: 'pointer',
-                                                        whiteSpace: 'nowrap'
-                                                    }}
-                                                >
-                                                    {d}일차
-                                                </button>
-                                            ))}
+
+
+                                        <div
+                                            className="day-tabs"
+                                            ref={(el) => {
+                                                if (!el) return;
+                                                // Draggable Scroll Logic
+                                                let isDown = false;
+                                                let startX: number;
+                                                let scrollLeft: number;
+
+                                                el.onmousedown = (e) => {
+                                                    isDown = true;
+                                                    el.style.cursor = 'grabbing';
+                                                    startX = e.pageX - el.offsetLeft;
+                                                    scrollLeft = el.scrollLeft;
+                                                };
+                                                el.onmouseleave = () => {
+                                                    isDown = false;
+                                                    el.style.cursor = 'grab';
+                                                };
+                                                el.onmouseup = () => {
+                                                    isDown = false;
+                                                    el.style.cursor = 'grab';
+                                                };
+                                                el.onmousemove = (e) => {
+                                                    if (!isDown) return;
+                                                    e.preventDefault();
+                                                    const x = e.pageX - el.offsetLeft;
+                                                    const walk = (x - startX) * 2; // Scroll-fast
+                                                    el.scrollLeft = scrollLeft - walk;
+                                                };
+                                            }}
+                                            style={{
+                                                display: 'flex',
+                                                gap: '8px',
+                                                marginBottom: '16px',
+                                                overflowX: 'auto',
+                                                paddingBottom: '8px',
+                                                paddingRight: '40px', /* Ensure last tab is visible */
+                                                whiteSpace: 'nowrap',
+                                                cursor: 'grab',
+                                                userSelect: 'none'
+                                            }}>
+                                            {(() => {
+                                                // Dynamic Tab Generation: Priority to Actual Data
+                                                let dayCount = 0;
+
+                                                if (trip.days && trip.days.length > 0) {
+                                                    // Trust generated days but trim trailing empty days
+                                                    let maxDay = trip.days.length;
+                                                    for (let i = trip.days.length - 1; i >= 0; i--) {
+                                                        const d = trip.days[i];
+                                                        if (!d.points || d.points.length === 0) maxDay--;
+                                                        else break;
+                                                    }
+                                                    dayCount = Math.max(maxDay, 1);
+                                                } else if (trip.points && trip.points.length > 0) {
+                                                    // Fallback 1: Calculate from flat points array
+                                                    const maxPointDay = trip.points.reduce((max, p) => (p.day > max ? p.day : max), 0);
+                                                    dayCount = Math.max(maxPointDay, 1);
+                                                } else {
+                                                    // Fallback 2: Pure Date Calculation
+                                                    const start = new Date(trip.metadata?.startDate || plannerData.startDate);
+                                                    const end = new Date(trip.metadata?.endDate || plannerData.endDate);
+                                                    if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                                                        const diffTime = end.getTime() - start.getTime();
+                                                        // Accurate day count
+                                                        dayCount = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                                    }
+                                                }
+
+                                                // Safety clamp: Minimum 1 day
+                                                if (dayCount < 1) dayCount = 1;
+
+                                                return Array.from({ length: dayCount }, (_, i) => i + 1).map(d => (
+
+                                                    <button
+                                                        key={d}
+                                                        onClick={() => {
+                                                            // 1. Close details immediately to prevent state conflict
+                                                            setSelectedPoint(null);
+                                                            setActivePlannerDetail(null); // Close guide detail as well
+                                                            setWeatherIndex(0);
+
+                                                            // 2. Defer day change to ensure UI is clean before re-rendering map
+                                                            setTimeout(() => {
+                                                                setScheduleDay(d);
+                                                            }, 0);
+                                                        }}
+                                                        style={{
+                                                            minWidth: '60px', /* Ensure clickable area */
+                                                            flex: '0 0 auto', /* Prevent shrinking */
+                                                            padding: '10px 20px',
+                                                            borderRadius: '24px',
+                                                            border: '1px solid var(--glass-border)',
+                                                            background: scheduleDay === d ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                                                            color: scheduleDay === d ? 'black' : 'var(--text-secondary)',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        {d}일차
+                                                    </button>
+                                                ));
+                                            })()}
                                         </div>
 
                                         {/* 숙소 정보 섹션 */}
@@ -1534,51 +1890,63 @@ const App: React.FC = () => {
                                         {/* Map - 지도 보기일 때만 렌더링 */}
                                         {scheduleViewMode === 'map' && (
                                             <div style={{ height: '350px', width: '100%', flexShrink: 0, borderRadius: '16px', overflow: 'hidden' }}>
-                                                <MapComponent points={getPoints()} selectedPoint={selectedPoint} onPointClick={(p) => { setSelectedPoint(p); setSelectedWeatherLocation(p); }} />
+                                                {/* 날짜 변경 시 지도를 완전히 새로 그리기 위해 key prop 사용 - ErrorBoundary 추가 */}
+                                                <ErrorBoundary>
+                                                    <MapComponent
+                                                        // key prop REMOVED to prevent unmounting and crashing Google Maps
+                                                        points={getPoints()}
+                                                        selectedPoint={selectedPoint}
+                                                        onPointClick={(p) => { setSelectedPoint(p); setSelectedWeatherLocation(p); }}
+                                                    />
+                                                </ErrorBoundary>
                                             </div>
                                         )}
 
                                         {/* List - 목록 보기일 때만 표시 */}
-                                        <Reorder.Group
-                                            axis="y"
-                                            values={getPoints()}
-                                            onReorder={handleReorder}
-                                            style={{ display: scheduleViewMode === 'list' ? 'block' : 'none', padding: 0, margin: 0, listStyle: 'none' }}
-                                        >
-                                            {getPoints().map(p => {
-                                                const isDone = !!completedItems[p.id];
-                                                return (
-                                                    <Reorder.Item
-                                                        key={p.id}
-                                                        value={p}
-                                                        style={{ marginBottom: 12 }}
-                                                        onDragStart={() => { isDraggingRef.current = true; }}
-                                                        onDragEnd={() => { setTimeout(() => { isDraggingRef.current = false; }, 100); }}
-                                                    >
-                                                        <div
-                                                            className="glass-card"
-                                                            onClick={() => {
-                                                                if (isDraggingRef.current) return;
-                                                                setSelectedPoint(p);
-                                                                setSelectedWeatherLocation(p);
-                                                            }}
-                                                            style={{ display: 'flex', alignItems: 'center', opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s', cursor: 'grab', userSelect: 'none' }}
-                                                        >
-                                                            <div style={{ flex: 1 }}>
-                                                                <div style={{ fontWeight: 700, color: 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none' }}>{p.name}</div>
-                                                                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.category.toUpperCase()}</div>
-                                                            </div>
-                                                            <button
-                                                                onClick={(e) => toggleComplete(p.id, e)}
-                                                                style={{ background: 'transparent', border: 'none', color: isDone ? 'var(--primary)' : 'var(--text-secondary)', cursor: 'pointer', padding: 5 }}
+                                        {scheduleViewMode === 'list' && (
+                                            <ErrorBoundary>
+                                                <Reorder.Group
+                                                    axis="y"
+                                                    values={getPoints()}
+                                                    onReorder={handleReorder}
+                                                    style={{ padding: 0, margin: 0, listStyle: 'none' }}
+                                                >
+                                                    {getPoints().map(p => {
+                                                        const isDone = !!completedItems[p.id];
+                                                        return (
+                                                            <Reorder.Item
+                                                                key={p.id}
+                                                                value={p}
+                                                                style={{ marginBottom: 12 }}
+                                                                onDragStart={() => { isDraggingRef.current = true; }}
+                                                                onDragEnd={() => { setTimeout(() => { isDraggingRef.current = false; }, 100); }}
                                                             >
-                                                                {isDone ? <CheckCircle size={24} /> : <Circle size={24} />}
-                                                            </button>
-                                                        </div>
-                                                    </Reorder.Item>
-                                                );
-                                            })}
-                                        </Reorder.Group>
+                                                                <div
+                                                                    className="glass-card"
+                                                                    onClick={() => {
+                                                                        if (isDraggingRef.current) return;
+                                                                        setSelectedPoint(p);
+                                                                        setSelectedWeatherLocation(p);
+                                                                    }}
+                                                                    style={{ display: 'flex', alignItems: 'center', opacity: isDone ? 0.6 : 1, transition: 'opacity 0.2s', cursor: 'grab', userSelect: 'none' }}
+                                                                >
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <div style={{ fontWeight: 700, color: 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none' }}>{p.name}</div>
+                                                                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.category.toUpperCase()}</div>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => toggleComplete(p.id, e)}
+                                                                        style={{ background: 'transparent', border: 'none', color: isDone ? 'var(--primary)' : 'var(--text-secondary)', cursor: 'pointer', padding: 5 }}
+                                                                    >
+                                                                        {isDone ? <CheckCircle size={24} /> : <Circle size={24} />}
+                                                                    </button>
+                                                                </div>
+                                                            </Reorder.Item>
+                                                        );
+                                                    })}
+                                                </Reorder.Group>
+                                            </ErrorBoundary>
+                                        )}
                                     </div>
                                 )}
 
@@ -1734,7 +2102,12 @@ const App: React.FC = () => {
                                         >
                                             {/* Close Button */}
                                             <button
-                                                onClick={() => setSelectedPoint(null)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    console.log('❌ X Button Clicked! Closing details...');
+                                                    console.log('Current selectedPoint:', selectedPoint);
+                                                    setSelectedPoint(null);
+                                                }}
                                                 style={{
                                                     position: 'absolute',
                                                     top: 16,
@@ -2010,9 +2383,10 @@ const App: React.FC = () => {
                                         </motion.div>
                                     </>
                                 )}
-                            </AnimatePresence>                        </motion.div>
+                            </AnimatePresence>
+                        </motion.div>
                     )}
-                </AnimatePresence>
+                </>
 
 
                 {/* Planning Wizard Overlay */}
@@ -2023,7 +2397,7 @@ const App: React.FC = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.98)', backdropFilter: 'blur(30px)', zIndex: 99999, display: 'flex', flexDirection: 'column', color: 'white' }}
+                            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.98)', backdropFilter: 'blur(30px)', zIndex: 5000000, display: 'flex', flexDirection: 'column', color: 'white' }}
                         >
                             <div style={{ padding: '20px', display: 'flex', justifyContent: 'flex-end' }}>
                                 <button onClick={() => setIsPlanning(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', cursor: 'pointer', padding: '12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={24} /></button>
@@ -2039,6 +2413,8 @@ const App: React.FC = () => {
                                             <h1 style={{ fontSize: '36px', fontWeight: 900, marginBottom: '16px' }}>프리미엄 AI 여행 설계</h1>
                                             <p style={{ opacity: 0.7, marginBottom: '48px', lineHeight: 1.6, fontSize: '19px' }}>당신의 취향을 분석하여 최적의 경로를 제안합니다.</p>
                                             <button onClick={() => setPlannerStep(1)} className="primary-button" style={{ padding: '20px 48px', fontSize: '20px', borderRadius: '40px', display: 'flex', alignItems: 'center', gap: 12, margin: '0 auto' }}>설계 시작하기 <ArrowRight size={22} /></button>
+
+                                            <button onClick={() => setIsPlanning(false)} style={{ marginTop: "24px", padding: "16px 32px", borderRadius: "30px", border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.5)", fontWeight: 600, cursor: "pointer", fontSize: "16px", margin: "0 auto", display: "flex", alignItems: "center" }}>취소하고 돌아가기</button>
                                         </motion.div>
                                     )}
 
@@ -2055,6 +2431,18 @@ const App: React.FC = () => {
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '24px', textAlign: 'left' }}>
                                                 {/* Destination & Info */}
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                                    {/* Title Input */}
+                                                    <div className="glass-card" style={{ padding: '20px' }}>
+                                                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)', opacity: 0.8 }}>여행 제목</label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="예: 우리가족 오사카 3박4일"
+                                                            value={(plannerData as any).title || ''}
+                                                            onChange={(e) => setPlannerData({ ...plannerData, title: e.target.value } as any)}
+                                                            style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '16px' }}
+                                                        />
+                                                    </div>
+
                                                     <div className="glass-card" style={{ padding: '20px' }}>
                                                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)', opacity: 0.8 }}>여행 목적지</label>
                                                         <div style={{ position: 'relative' }}>
@@ -2168,11 +2556,13 @@ const App: React.FC = () => {
                                             >
                                                 다음 단계로 (이동수단 선택)
                                             </button>
+
+                                            <button onClick={() => setIsPlanning(false)} style={{ width: '100%', marginTop: '12px', padding: '16px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontWeight: 600, fontSize: '15px', cursor: 'pointer' }}>취소하고 돌아가기</button>
                                         </motion.div>
                                     )}
 
                                     {plannerStep === 2 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '600px' }}>
+                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '700px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '40px', justifyContent: 'center' }}>
                                                 {[1, 2, 3, 4, 5, 6, 7].map(i => (
                                                     <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 2 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 2 ? 0.3 : 1 }} />
@@ -2180,87 +2570,150 @@ const App: React.FC = () => {
                                             </div>
                                             <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '30px', textAlign: 'center' }}>어떻게 오시나요?</h2>
 
-                                            <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
-                                                {[{ id: 'plane', label: '비행기', icon: <Compass size={24} /> }, { id: 'ship', label: '배', icon: <Wind size={24} /> }].map(item => (
-                                                    <button key={item.id} onClick={() => setPlannerData({ ...plannerData, travelMode: item.id as any })} style={{ flex: 1, padding: '20px', borderRadius: '16px', border: plannerData.travelMode === item.id ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)', background: plannerData.travelMode === item.id ? 'rgba(0,212,255,0.1)' : 'rgba(255,255,255,0.03)', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>{item.icon}<span style={{ fontWeight: 700 }}>{item.label}</span></button>
+                                            {/* Transport Buttons Grid */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '30px' }}>
+                                                {[
+                                                    { id: 'plane', label: '비행기', icon: <Compass size={24} /> },
+                                                    { id: 'ship', label: '배', icon: <Wind size={24} /> },
+                                                    { id: 'car', label: '자차', icon: <Car size={24} /> },
+                                                    { id: 'public', label: '대중교통', icon: <Bus size={24} /> }
+                                                ].map(item => (
+                                                    <button
+                                                        key={item.id}
+                                                        onClick={() => {
+                                                            const isCar = item.id === 'car';
+                                                            setPlannerData({
+                                                                ...plannerData,
+                                                                travelMode: item.id as any,
+                                                                // If switching to car, auto-fill entry point to 'Driving'
+                                                                entryPoint: isCar ? 'Direct Driving' : '',
+                                                                // Auto-fill departure from user profile if car and empty
+                                                                departurePoint: (isCar && !plannerData.departurePoint && currentUser?.homeAddress)
+                                                                    ? currentUser.homeAddress
+                                                                    : plannerData.departurePoint
+                                                            });
+                                                        }}
+                                                        style={{
+                                                            padding: '16px', borderRadius: '16px',
+                                                            border: plannerData.travelMode === item.id ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+                                                            background: plannerData.travelMode === item.id ? 'rgba(0,212,255,0.1)' : 'rgba(255,255,255,0.03)',
+                                                            color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer', transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        {item.icon}
+                                                        <span style={{ fontWeight: 700, fontSize: '13px' }}>{item.label}</span>
+                                                    </button>
                                                 ))}
                                             </div>
-                                            <div style={{ textAlign: 'left', marginBottom: '30px', padding: '24px', background: 'rgba(0,212,255,0.05)', borderRadius: '20px', border: '1px solid rgba(0,212,255,0.1)' }}>
-                                                <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: 700, color: 'var(--primary)' }}>출발 장소 (집 또는 현재 위치)</label>
-                                                <div style={{ position: 'relative' }}>
-                                                    <button
+
+                                            {/* Dynamic Form Area */}
+                                            <div style={{ textAlign: 'left', marginBottom: '30px', padding: '24px', background: 'rgba(255,255,255,0.03)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                {/* Ticket Upload Simulation (Except Car) */}
+                                                {plannerData.travelMode !== 'car' && (
+                                                    <div
                                                         onClick={() => {
-                                                            if (plannerData.departurePoint) {
-                                                                window.open(`https://www.google.com/maps/search/${encodeURIComponent(plannerData.departurePoint)}`, '_blank');
-                                                            } else {
-                                                                alert('출발지를 먼저 입력해 주세요.');
+                                                            // Mocking Auto-fill
+                                                            const mockData: any = {
+                                                                plane: { departure: '인천국제공항', arrival: '나하 공항' },
+                                                                ship: { departure: '부산항 국제여객터미널', arrival: '오사카 국제페리터미널' },
+                                                                public: { departure: '서울역', arrival: '부산역' }
+                                                            };
+                                                            const data = mockData[plannerData.travelMode as string];
+                                                            if (data) {
+                                                                if (confirm(`'티켓_예매내역.pdf'를 업로드 하시겠습니까?\n(자동으로 정보를 입력합니다)`)) {
+                                                                    setPlannerData({
+                                                                        ...plannerData,
+                                                                        departurePoint: data.departure,
+                                                                        entryPoint: data.arrival
+                                                                    });
+                                                                }
                                                             }
                                                         }}
-                                                        style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,212,255,0.1)', border: 'none', borderRadius: '8px', padding: '8px', color: 'var(--primary)', cursor: 'pointer', zIndex: 2, display: 'flex', alignItems: 'center' }}
+                                                        style={{
+                                                            width: '100%', padding: '20px', border: '2px dashed rgba(255,255,255,0.2)', borderRadius: '16px',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer', marginBottom: '25px',
+                                                            background: 'rgba(255,255,255,0.02)'
+                                                        }}
                                                     >
-                                                        <User size={18} />
-                                                    </button>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="예: 서울특별시 강남구..."
-                                                        value={plannerData.departurePoint}
-                                                        onChange={(e) => setPlannerData({ ...plannerData, departurePoint: e.target.value })}
-                                                        style={{ width: '100%', padding: '18px 18px 18px 55px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: 'white', fontSize: '16px' }}
-                                                    />
+                                                        <Upload size={20} color="var(--primary)" />
+                                                        <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                                                            {plannerData.travelMode === 'plane' ? 'e-티켓/항공권 업로드' : plannerData.travelMode === 'ship' ? '승선권 업로드' : '승차권/예매내역 업로드'}
+                                                        </span>
+                                                        <span style={{ fontSize: '12px', opacity: 0.5 }}>(자동 입력)</span>
+                                                    </div>
+                                                )}
+
+                                                <div style={{ display: 'grid', gap: '20px' }}>
+                                                    {/* Field 1: Departure */}
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>
+                                                            {plannerData.travelMode === 'plane' ? '출발 공항' :
+                                                                plannerData.travelMode === 'ship' ? '출발 항구' :
+                                                                    plannerData.travelMode === 'car' ? '출발지 (집 주소)' : '출발 터미널/역'}
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder={
+                                                                plannerData.travelMode === 'plane' ? "예: 인천공항, 김포공항" :
+                                                                    plannerData.travelMode === 'ship' ? "예: 부산항" :
+                                                                        plannerData.travelMode === 'car' ? "예: 서울시 강남구..." : "예: 서울역, 고속버스터미널"
+                                                            }
+                                                            value={plannerData.departurePoint}
+                                                            onChange={(e) => setPlannerData({ ...plannerData, departurePoint: e.target.value })}
+                                                            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '15px' }}
+                                                        />
+                                                    </div>
+
+                                                    {/* Field 2: Arrival (Hidden for Car) */}
+                                                    {plannerData.travelMode !== 'car' && (
+                                                        <div>
+                                                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>
+                                                                {plannerData.travelMode === 'plane' ? '도착 공항' :
+                                                                    plannerData.travelMode === 'ship' ? '도착 항구' : '도착 터미널/역'}
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder={
+                                                                    plannerData.travelMode === 'plane' ? "예: 나하 공항, 간사이 공항" :
+                                                                        plannerData.travelMode === 'ship' ? "예: 오오사카항" : "예: 강릉역, 속초터미널"
+                                                                }
+                                                                value={plannerData.entryPoint === 'Direct Driving' ? '' : plannerData.entryPoint}
+                                                                onChange={(e) => setPlannerData({ ...plannerData, entryPoint: e.target.value })}
+                                                                style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '15px' }}
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <p style={{ marginTop: '8px', fontSize: '12px', opacity: 0.5 }}>* 이 주소를 기준으로 공항 이동 시간을 계산합니다.</p>
                                             </div>
 
-                                            <div style={{ textAlign: 'left', marginBottom: '40px' }}>
-                                                <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: 700, color: 'var(--primary)' }}>도착 장소 (공항 또는 항구 이름)</label>
-                                                <div style={{ position: 'relative' }}>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (plannerData.entryPoint) {
-                                                                window.open(`https://www.google.com/maps/search/${encodeURIComponent(plannerData.entryPoint)}`, '_blank');
-                                                            } else {
-                                                                alert('도착 장소(공항 등)를 먼저 입력해 주세요.');
-                                                            }
-                                                        }}
-                                                        style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,212,255,0.1)', border: 'none', borderRadius: '8px', padding: '8px', color: 'var(--primary)', cursor: 'pointer', zIndex: 2, display: 'flex', alignItems: 'center' }}
-                                                    >
-                                                        <MapPin size={18} />
-                                                    </button>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="예: 나하 공항"
-                                                        value={plannerData.entryPoint}
-                                                        onChange={(e) => setPlannerData({ ...plannerData, entryPoint: e.target.value })}
-                                                        style={{ width: '100%', padding: '18px 18px 18px 55px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '16px' }}
-                                                    />
-                                                </div>
-                                            </div>
                                             <div style={{ display: 'flex', gap: '15px' }}>
                                                 <button onClick={() => setPlannerStep(1)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
-                                                <button onClick={() => setPlannerStep(3)} disabled={!plannerData.entryPoint || !plannerData.departurePoint} style={{ flex: 2, padding: '20px', borderRadius: '20px', border: 'none', background: (plannerData.entryPoint && plannerData.departurePoint) ? 'var(--primary)' : 'rgba(255,255,255,0.1)', color: (plannerData.entryPoint && plannerData.departurePoint) ? 'black' : 'rgba(255,255,255,0.3)', fontWeight: 800 }}>다음 단계로</button>
+                                                <button
+                                                    onClick={() => {
+                                                        showToast("임시 저장되었습니다. 목록에서 언제든 이어서 작성하세요.");
+                                                        setTimeout(() => setIsPlanning(false), 1500);
+                                                    }}
+                                                    style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                                >
+                                                    <Save size={18} /> 저장
+                                                </button>
+                                                <button
+                                                    onClick={() => setPlannerStep(4)}
+                                                    disabled={!plannerData.departurePoint || (!plannerData.entryPoint && plannerData.travelMode !== 'car')}
+                                                    style={{
+                                                        flex: 2, padding: '20px', borderRadius: '20px', border: 'none',
+                                                        background: (plannerData.departurePoint && (plannerData.entryPoint || plannerData.travelMode === 'car')) ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                                                        color: (plannerData.departurePoint && (plannerData.entryPoint || plannerData.travelMode === 'car')) ? 'black' : 'rgba(255,255,255,0.3)',
+                                                        fontWeight: 800
+                                                    }}
+                                                >
+                                                    다음 단계로
+                                                </button>
                                             </div>
                                         </motion.div>
                                     )}
 
-                                    {plannerStep === 3 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '600px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '40px', justifyContent: 'center' }}>
-                                                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                                                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 3 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 3 ? 0.3 : 1 }} />
-                                                ))}
-                                            </div>
-                                            <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '30px', textAlign: 'center' }}>어떤 테마의 여행인가요?</h2>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '40px' }}>
-                                                {[{ id: 'food', label: '맛집/식도락', icon: <Utensils size={28} /> }, { id: 'healing', label: '힐링/휴식', icon: <Wind size={28} /> }, { id: 'tour', label: '관광/명소인증', icon: <Camera size={28} /> }, { id: 'activity', label: '액티비티', icon: <Activity size={28} /> }].map(item => (
-                                                    <button key={item.id} onClick={() => setPlannerData({ ...plannerData, theme: item.id })} style={{ padding: '25px', borderRadius: '20px', border: plannerData.theme === item.id ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)', background: plannerData.theme === item.id ? 'rgba(0,212,255,0.1)' : 'rgba(255,255,255,0.03)', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>{item.icon}<span style={{ fontWeight: 700 }}>{item.label}</span></button>
-                                                ))}
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '15px' }}>
-                                                <button onClick={() => setPlannerStep(2)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
-                                                <button onClick={() => setPlannerStep(4)} disabled={!plannerData.theme} style={{ flex: 2, padding: '20px', borderRadius: '20px', border: 'none', background: plannerData.theme ? 'var(--primary)' : 'rgba(255,255,255,0.1)', color: plannerData.theme ? 'black' : 'rgba(255,255,255,0.3)', fontWeight: 800 }}>다음 단계로</button>
-                                            </div>
-                                        </motion.div>
-                                    )}
+                                    {/* Step 3 (Theme) Skipped */}
 
                                     {plannerStep === 4 && (
                                         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '600px' }}>
@@ -2276,7 +2729,16 @@ const App: React.FC = () => {
                                                 ))}
                                             </div>
                                             <div style={{ display: 'flex', gap: '15px' }}>
-                                                <button onClick={() => setPlannerStep(3)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
+                                                <button onClick={() => setPlannerStep(2)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
+                                                <button
+                                                    onClick={() => {
+                                                        showToast("임시 저장되었습니다. 목록에서 언제든 이어서 작성하세요.");
+                                                        setTimeout(() => setIsPlanning(false), 1500);
+                                                    }}
+                                                    style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                                >
+                                                    <Save size={18} /> 저장
+                                                </button>
                                                 <button onClick={() => setPlannerStep(5)} disabled={!plannerData.companion} style={{ flex: 2, padding: '20px', borderRadius: '20px', border: 'none', background: plannerData.companion ? 'var(--primary)' : 'rgba(255,255,255,0.1)', color: plannerData.companion ? 'black' : 'rgba(255,255,255,0.3)', fontWeight: 800 }}>다음 단계로</button>
                                             </div>
                                         </motion.div>
@@ -2297,6 +2759,15 @@ const App: React.FC = () => {
                                             </div>
                                             <div style={{ display: 'flex', gap: '15px' }}>
                                                 <button onClick={() => setPlannerStep(4)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
+                                                <button
+                                                    onClick={() => {
+                                                        showToast("임시 저장되었습니다. 목록에서 언제든 이어서 작성하세요.");
+                                                        setTimeout(() => setIsPlanning(false), 1500);
+                                                    }}
+                                                    style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                                >
+                                                    <Save size={18} /> 저장
+                                                </button>
                                                 <button onClick={() => setPlannerStep(6)} disabled={!plannerData.transport} style={{ flex: 2, padding: '20px', borderRadius: '20px', border: 'none', background: plannerData.transport ? 'var(--primary)' : 'rgba(255,255,255,0.1)', color: plannerData.transport ? 'black' : 'rgba(255,255,255,0.3)', fontWeight: 800 }}>다음 단계로</button>
                                             </div>
                                         </motion.div>
@@ -2317,6 +2788,15 @@ const App: React.FC = () => {
                                             </div>
                                             <div style={{ display: 'flex', gap: '15px' }}>
                                                 <button onClick={() => setPlannerStep(5)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
+                                                <button
+                                                    onClick={() => {
+                                                        showToast("임시 저장되었습니다. 목록에서 언제든 이어서 작성하세요.");
+                                                        setTimeout(() => setIsPlanning(false), 1500);
+                                                    }}
+                                                    style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                                >
+                                                    <Save size={18} /> 저장
+                                                </button>
                                                 <button onClick={() => {
                                                     setPlannerStep(7);
                                                     if (dynamicAttractions.length === 0) {
@@ -2347,73 +2827,123 @@ const App: React.FC = () => {
                                                     <button onClick={() => fetchAttractionsWithAI(plannerData.destination)} style={{ padding: '12px 24px', borderRadius: '12px', border: '1px solid var(--primary)', background: 'transparent', color: 'var(--primary)', fontWeight: 700 }}>다시 검색하기</button>
                                                 </div>
                                             ) : (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px', maxHeight: '450px', overflowY: 'auto', padding: '10px', textAlign: 'left' }}>
-                                                    {dynamicAttractions.map(item => {
-                                                        const isSelected = selectedPlaceIds.includes(item.id);
-                                                        return (
-                                                            <div
-                                                                key={item.id}
-                                                                onClick={() => setActivePlannerDetail(item)}
-                                                                className="glass-card"
+                                                <>
+                                                    {/* Category Filter Tabs */}
+                                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
+                                                        {[
+                                                            { id: 'all', label: '전체', icon: null },
+                                                            { id: 'sightseeing', label: '관광명소', icon: <Camera size={16} /> },
+                                                            { id: 'food', label: '식당/맛집', icon: <Utensils size={16} /> },
+                                                            { id: 'cafe', label: '카페', icon: <Compass size={16} /> },
+                                                        ].map(tab => (
+                                                            <button
+                                                                key={tab.id}
+                                                                onClick={() => setAttractionCategoryFilter(tab.id as any)}
                                                                 style={{
-                                                                    padding: '24px',
-                                                                    borderRadius: '24px',
-                                                                    border: isSelected ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
-                                                                    background: isSelected ? 'rgba(0,212,255,0.05)' : 'rgba(255,255,255,0.02)',
+                                                                    padding: '10px 18px',
+                                                                    borderRadius: '20px',
+                                                                    border: 'none',
+                                                                    background: attractionCategoryFilter === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                                                                    color: attractionCategoryFilter === tab.id ? 'black' : 'white',
+                                                                    fontWeight: 700,
+                                                                    fontSize: '14px',
                                                                     cursor: 'pointer',
-                                                                    position: 'relative',
-                                                                    transition: 'all 0.3s ease',
+                                                                    transition: 'all 0.2s',
                                                                     display: 'flex',
-                                                                    flexDirection: 'column',
-                                                                    gap: '12px'
+                                                                    alignItems: 'center',
+                                                                    gap: '6px'
                                                                 }}
                                                             >
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                                    <div style={{ flex: 1 }}>
-                                                                        <div style={{ fontWeight: 900, fontSize: '20px', marginBottom: '4px', color: isSelected ? 'var(--primary)' : 'white' }}>{item.name}</div>
-                                                                        <div style={{ fontSize: '14px', color: 'var(--primary)', fontWeight: 700, opacity: 0.8, marginBottom: '8px' }}>{item.desc}</div>
-                                                                    </div>
+                                                                {tab.icon} {tab.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '40px', maxHeight: '500px', overflowY: 'auto', padding: '10px', textAlign: 'left' }}>
+                                                        {dynamicAttractions
+                                                            .filter(item => attractionCategoryFilter === 'all' || item.category === attractionCategoryFilter)
+                                                            .map(item => {
+                                                                const isSelected = selectedPlaceIds.includes(item.id);
+                                                                return (
                                                                     <div
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setSelectedPlaceIds(isSelected ? selectedPlaceIds.filter(id => id !== item.id) : [...selectedPlaceIds, item.id]);
-                                                                        }}
+                                                                        key={item.id}
+                                                                        onClick={() => setSelectedPlaceIds(isSelected ? selectedPlaceIds.filter(id => id !== item.id) : [...selectedPlaceIds, item.id])}
+                                                                        className="glass-card"
                                                                         style={{
-                                                                            width: '44px',
-                                                                            height: '44px',
-                                                                            borderRadius: '14px',
-                                                                            background: isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                                                                            padding: '20px',
+                                                                            borderRadius: '20px',
+                                                                            border: isSelected ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+                                                                            background: isSelected ? 'rgba(0,212,255,0.1)' : 'rgba(255,255,255,0.03)',
+                                                                            cursor: 'pointer',
+                                                                            position: 'relative',
+                                                                            transition: 'all 0.2s ease',
                                                                             display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            justifyContent: 'center',
-                                                                            color: isSelected ? 'black' : 'white',
-                                                                            transition: 'all 0.2s',
-                                                                            flexShrink: 0
+                                                                            flexDirection: 'column',
+                                                                            gap: '12px'
                                                                         }}
                                                                     >
-                                                                        {isSelected ? <CheckCircle size={24} /> : <div style={{ width: 20, height: 20, borderRadius: '6px', border: '2px solid rgba(255,255,255,0.3)' }} />}
+                                                                        {/* Header: Name & Selection Checkbox */}
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                                            <div style={{ flex: 1 }}>
+                                                                                <div style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'center' }}>
+                                                                                    <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', color: '#cbd5e1' }}>
+                                                                                        {item.category === 'food' ? '식당' : item.category === 'cafe' ? '카페' : '관광'}
+                                                                                    </span>
+                                                                                    {item.priceLevel && (
+                                                                                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                                                                            {item.priceLevel === 'Expensive' ? '💰💰💰' : item.priceLevel === 'Moderate' ? '💰💰' : '💰'}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div style={{ fontWeight: 800, fontSize: '18px', marginBottom: '4px', color: isSelected ? 'var(--primary)' : 'white' }}>{item.name}</div>
+                                                                            </div>
+                                                                            <div
+                                                                                style={{
+                                                                                    width: '24px',
+                                                                                    height: '24px',
+                                                                                    borderRadius: '50%',
+                                                                                    background: isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                                                                                    display: 'flex',
+                                                                                    alignItems: 'center',
+                                                                                    justifyContent: 'center',
+                                                                                    color: isSelected ? 'black' : 'transparent',
+                                                                                    border: isSelected ? 'none' : '2px solid rgba(255,255,255,0.3)',
+                                                                                    flexShrink: 0
+                                                                                }}
+                                                                            >
+                                                                                <CheckCircle size={16} />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Rating */}
+                                                                        {item.rating && (
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px', color: '#fbbf24', fontWeight: 700 }}>
+                                                                                <Star size={14} fill="#fbbf24" /> {item.rating} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({item.reviewCount || '100+'})</span>
+                                                                            </div>
+                                                                        )}
+
+                                                                        <div style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: 500, lineHeight: 1.4, opacity: 0.9 }}>
+                                                                            {item.desc}
+                                                                        </div>
+
+                                                                        <div style={{ fontSize: '12px', opacity: 0.6, lineHeight: 1.5, textAlign: 'left', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                                                            {item.longDesc}
+                                                                        </div>
+
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setActivePlannerDetail(item);
+                                                                            }}
+                                                                            style={{ marginTop: 'auto', background: 'transparent', border: 'none', color: 'var(--primary)', fontSize: '12px', fontWeight: 600, textAlign: 'left', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}
+                                                                        >
+                                                                            상세 정보 보기
+                                                                        </button>
                                                                     </div>
-                                                                </div>
-
-                                                                <div style={{ fontSize: '14px', opacity: 0.7, lineHeight: 1.6, textAlign: 'left', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                                                    {item.longDesc}
-                                                                </div>
-
-                                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            window.open(`https://www.google.com/search?q=${encodeURIComponent(item.name)}`, '_blank');
-                                                                        }}
-                                                                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 12px', color: 'white', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
-                                                                    >
-                                                                        <Compass size={14} /> 구글 검색
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                </>
                                             )}
 
                                             <div style={{ display: 'flex', gap: '15px' }}>
@@ -2479,13 +3009,13 @@ const App: React.FC = () => {
                                                 <div style={{ marginBottom: '30px' }}>
                                                     <h4 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '15px', paddingLeft: '5px' }}>등록된 숙소 리스트 ({plannerData.accommodations.length})</h4>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                        {plannerData.accommodations.map((acc, idx) => (
+                                                        {plannerData.accommodations.map((acc: any, idx: number) => (
                                                             <div key={idx} className="glass-card" style={{ padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)' }}>
                                                                 <div>
                                                                     <div style={{ fontWeight: 800, fontSize: '16px' }}>{acc.name}</div>
                                                                     <div style={{ fontSize: '12px', opacity: 0.6, marginTop: 4 }}>{acc.startDate} ~ {acc.endDate}</div>
                                                                 </div>
-                                                                <button onClick={() => setPlannerData({ ...plannerData, accommodations: plannerData.accommodations.filter((_, i) => i !== idx) })} style={{ background: 'rgba(255,78,80,0.1)', border: 'none', color: '#ff4e50', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}><X size={16} /></button>
+                                                                <button onClick={() => setPlannerData({ ...plannerData, accommodations: plannerData.accommodations.filter((_: any, i: number) => i !== idx) })} style={{ background: 'rgba(255,78,80,0.1)', border: 'none', color: '#ff4e50', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}><X size={16} /></button>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -2494,7 +3024,16 @@ const App: React.FC = () => {
 
                                             <div style={{ display: 'flex', gap: '15px' }}>
                                                 <button onClick={() => setPlannerStep(7)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전 (장소 수정)</button>
-                                                <button onClick={generatePlanWithAI} style={{ flex: 2, padding: '20px', borderRadius: '20px', border: 'none', background: 'var(--primary)', color: 'black', fontWeight: 900, fontSize: '18px' }}>코스 자동 생성 시작</button>
+                                                <button
+                                                    onClick={() => {
+                                                        showToast("임시 저장되었습니다. 목록에서 언제든 이어서 작성하세요.");
+                                                        setTimeout(() => setIsPlanning(false), 1500);
+                                                    }}
+                                                    style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                                >
+                                                    <Save size={18} /> 저장
+                                                </button>
+                                                <button onClick={() => setIsReviewModalOpen(true)} disabled={selectedPlaceIds.length === 0 || isSearchingAttractions} style={{ flex: 2, padding: '20px', borderRadius: '20px', border: 'none', background: (selectedPlaceIds.length > 0 && !isSearchingAttractions) ? 'var(--primary)' : 'rgba(255,255,255,0.1)', color: (selectedPlaceIds.length > 0 && !isSearchingAttractions) ? 'black' : 'rgba(255,255,255,0.3)', fontWeight: 900, fontSize: '18px' }}>최종 검토 및 생성</button>
                                             </div>
                                         </motion.div>
                                     )}
@@ -2532,7 +3071,7 @@ const App: React.FC = () => {
                                                 <button onClick={() => {
                                                     // Safety check: only publish if trip.points exists
                                                     if (!trip || !trip.points || trip.points.length === 0) {
-                                                        alert('여행 데이터가 충분히 생성되지 않았습니다. 다시 시도해 주세요.');
+                                                        showToast('여행 데이터가 충분히 생성되지 않았습니다. 다시 시도해 주세요.');
                                                         return;
                                                     }
 
@@ -2549,21 +3088,107 @@ const App: React.FC = () => {
                                                     // Use functional update to ensure state consistency
                                                     setTrips(prevTrips => [publishedTrip, ...prevTrips]);
 
+                                                    // Clear Draft on Success
+                                                    localStorage.removeItem('trip_draft_v1');
                                                     setIsPlanning(false);
                                                     setPlannerStep(0);
 
                                                     // Move to landing view to see the list
+                                                    // Move to landing view to see the list
                                                     setView('landing');
-
-                                                    setTimeout(() => {
-                                                        alert('✅ 여행 가이드 발행이 완료되었습니다! 목록에서 확인 가능합니다.');
-                                                    }, 300);
+                                                    showToast('여행 가이드 발행이 완료되었습니다! 목록에서 확인해 보세요.');
                                                 }} style={{ flex: 2, padding: '20px', borderRadius: '20px', border: 'none', background: 'var(--primary)', color: 'black', fontWeight: 900, fontSize: '18px' }}>가이드 발행하기</button>
                                             </div>
                                         </motion.div>
                                     )}
 
                                     {/* 상세 정보 모달 (리포트 형식) */}
+                                    {isReviewModalOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            style={{
+                                                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                                background: 'rgba(20, 20, 25, 0.95)', backdropFilter: 'blur(20px)', zIndex: 100,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+                                            }}
+                                        >
+                                            <div style={{ width: '100%', maxWidth: '600px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '32px', textAlign: 'left' }}>
+                                                <h2 style={{ fontSize: '28px', fontWeight: 900, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                    <CheckCircle color="var(--primary)" size={32} /> 경로 검토 및 요청
+                                                </h2>
+
+                                                {/* Analysis Section */}
+                                                {(() => {
+                                                    const start = new Date(plannerData.startDate);
+                                                    const end = new Date(plannerData.endDate);
+                                                    const days = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1;
+                                                    const placeCount = selectedPlaceIds.length;
+
+                                                    let minPerDay = 3;
+                                                    let maxPerDay = 6;
+                                                    if (plannerData.pace === 'slow') { minPerDay = 1; maxPerDay = 3; }
+                                                    if (plannerData.pace === 'fast') { minPerDay = 5; maxPerDay = 8; }
+
+                                                    const minTotal = Math.floor(days * minPerDay);
+                                                    const maxTotal = Math.ceil(days * maxPerDay);
+
+                                                    let status = 'good';
+                                                    let msg = '여행 기간과 선택한 장소의 비율이 적절합니다!';
+                                                    let subMsg = 'AI가 최적의 동선을 짤 수 있습니다.';
+                                                    let color = '#4ade80'; // green
+
+                                                    if (placeCount < minTotal) {
+                                                        status = 'few';
+                                                        msg = `여행 기간(${days}일)에 비해 장소가 조금 부족해 보여요.`;
+                                                        subMsg = `(${minTotal}곳 이상 권장, 현재 ${placeCount}곳) 남는 시간은 어떻게 보낼까요?`;
+                                                        color = '#fbbf24'; // amber
+                                                    } else if (placeCount > maxTotal) {
+                                                        status = 'many';
+                                                        msg = `여행 기간(${days}일)에 비해 장소가 너무 많습니다.`;
+                                                        subMsg = `(${maxTotal}곳 이하 권장, 현재 ${placeCount}곳) 일부 장소는 제외되거나 일정이 빡빡할 수 있습니다.`;
+                                                        color = '#f87171'; // red
+                                                    }
+
+                                                    return (
+                                                        <div style={{ marginBottom: '32px', padding: '20px', borderRadius: '16px', background: `${color}15`, border: `1px solid ${color}40`, display: 'flex', gap: '16px' }}>
+                                                            <div style={{ width: 4, background: color, borderRadius: '4px' }} />
+                                                            <div>
+                                                                <div style={{ fontWeight: 800, fontSize: '18px', color: color, marginBottom: '4px' }}>{msg}</div>
+                                                                <div style={{ fontSize: '14px', opacity: 0.8 }}>{subMsg}</div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+
+                                                <label style={{ display: 'block', fontWeight: 700, marginBottom: '12px', fontSize: '16px' }}>AI에게 특별히 요청할 사항이 있나요?</label>
+                                                <textarea
+                                                    placeholder="예: 맛집 위주로 짜줘, 혹은 나머지는 호텔에서 푹 쉬고 싶어, 3일차 점심은 꼭 초밥을 먹고 싶어 등..."
+                                                    value={customAiPrompt}
+                                                    onChange={(e) => setCustomAiPrompt(e.target.value)}
+                                                    style={{ width: '100%', height: '120px', padding: '16px', borderRadius: '16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '15px', resize: 'none', marginBottom: '32px' }}
+                                                />
+
+                                                <div style={{ display: 'flex', gap: '16px' }}>
+                                                    <button
+                                                        onClick={() => setIsReviewModalOpen(false)}
+                                                        style={{ flex: 1, padding: '18px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        취소
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsReviewModalOpen(false);
+                                                            generatePlanWithAI();
+                                                        }}
+                                                        style={{ flex: 2, padding: '18px', borderRadius: '16px', background: 'var(--primary)', border: 'none', color: 'black', fontWeight: 800, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                                                    >
+                                                        <Sparkles size={20} /> AI 코스 생성 시작
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
                                     <AnimatePresence>
                                         {activePlannerDetail && (
                                             <motion.div
@@ -2740,6 +3365,53 @@ const App: React.FC = () => {
                                     ))}
                                 </div>
                             </section>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Global Toast Notification (Centered Modal Style) */}
+                <AnimatePresence>
+                    {toast.visible && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.8, x: '-50%', y: '-50%' }}
+                            animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+                            exit={{ opacity: 0, scale: 0.8, x: '-50%', y: '-50%' }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            style={{
+                                position: 'fixed',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)', // This is overridden by motion x/y but kept for safety
+                                background: 'rgba(20, 20, 30, 0.95)',
+                                backdropFilter: 'blur(16px)',
+                                color: 'white',
+                                padding: '32px 48px',
+                                borderRadius: '24px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '20px',
+                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                                zIndex: 99999,
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                minWidth: '320px',
+                                textAlign: 'center'
+                            }}
+                        >
+                            <div style={{
+                                width: 60, height: 60, borderRadius: '50%',
+                                background: 'rgba(0, 212, 255, 0.1)',
+                                border: '1px solid var(--primary)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: 'var(--primary)',
+                                boxShadow: '0 0 20px rgba(0,212,255,0.2)'
+                            }}>
+                                <CheckCircle size={32} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <span style={{ fontWeight: 800, fontSize: '18px', letterSpacing: '-0.5px' }}>저장 완료!</span>
+                                <span style={{ fontWeight: 500, fontSize: '15px', opacity: 0.8, lineHeight: 1.5 }}>{toast.message}</span>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
