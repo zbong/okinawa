@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles/design-system.css';
 import { okinawaTrip } from './data';
-import { LocationPoint, SpeechItem, TripPlan } from './types';
+import { LocationPoint, SpeechItem, TripPlan, PlannerData } from './types';
+import { extractTextFromFile, parseFlightTicket, parsePublicTransportTicket, parseUniversalDocument } from './utils/ocr';
 import {
     LayoutDashboard,
     Calendar,
@@ -22,6 +23,7 @@ import {
     ChevronDown,
     ChevronUp,
     Upload,
+    UploadCloud,
     Trash2,
     MessageCircle,
     Volume2,
@@ -38,7 +40,6 @@ import {
     Compass,
     Utensils,
     Camera,
-    Activity,
     Clock,
     Car,
     Bus,
@@ -367,10 +368,20 @@ const App: React.FC = () => {
         const promiseHandler = (event: PromiseRejectionEvent) => console.error('🔥🔥🔥 UNHANDLED PROMISE:', event.reason);
         window.addEventListener('error', errorHandler);
         window.addEventListener('unhandledrejection', promiseHandler);
-        console.log('✅ Global Error Handlers Attached');
+
+        // Prevent browser from opening dropped files globally
+        const preventDefault = (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        window.addEventListener('dragover', preventDefault);
+        window.addEventListener('drop', preventDefault);
+
         return () => {
             window.removeEventListener('error', errorHandler);
             window.removeEventListener('unhandledrejection', promiseHandler);
+            window.removeEventListener('dragover', preventDefault);
+            window.removeEventListener('drop', preventDefault);
         };
     }, []);
 
@@ -394,9 +405,10 @@ const App: React.FC = () => {
 
     // Top Level Navigation State
     // DEV MODE: Force login state, but start at landing (list view)
-    const [view, setView] = useState<'landing' | 'login' | 'signup' | 'app' | 'debug'>('landing');
+    const [view, setView] = useState<'landing' | 'login' | 'signup' | 'app' | 'debug' | 'ocr_lab'>('landing');
 
-    console.log(`🎨 App Re-render. Current View: ${view}`);
+    // console.log(`🎨 App Re-render. Current View: ${view}`); // Commented out to reduce console noise
+
 
     const [isLoggedIn, setIsLoggedIn] = useState(true);
     const [currentUser, setCurrentUser] = useState<{ name: string, homeAddress?: string } | null>({ name: 'Tester', homeAddress: '경기도 평택시 서재로 36 자이아파트' });
@@ -413,11 +425,50 @@ const App: React.FC = () => {
         setIsEditingPoint(false);
         showToast('정보가 수정되었습니다.');
     };
-    const [isSearchingHotels, setIsSearchingHotels] = useState(false);
     const [recommendedHotels, setRecommendedHotels] = useState<any[]>([]);
 
     const [isSearchingAttractions, setIsSearchingAttractions] = useState(false);
     const [attractionCategoryFilter, setAttractionCategoryFilter] = useState<'all' | 'sightseeing' | 'food' | 'cafe'>('all');
+    const [isDragging, setIsDragging] = useState(false);
+
+    const handleFileAnalysis = async (files: File[]) => {
+        if (files.length === 0) return;
+        setIsOcrLoading(true);
+        try {
+            const updates: Partial<PlannerData> = {};
+            const newAnalyzedFiles = [...analyzedFiles];
+
+            for (const file of files) {
+                // Add to analyzed list with loading status
+                const fileIdx = newAnalyzedFiles.length;
+                newAnalyzedFiles.push({ name: file.name, text: '', status: 'loading' });
+                setAnalyzedFiles([...newAnalyzedFiles]);
+
+                const text = await extractTextFromFile(file);
+                const parsed = parseUniversalDocument(text) as any;
+
+                // Update analyzed list with results
+                newAnalyzedFiles[fileIdx] = { name: file.name, text, parsedData: parsed, status: 'done' };
+                setAnalyzedFiles([...newAnalyzedFiles]);
+
+                if (parsed.type === 'flight') {
+                    updates.destination = parsed.arrival;
+                } else if (parsed.type === 'accommodation') {
+                    if (!updates.destination) updates.destination = parsed.hotelName;
+                    if (parsed.checkIn && parsed.checkIn !== '미확인') updates.startDate = parsed.checkIn;
+                    if (parsed.checkOut && parsed.checkOut !== '미확인') updates.endDate = parsed.checkOut;
+                } else if (parsed.startDate && parsed.startDate !== '미확인') {
+                    updates.startDate = parsed.startDate;
+                    if (parsed.endDate && parsed.endDate !== '미확인') updates.endDate = parsed.endDate;
+                }
+            }
+            setPlannerData((prev) => ({ ...prev, ...updates }));
+        } catch (err) {
+            console.error('OCR Wizard Error:', err);
+        } finally {
+            setIsOcrLoading(false);
+        }
+    };
 
     // Fetch dynamic attractions using AI with Caching
     const fetchAttractionsWithAI = async (destination: string) => {
@@ -510,7 +561,7 @@ const App: React.FC = () => {
     };
 
     const fetchHotelsWithAI = async (destination: string) => {
-        setIsSearchingHotels(true);
+
         try {
             const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
             const genAI = new GoogleGenerativeAI(apiKey);
@@ -538,7 +589,6 @@ const App: React.FC = () => {
         } catch (e) {
             console.error("Hotel search failed:", e);
         } finally {
-            setIsSearchingHotels(false);
         }
     };
 
@@ -712,7 +762,7 @@ const App: React.FC = () => {
     const [toast, setToast] = useState<{ message: string, visible: boolean }>({ message: '', visible: false });
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
     const [customAiPrompt, setCustomAiPrompt] = useState('');
-    const [lastUpdate, setLastUpdate] = useState(Date.now());
+
 
     const showToast = (message: string) => {
         setToast({ message, visible: true });
@@ -749,9 +799,9 @@ const App: React.FC = () => {
         onConfirm: () => void;
     }>({ isOpen: false, title: '', message: '', onConfirm: () => { } });
 
-    const [plannerData, setPlannerData] = useState(() => {
+    const [plannerData, setPlannerData] = useState<PlannerData>(() => {
         const saved = localStorage.getItem('trip_draft_v1');
-        const defaultData = {
+        const defaultData: PlannerData = {
             title: '',
             destination: '',
             startDate: '',
@@ -771,6 +821,16 @@ const App: React.FC = () => {
         return saved ? { ...defaultData, ...JSON.parse(saved).data } : defaultData;
     });
 
+    const [isOcrLoading, setIsOcrLoading] = useState(false);
+    const [analyzedFiles, setAnalyzedFiles] = useState<{
+        name: string,
+        text: string,
+        status: 'loading' | 'done' | 'error',
+        parsedData?: any
+    }[]>([]);
+    const ticketFileInputRef = useRef<HTMLInputElement>(null);
+
+
     // Restore dynamic attractions if available in draft
     useEffect(() => {
         const saved = localStorage.getItem('trip_draft_v1');
@@ -786,7 +846,7 @@ const App: React.FC = () => {
     useEffect(() => {
         if (isPlanning) {
             // Only save if there's some data or we've moved past step 0
-            const hasData = plannerData.destination.trim() !== '' || (plannerData as any).title?.trim() !== '';
+            const hasData = plannerData.destination.trim() !== '' || plannerData.title.trim() !== '';
             if (!hasData && plannerStep === 0) return;
 
             const draft = {
@@ -902,10 +962,89 @@ const App: React.FC = () => {
                 linkedTo,
                 date: new Date().toLocaleDateString()
             };
-            setCustomFiles(prev => [newFile, ...prev]);
+            setCustomFiles([...customFiles, newFile]);
+            showToast('파일이 업로드되었습니다.');
         };
         reader.readAsDataURL(file);
     };
+
+    const handleTicketOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsOcrLoading(true);
+        showToast('티켓 분석 중... (잠시만 기다려주세요)');
+
+        try {
+            // 1. Extract text from file (supports Image or HTML)
+            const text = await extractTextFromFile(file);
+
+            // 2. Parse based on travel mode
+            let parsedInfo;
+            if (plannerData.travelMode === 'plane' || plannerData.travelMode === 'ship') {
+                parsedInfo = parseFlightTicket(text);
+            } else {
+                parsedInfo = parsePublicTransportTicket(text);
+            }
+            // Record for Lab
+            setAnalyzedFiles(prev => [...prev, { name: file.name, text, parsedData: parsedInfo, status: 'done' }]);
+
+            // 3. Update planner data
+            if (parsedInfo.departure !== '출발지 미확인' || parsedInfo.arrival !== '도착지 미확인') {
+                setPlannerData((prev) => ({
+                    ...prev,
+                    departurePoint: parsedInfo.departure !== '출발지 미확인' ? parsedInfo.departure : prev.departurePoint,
+                    entryPoint: (parsedInfo.arrival !== '도착지 미확인' && parsedInfo.arrival !== '오키나와') ? parsedInfo.arrival : prev.entryPoint
+                }));
+                showToast('티켓 정보가 자동으로 입력되었습니다!');
+            } else {
+                showToast('티켓에서 정보를 찾을 수 없습니다. 수동으로 입력해 주세요.');
+            }
+        } catch (err) {
+            console.error('OCR Process Error:', err);
+            showToast('티켓 분석에 실패했습니다.');
+        } finally {
+            setIsOcrLoading(false);
+            // Reset input so same file can be uploaded again
+            if (ticketFileInputRef.current) ticketFileInputRef.current.value = '';
+        }
+    };
+
+    const handleMultipleOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        const fileList = Array.from(files);
+
+        // Initial state for all files
+        const initialStates = fileList.map(f => ({
+            name: f.name,
+            text: '',
+            status: 'loading' as const
+        }));
+
+        setAnalyzedFiles(initialStates);
+        setView('ocr_lab'); // Switch to lab view to see results
+
+        // Process each file
+        for (let i = 0; i < fileList.length; i++) {
+            const file = fileList[i];
+            try {
+                const text = await extractTextFromFile(file);
+                const parsedData = parseUniversalDocument(text);
+                setAnalyzedFiles(prev => prev.map((item, idx) =>
+                    idx === i ? { ...item, text, parsedData, status: 'done' as const } : item
+                ));
+            } catch (err) {
+                console.error(`Error processing ${file.name}:`, err);
+                setAnalyzedFiles(prev => prev.map((item, idx) =>
+                    idx === i ? { ...item, status: 'error' as const } : item
+                ));
+            }
+        }
+    };
+
+
 
     const deleteFile = (id: string, e?: React.MouseEvent) => {
         e?.stopPropagation();
@@ -1186,28 +1325,177 @@ const App: React.FC = () => {
         return `${month}월 ${date}일 ${dayName}`;
     };
 
+    // Weather State Management
+    const [weatherData, setWeatherData] = useState<any>(null);
+    const [isLoadingWeather, setIsLoadingWeather] = useState(false);
+    const [weatherError, setWeatherError] = useState<string | null>(null);
+
+    // Fetch real weather data from WeatherAPI.com
+    const fetchWeatherData = async (location: string, coordinates?: { lat: number, lng: number }) => {
+        const apiKey = import.meta.env.VITE_WEATHER_API_KEY;
+
+        // Fallback to mock data if no API key
+        if (!apiKey || apiKey === 'YOUR_WEATHERAPI_KEY_HERE') {
+            console.warn('⚠️ Weather API key not configured. Using mock data.');
+            return null;
+        }
+
+        // Check cache first (valid for 1 hour)
+        const cacheKey = `weather_${location}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            try {
+                const { timestamp, data } = JSON.parse(cached);
+                const oneHourInMs = 60 * 60 * 1000;
+                if (Date.now() - timestamp < oneHourInMs) {
+                    console.log('✅ Using cached weather data for', location);
+                    setWeatherData(data);
+                    return data;
+                }
+            } catch (e) {
+                console.error('Cache parse error:', e);
+            }
+        }
+
+        setIsLoadingWeather(true);
+        setWeatherError(null);
+
+        try {
+            // Use coordinates if available, otherwise use location name
+            const query = coordinates
+                ? `${coordinates.lat},${coordinates.lng}`
+                : location;
+
+            const response = await fetch(
+                `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(query)}&days=3&lang=ko`
+            );
+
+            if (!response.ok) {
+                throw new Error(`Weather API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Cache the result
+            localStorage.setItem(cacheKey, JSON.stringify({
+                timestamp: Date.now(),
+                data
+            }));
+
+            setWeatherData(data);
+            console.log('✅ Weather data fetched successfully for', data.location?.name);
+            return data;
+
+        } catch (error) {
+            console.error('❌ Weather fetch error:', error);
+            setWeatherError('날씨 정보를 불러올 수 없습니다.');
+            return null;
+        } finally {
+            setIsLoadingWeather(false);
+        }
+    };
+
+    // Fetch weather when trip destination changes
+
+    // Fetch weather when trip destination changes
+    useEffect(() => {
+        if (trip?.metadata?.destination) {
+            const destination = trip.metadata.destination;
+            // Try to get coordinates from first point
+            const firstPoint = trip.points?.[0];
+            const coords = firstPoint?.coordinates;
+
+            fetchWeatherData(destination, coords);
+        }
+    }, [trip?.metadata?.destination]);
+
+    // Fetch weather when user clicks on a specific location
+    useEffect(() => {
+        if (selectedWeatherLocation?.coordinates) {
+            const coords = selectedWeatherLocation.coordinates;
+            const locationName = selectedWeatherLocation.name || trip?.metadata?.destination || '오키나와';
+
+            fetchWeatherData(locationName, coords);
+        }
+    }, [selectedWeatherLocation?.id]); // Only trigger when location changes
+
+    // Map English location names to Korean
+    const getKoreanLocationName = (englishName: string, originalName?: string) => {
+        // If we have the original Korean name from trip data, use it
+        if (originalName && originalName !== englishName) {
+            return `${originalName} (${englishName})`;
+        }
+
+        const locationMap: Record<string, string> = {
+            // Okinawa Main Island
+            'Naha': '나하',
+            'Naha-shi': '나하',
+            'Okinawa': '오키나와',
+            'Nago': '나고',
+            'Nago-shi': '나고',
+            'Urasoe': '우라소에',
+            'Ginowan': '기노완',
+            'Itoman': '이토만',
+            'Chatan': '차탄',
+            'Tomigusuku': '토미구스쿠',
+            'Nanjo': '난조',
+            'Uruma': '우루마',
+            'Okinawa City': '오키나와시',
+            'Onna': '온나',
+            'Onna-son': '온나',
+            'Motobu': '모토부',
+            'Motobu-cho': '모토부',
+            'Kunigami': '쿠니가미',
+            'Yomitan': '요미탄',
+
+            // Remote Islands
+            'Ishigaki': '이시가키',
+            'Ishigaki-shi': '이시가키',
+            'Miyakojima': '미야코지마',
+            'Miyako-jima': '미야코지마',
+            'Taketomi': '다케토미',
+            'Iriomote': '이리오모테',
+
+            // Common variations
+            'Okinawa Prefecture': '오키나와현',
+            'Okinawa-ken': '오키나와현'
+        };
+
+        const mapped = locationMap[englishName];
+
+        // If found in map, return Korean (English) format
+        if (mapped) {
+            return `${mapped} (${englishName})`;
+        }
+
+        // If not found, return as is
+        return englishName;
+    };
+
     // Get weather for specific day index (0=today, 1=tomorrow, 2=day after)
     const getWeatherForDay = (dayIndex: number) => {
-        const location = selectedWeatherLocation?.name || '오키나와 (나하)';
+        const originalLocationName = selectedWeatherLocation?.name || trip?.metadata?.destination;
+        const location = originalLocationName || '오키나와 (나하)';
 
-        // If we have selected location weather, use it as base
-        if (selectedWeatherLocation?.weather) {
-            const baseWeather = selectedWeatherLocation.weather;
-            // Simulate different weather for different days
-            const tempVariation = dayIndex === 0 ? 0 : dayIndex === 1 ? -2 : 1;
-            const temp = parseInt(baseWeather.temp) + tempVariation;
+        // If we have real weather data from API
+        if (weatherData?.forecast?.forecastday?.[dayIndex]) {
+            const dayData = weatherData.forecast.forecastday[dayIndex];
+            const current = dayIndex === 0 ? weatherData.current : dayData.day;
+
+            // Get location name and convert to Korean if possible
+            const apiLocationName = weatherData.location?.name || '';
+            const koreanLocationName = getKoreanLocationName(apiLocationName, originalLocationName);
 
             return {
-                location,
-                temp: `${temp}°`,
-                condition: dayIndex === 0 ? baseWeather.condition :
-                    dayIndex === 1 ? '구름 조금' : '대체로 맑음',
-                wind: baseWeather.wind,
-                humidity: baseWeather.humidity
+                location: koreanLocationName,
+                temp: `${Math.round(current.temp_c || current.avgtemp_c)}°`,
+                condition: current.condition?.text || '정보 없음',
+                wind: `${Math.round((current.wind_kph || current.maxwind_kph) / 3.6)} m/s`,
+                humidity: `${current.humidity || current.avghumidity}%`
             };
         }
 
-        // Default 3-day forecast for Naha
+        // Fallback to mock data
         const forecasts = [
             { temp: '22°', condition: '맑음', wind: '3 m/s', humidity: '60%' },
             { temp: '20°', condition: '구름 조금', wind: '5 m/s', humidity: '70%' },
@@ -1236,6 +1524,115 @@ const App: React.FC = () => {
             <div className="app">
                 {/* AnimatePresence removed to fix black screen crash */}
                 <>
+                    {view === 'ocr_lab' && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            style={{
+                                flex: 1, display: 'flex', flexDirection: 'column', padding: '40px',
+                                background: 'radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)',
+                                minHeight: '100vh', overflowY: 'auto'
+                            }}
+                        >
+                            <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                                    <div>
+                                        <h1 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '8px' }}>🔍 Document Intelligence Lab</h1>
+                                        <p style={{ opacity: 0.6, fontSize: '14px' }}>업로드된 서류에서 핵심 여행 데이터를 자동으로 추출했습니다.</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setView('landing')}
+                                        style={{ padding: '12px 24px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 700 }}
+                                    >
+                                        나가기
+                                    </button>
+                                </div>
+
+                                <div style={{ display: 'grid', gap: '30px' }}>
+                                    {analyzedFiles.map((file, idx) => (
+                                        <div key={idx} style={{
+                                            padding: '30px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px',
+                                            border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                    <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <FileText size={20} color="var(--primary)" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 style={{ fontSize: '16px', fontWeight: 700 }}>{file.name}</h3>
+                                                        <span style={{ fontSize: '11px', opacity: 0.4 }}>Type: {file.parsedData?.type || 'Searching...'}</span>
+                                                    </div>
+                                                </div>
+                                                <span style={{
+                                                    fontSize: '11px', padding: '4px 12px', borderRadius: '10px', fontWeight: 900,
+                                                    background: file.status === 'done' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(251, 191, 36, 0.15)',
+                                                    color: file.status === 'done' ? '#34d399' : '#fbbf24',
+                                                    border: `1px solid ${file.status === 'done' ? '#34d39940' : '#fbbf2440'}`
+                                                }}>
+                                                    {file.status === 'loading' ? 'ANALYZING' : file.status === 'done' ? 'COMPLETE' : 'ERROR'}
+                                                </span>
+                                            </div>
+
+                                            {file.status === 'done' && file.parsedData && (
+                                                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '20px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                                                        {file.parsedData.type === 'flight' && (
+                                                            <>
+                                                                <div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>DEP ➔ ARR</div>
+                                                                    <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>✈️ {file.parsedData.departure} ➔ {file.parsedData.arrival}</div>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                        {file.parsedData.type === 'accommodation' && (
+                                                            <>
+                                                                <div style={{ gridColumn: '1 / -1' }}>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>HOTEL NAME</div>
+                                                                    <div style={{ fontSize: '20px', fontWeight: 900, color: '#fbbf24' }}>🏨 {file.parsedData.hotelName}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>CHECK-IN</div>
+                                                                    <div style={{ fontSize: '16px', fontWeight: 700 }}>📅 {file.parsedData.checkIn} {file.parsedData.checkInTime && <span style={{ color: 'var(--primary)', marginLeft: 8 }}>🕒 {file.parsedData.checkInTime}</span>}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>CHECK-OUT</div>
+                                                                    <div style={{ fontSize: '16px', fontWeight: 700 }}>📅 {file.parsedData.checkOut}</div>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                        {file.parsedData.type === 'unknown' && (
+                                                            <>
+                                                                <div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>START DATE</div>
+                                                                    <div style={{ fontSize: '16px', fontWeight: 700 }}>📅 {file.parsedData.startDate}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>END DATE</div>
+                                                                    <div style={{ fontSize: '16px', fontWeight: 700 }}>📅 {file.parsedData.endDate}</div>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <details>
+                                                <summary style={{ fontSize: '12px', opacity: 0.5, cursor: 'pointer', marginBottom: '10px', outline: 'none' }}>원본 텍스트 보기 (Raw Data)</summary>
+                                                <pre style={{
+                                                    background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '12px',
+                                                    fontSize: '12px', color: '#888', whiteSpace: 'pre-wrap', maxHeight: '150px', overflowY: 'auto'
+                                                }}>
+                                                    {file.text}
+                                                </pre>
+                                            </details>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {view === 'landing' && !isPlanning && (
                         <motion.div
                             key="landing"
@@ -1327,6 +1724,20 @@ const App: React.FC = () => {
                                                 >
                                                     데이터 디버그
                                                 </button>
+                                                <button
+                                                    onClick={() => document.getElementById('multi-ocr-input')?.click()}
+                                                    style={{ background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', color: '#34d399', padding: '8px 12px', borderRadius: '10px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                                >
+                                                    <FileText size={14} /> 실규모 OCR 실습
+                                                </button>
+                                                <input
+                                                    id="multi-ocr-input"
+                                                    type="file"
+                                                    multiple
+                                                    style={{ display: 'none' }}
+                                                    accept="image/*,.html,.htm,.pdf"
+                                                    onChange={handleMultipleOcr}
+                                                />
                                             </div>
                                         </div>
                                         {/* Trip List with Grouping */}
@@ -1376,7 +1787,7 @@ const App: React.FC = () => {
                                                                         onConfirm: () => {
                                                                             localStorage.removeItem('trip_draft_v1');
                                                                             showToast('작성 중인 내용이 삭제되었습니다.');
-                                                                            setLastUpdate(Date.now());
+
                                                                             setDeleteConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => { } });
                                                                         }
                                                                     });
@@ -1715,33 +2126,51 @@ const App: React.FC = () => {
                                                                 border: 'none', position: 'absolute', top: 0, left: 0, right: 0, height: '100%', padding: '20px', cursor: 'grab', touchAction: 'pan-y'
                                                             }}
                                                         >
-                                                            <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-                                                                <div>
-                                                                    <div style={{ fontSize: 11, fontWeight: 500, opacity: 0.7, marginBottom: 2 }}>
-                                                                        {getFormattedDate(weatherIndex)}
-                                                                    </div>
-                                                                    <div style={{ fontSize: 14, fontWeight: 600, opacity: 0.9, marginBottom: 4 }}>
-                                                                        {getWeatherForDay(weatherIndex).location}
-                                                                    </div>
-                                                                    <div style={{ fontSize: 42, fontWeight: 800 }}>
-                                                                        {getWeatherForDay(weatherIndex).temp}
-                                                                    </div>
-                                                                    <div style={{ fontSize: 14, fontWeight: 500 }}>
-                                                                        {getWeatherForDay(weatherIndex).condition}
-                                                                    </div>
+                                                            {isLoadingWeather ? (
+                                                                // Loading State
+                                                                <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'white' }}>
+                                                                    <Loader2 size={48} className="spin" style={{ marginBottom: 12 }} />
+                                                                    <div style={{ fontSize: 14, opacity: 0.9 }}>날씨 정보 불러오는 중...</div>
                                                                 </div>
-                                                                <div style={{ textAlign: 'right' }}>
-                                                                    <CloudSun size={64} color="white" />
+                                                            ) : weatherError ? (
+                                                                // Error State
+                                                                <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'white' }}>
+                                                                    <CloudSun size={48} style={{ marginBottom: 12, opacity: 0.5 }} />
+                                                                    <div style={{ fontSize: 14, opacity: 0.9 }}>{weatherError}</div>
+                                                                    <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>목업 데이터를 표시합니다</div>
                                                                 </div>
-                                                            </div>
-                                                            <div style={{ marginTop: 20, paddingTop: 15, borderTop: '1px solid rgba(255,255,255,0.2)', display: 'flex', gap: 20, color: 'white' }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                                                                    <Wind size={16} /> <span>{getWeatherForDay(weatherIndex).wind}</span>
-                                                                </div>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                                                                    <Droplets size={16} /> <span>습도 {getWeatherForDay(weatherIndex).humidity}</span>
-                                                                </div>
-                                                            </div>
+                                                            ) : (
+                                                                // Normal Weather Display
+                                                                <>
+                                                                    <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
+                                                                        <div>
+                                                                            <div style={{ fontSize: 11, fontWeight: 500, opacity: 0.7, marginBottom: 2 }}>
+                                                                                {getFormattedDate(weatherIndex)}
+                                                                            </div>
+                                                                            <div style={{ fontSize: 14, fontWeight: 600, opacity: 0.9, marginBottom: 4 }}>
+                                                                                {getWeatherForDay(weatherIndex).location}
+                                                                            </div>
+                                                                            <div style={{ fontSize: 42, fontWeight: 800 }}>
+                                                                                {getWeatherForDay(weatherIndex).temp}
+                                                                            </div>
+                                                                            <div style={{ fontSize: 14, fontWeight: 500 }}>
+                                                                                {getWeatherForDay(weatherIndex).condition}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div style={{ textAlign: 'right' }}>
+                                                                            <CloudSun size={64} color="white" />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div style={{ marginTop: 20, paddingTop: 15, borderTop: '1px solid rgba(255,255,255,0.2)', display: 'flex', gap: 20, color: 'white' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                                                                            <Wind size={16} /> <span>{getWeatherForDay(weatherIndex).wind}</span>
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                                                                            <Droplets size={16} /> <span>습도 {getWeatherForDay(weatherIndex).humidity}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )}
                                                         </motion.div>
                                                     </div>
                                                     {/* Pagination Dots */}
@@ -2196,7 +2625,7 @@ const App: React.FC = () => {
                                         <div className="file-card" style={{ border: '2px dashed var(--glass-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'rgba(255,255,255,0.05)' }}>
                                             <input
                                                 type="file"
-                                                accept="image/*"
+                                                accept="image/*,.html,.htm"
                                                 onChange={(e) => handleFileUpload(e)}
                                                 style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
                                             />
@@ -2474,7 +2903,7 @@ const App: React.FC = () => {
                                                     <h4 style={{ color: 'var(--text-primary)', margin: 0 }}>📎 관련 서류</h4>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.1)', cursor: 'pointer', fontSize: 12, color: 'var(--primary)' }}>
                                                         <Upload size={14} /> 추가
-                                                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleFileUpload(e, selectedPoint.id)} />
+                                                        <input type="file" accept="image/*,.html,.htm" style={{ display: 'none' }} onChange={(e) => handleFileUpload(e, selectedPoint.id)} />
                                                     </label>
                                                 </div>
 
@@ -2719,14 +3148,100 @@ const App: React.FC = () => {
                                     )}
 
                                     {plannerStep === 1 && (
-                                        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '800px' }}>
+                                        <motion.div key="planner-step-1" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '600px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '20px', justifyContent: 'center' }}>
-                                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                                {[1, 2, 3, 4, 5, 6, 7].map(i => (
                                                     <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 1 ? 'var(--primary)' : 'rgba(255,255,255,0.1)' }} />
                                                 ))}
                                             </div>
-                                            <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '8px' }}>언제, 어디로 떠나시나요?</h2>
-                                            <p style={{ opacity: 0.6, marginBottom: '32px' }}>달력에서 여행 기간을 선택해 주세요.</p>
+                                            <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '8px' }}>새로운 여행의 시작</h2>
+                                            <p style={{ opacity: 0.6, marginBottom: '32px' }}>여행 제목을 정하고, 가지고 계신 항공권이나 바우처를 올려주세요.</p>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', textAlign: 'left' }}>
+                                                <div className="glass-card" style={{ padding: '24px' }}>
+                                                    <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)' }}>여행 제목</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="예: 2026 오키나와 가족 여행"
+                                                        value={plannerData.title || ''}
+                                                        onChange={(e) => setPlannerData({ ...plannerData, title: e.target.value })}
+                                                        style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '18px' }}
+                                                    />
+                                                </div>
+
+                                                <div className="glass-card" style={{ padding: '24px' }}>
+                                                    <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)' }}>여행 서류 (항공권, 호텔 바우처 등)</label>
+                                                    <p style={{ fontSize: '12px', opacity: 0.5, marginBottom: '16px' }}>파일을 올리면 목적지와 날짜를 AI가 자동으로 찾아줍니다.</p>
+
+                                                    <input
+                                                        type="file"
+                                                        multiple
+                                                        id="initial-voucher-upload"
+                                                        accept=".pdf,.html,.htm,image/*"
+                                                        style={{ display: 'none' }}
+                                                        onChange={async (e) => {
+                                                            const files = Array.from(e.target.files || []);
+                                                            if (files.length > 0) await handleFileAnalysis(files);
+                                                        }}
+                                                    />
+
+                                                    <button
+                                                        onClick={() => document.getElementById('initial-voucher-upload')?.click()}
+                                                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                                                        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                                                        onDrop={async (e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsDragging(false);
+                                                            const files = Array.from(e.dataTransfer.files);
+                                                            if (files.length > 0) await handleFileAnalysis(files);
+                                                        }}
+                                                        disabled={isOcrLoading}
+                                                        style={{
+                                                            width: '100%', padding: '40px 20px', borderRadius: '16px',
+                                                            background: isDragging ? 'rgba(0,212,255,0.08)' : 'rgba(255,255,255,0.02)',
+                                                            border: isDragging ? '2px dashed var(--primary)' : '2px dashed rgba(255,255,255,0.1)',
+                                                            color: 'white', cursor: isOcrLoading ? 'wait' : 'pointer',
+                                                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+                                                            transition: 'all 0.3s',
+                                                            transform: isDragging ? 'scale(1.02)' : 'scale(1)'
+                                                        }}
+                                                    >
+                                                        {isOcrLoading ? (
+                                                            <Loader2 size={32} className="spin" color="var(--primary)" />
+                                                        ) : (
+                                                            <UploadCloud size={32} opacity={0.5} color={isDragging ? 'var(--primary)' : 'white'} />
+                                                        )}
+                                                        <div style={{ textAlign: 'center' }}>
+                                                            <div style={{ fontWeight: 700, color: isDragging ? 'var(--primary)' : 'white' }}>{isOcrLoading ? '서류 분석 중...' : isDragging ? '여기에 드롭하세요!' : '파일 선택 또는 드래그'}</div>
+                                                            <div style={{ fontSize: '11px', opacity: 0.4, marginTop: 4 }}>PDF, 이미지, HTML 지원</div>
+                                                        </div>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                onClick={() => setPlannerStep(2)}
+                                                style={{
+                                                    width: '100%', marginTop: '30px', padding: '20px', borderRadius: '16px',
+                                                    background: 'var(--primary)', color: 'black', fontWeight: 900, fontSize: '18px', cursor: 'pointer'
+                                                }}
+                                            >
+                                                다음 단계로
+                                            </button>
+                                            <button onClick={() => setIsPlanning(false)} style={{ width: '100%', marginTop: '12px', padding: '16px', borderRadius: '16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontWeight: 600, cursor: 'pointer' }}>취소</button>
+                                        </motion.div>
+                                    )}
+
+                                    {plannerStep === 2 && (
+                                        <motion.div key="planner-step-2" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '800px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '20px', justifyContent: 'center' }}>
+                                                {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                                                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 2 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 2 ? 0.3 : 1 }} />
+                                                ))}
+                                            </div>
+                                            <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '8px' }}>정보 확인 및 수정</h2>
+                                            <p style={{ opacity: 0.6, marginBottom: '32px' }}>AI가 서류에서 찾은 정보입니다. 필요시 수정해 주세요.</p>
 
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '24px', textAlign: 'left' }}>
                                                 {/* Destination & Info */}
@@ -2767,11 +3282,60 @@ const App: React.FC = () => {
                                                                 style={{ width: '100%', padding: '14px 14px 14px 50px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '16px' }}
                                                             />
                                                         </div>
+
+                                                        {/* Document Upload for Auto-fill */}
+                                                        <div style={{ marginTop: '12px' }}>
+                                                            <input
+                                                                type="file"
+                                                                id="wizard-voucher-upload"
+                                                                accept=".pdf,.html,.htm,image/*"
+                                                                style={{ display: 'none' }}
+                                                                onChange={async (e) => {
+                                                                    const files = Array.from(e.target.files || []);
+                                                                    if (files.length > 0) {
+                                                                        await handleFileAnalysis(files);
+                                                                        alert('서류에서 여행 정보를 성공적으로 추출했습니다!');
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <button
+                                                                onClick={() => document.getElementById('wizard-voucher-upload')?.click()}
+                                                                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                                                                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                                                                onDrop={async (e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    setIsDragging(false);
+                                                                    const files = Array.from(e.dataTransfer.files);
+                                                                    if (files.length > 0) {
+                                                                        await handleFileAnalysis(files);
+                                                                        alert('서류에서 여행 정보를 성공적으로 추출했습니다!');
+                                                                    }
+                                                                }}
+                                                                disabled={isOcrLoading}
+                                                                style={{
+                                                                    width: '100%', padding: '10px', borderRadius: '10px',
+                                                                    background: isDragging ? 'rgba(0,212,255,0.1)' : 'rgba(0,212,255,0.05)',
+                                                                    border: isDragging ? '1px dashed var(--primary)' : '1px dashed rgba(0,212,255,0.3)',
+                                                                    color: 'var(--primary)', fontSize: '13px', fontWeight: 700,
+                                                                    cursor: isOcrLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                                                    transition: 'all 0.2s',
+                                                                    transform: isDragging ? 'scale(1.01)' : 'scale(1)'
+                                                                }}
+                                                            >
+                                                                {isOcrLoading ? (
+                                                                    <Loader2 size={16} className="spin" />
+                                                                ) : (
+                                                                    <FileText size={16} />
+                                                                )}
+                                                                {isOcrLoading ? '서류 해독 중...' : '항공권/바우처로 자동 채우기'}
+                                                            </button>
+                                                        </div>
                                                     </div>
 
-                                                    <div className="glass-card" style={{ padding: '20px', flex: 1 }}>
+                                                    <div className="glass-card" style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
                                                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '15px', color: 'var(--primary)', opacity: 0.8 }}>선택된 일정</label>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
                                                             <div style={{ padding: '15px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                                                 <div style={{ fontSize: '11px', opacity: 0.4, marginBottom: '4px' }}>시작일</div>
                                                                 <div style={{ fontWeight: 800, fontSize: '18px' }}>{plannerData.startDate || '날짜 선택'}</div>
@@ -2781,6 +3345,28 @@ const App: React.FC = () => {
                                                                 <div style={{ fontWeight: 800, fontSize: '18px' }}>{plannerData.endDate || '날짜 선택'}</div>
                                                             </div>
                                                         </div>
+
+                                                        {analyzedFiles.length > 0 && (
+                                                            <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                                                    <h4 style={{ fontSize: '11px', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '1px' }}>학습된 서류 데이터</h4>
+                                                                    <button onClick={() => setView('ocr_lab')} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '10px', cursor: 'pointer', textDecoration: 'underline' }}>상세 보기</button>
+                                                                </div>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                    {analyzedFiles.filter(f => f.status === 'done').slice(-3).map((f, i) => (
+                                                                        <div key={i} style={{ fontSize: '11px', background: 'rgba(255,255,255,0.02)', padding: '8px 10px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                            <span style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>📄 {f.name}</span>
+                                                                            <span style={{
+                                                                                color: f.parsedData?.type === 'flight' ? '#4facfe' : f.parsedData?.type === 'accommodation' ? '#fbbf24' : '#888',
+                                                                                fontWeight: 800, fontSize: '9px', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px'
+                                                                            }}>
+                                                                                {f.parsedData?.type?.toUpperCase() || 'UNKNOWN'}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -2838,7 +3424,7 @@ const App: React.FC = () => {
                                             </div>
 
                                             <button
-                                                onClick={() => setPlannerStep(2)}
+                                                onClick={() => setPlannerStep(3)}
                                                 disabled={!plannerData.destination || !plannerData.startDate || !plannerData.endDate}
                                                 style={{
                                                     width: '100%',
@@ -2861,11 +3447,11 @@ const App: React.FC = () => {
                                         </motion.div>
                                     )}
 
-                                    {plannerStep === 2 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '700px' }}>
+                                    {plannerStep === 3 && (
+                                        <motion.div key="planner-step-3" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '700px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '40px', justifyContent: 'center' }}>
                                                 {[1, 2, 3, 4, 5, 6, 7].map(i => (
-                                                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 2 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 2 ? 0.3 : 1 }} />
+                                                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 3 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 3 ? 0.3 : 1 }} />
                                                 ))}
                                             </div>
                                             <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '30px', textAlign: 'center' }}>어떻게 오시나요?</h2>
@@ -2908,38 +3494,56 @@ const App: React.FC = () => {
 
                                             {/* Dynamic Form Area */}
                                             <div style={{ textAlign: 'left', marginBottom: '30px', padding: '24px', background: 'rgba(255,255,255,0.03)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                {/* Ticket Upload Simulation (Except Car) */}
+                                                {/* Ticket Upload OCR (Except Car) */}
                                                 {plannerData.travelMode !== 'car' && (
                                                     <div
-                                                        onClick={() => {
-                                                            // Mocking Auto-fill
-                                                            const mockData: any = {
-                                                                plane: { departure: '인천국제공항', arrival: '나하 공항' },
-                                                                ship: { departure: '부산항 국제여객터미널', arrival: '오사카 국제페리터미널' },
-                                                                public: { departure: '서울역', arrival: '부산역' }
-                                                            };
-                                                            const data = mockData[plannerData.travelMode as string];
-                                                            if (data) {
-                                                                if (confirm(`'티켓_예매내역.pdf'를 업로드 하시겠습니까?\n(자동으로 정보를 입력합니다)`)) {
-                                                                    setPlannerData({
-                                                                        ...plannerData,
-                                                                        departurePoint: data.departure,
-                                                                        entryPoint: data.arrival
-                                                                    });
-                                                                }
+                                                        onClick={() => !isOcrLoading && ticketFileInputRef.current?.click()}
+                                                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                                                        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                                                        onDrop={async (e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsDragging(false);
+                                                            const files = Array.from(e.dataTransfer.files);
+                                                            if (files.length > 0) {
+                                                                // Manually trigger OCR handler logic for dropped file
+                                                                const mockEvent = { target: { files: e.dataTransfer.files } } as any;
+                                                                handleTicketOcr(mockEvent);
                                                             }
                                                         }}
                                                         style={{
-                                                            width: '100%', padding: '20px', border: '2px dashed rgba(255,255,255,0.2)', borderRadius: '16px',
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer', marginBottom: '25px',
-                                                            background: 'rgba(255,255,255,0.02)'
+                                                            width: '100%', padding: '20px',
+                                                            border: isDragging ? '2px dashed var(--primary)' : '2px dashed rgba(255,255,255,0.2)',
+                                                            borderRadius: '16px',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: isOcrLoading ? 'wait' : 'pointer', marginBottom: '25px',
+                                                            background: isDragging ? 'rgba(0,212,255,0.05)' : 'rgba(255,255,255,0.02)',
+                                                            opacity: isOcrLoading ? 0.6 : 1,
+                                                            pointerEvents: isOcrLoading ? 'none' : 'auto',
+                                                            transition: 'all 0.2s',
+                                                            transform: isDragging ? 'scale(1.02)' : 'scale(1)'
                                                         }}
                                                     >
-                                                        <Upload size={20} color="var(--primary)" />
-                                                        <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                                                            {plannerData.travelMode === 'plane' ? 'e-티켓/항공권 업로드' : plannerData.travelMode === 'ship' ? '승선권 업로드' : '승차권/예매내역 업로드'}
-                                                        </span>
-                                                        <span style={{ fontSize: '12px', opacity: 0.5 }}>(자동 입력)</span>
+                                                        <input
+                                                            type="file"
+                                                            ref={ticketFileInputRef}
+                                                            style={{ display: 'none' }}
+                                                            accept="image/*,.html,.htm,.pdf"
+                                                            onChange={handleTicketOcr}
+                                                        />
+                                                        {isOcrLoading ? (
+                                                            <>
+                                                                <Loader2 size={20} className="animate-spin" color="var(--primary)" />
+                                                                <span style={{ color: 'var(--primary)', fontWeight: 700 }}>티켓 분석 중...</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Upload size={20} color="var(--primary)" />
+                                                                <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                                                                    {plannerData.travelMode === 'plane' ? 'e-티켓/항공권 업로드' : plannerData.travelMode === 'ship' ? '승선권 업로드' : '승차권/예매내역 업로드'}
+                                                                </span>
+                                                                <span style={{ fontSize: '12px', opacity: 0.5 }}>(자동 입력)</span>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 )}
 
@@ -2987,7 +3591,7 @@ const App: React.FC = () => {
                                             </div>
 
                                             <div style={{ display: 'flex', gap: '15px' }}>
-                                                <button onClick={() => setPlannerStep(1)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
+                                                <button onClick={() => setPlannerStep(2)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
                                                 <button
                                                     onClick={() => {
                                                         showToast("임시 저장되었습니다. 목록에서 언제든 이어서 작성하세요.");
@@ -3016,9 +3620,9 @@ const App: React.FC = () => {
                                     {/* Step 3 (Theme) Skipped */}
 
                                     {plannerStep === 4 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '600px' }}>
+                                        <motion.div key="planner-step-4" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '600px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '40px', justifyContent: 'center' }}>
-                                                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                                                {[1, 2, 3, 4, 5, 6, 7].map(i => (
                                                     <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 4 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 4 ? 0.3 : 1 }} />
                                                 ))}
                                             </div>
@@ -3029,7 +3633,7 @@ const App: React.FC = () => {
                                                 ))}
                                             </div>
                                             <div style={{ display: 'flex', gap: '15px' }}>
-                                                <button onClick={() => setPlannerStep(2)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
+                                                <button onClick={() => setPlannerStep(3)} style={{ flex: 1, padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'white', fontWeight: 800 }}>이전</button>
                                                 <button
                                                     onClick={() => {
                                                         const draft = { step: plannerStep, data: plannerData, selectedIds: selectedPlaceIds, updated: Date.now() };
@@ -3047,9 +3651,9 @@ const App: React.FC = () => {
                                     )}
 
                                     {plannerStep === 5 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '600px' }}>
+                                        <motion.div key="planner-step-5" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '600px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '40px', justifyContent: 'center' }}>
-                                                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                                                {[1, 2, 3, 4, 5, 6, 7].map(i => (
                                                     <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 5 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 5 ? 0.3 : 1 }} />
                                                 ))}
                                             </div>
@@ -3078,9 +3682,9 @@ const App: React.FC = () => {
                                     )}
 
                                     {plannerStep === 6 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '600px' }}>
+                                        <motion.div key="planner-step-6" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '600px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '40px', justifyContent: 'center' }}>
-                                                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
                                                     <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 6 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 6 ? 0.3 : 1 }} />
                                                 ))}
                                             </div>
@@ -3114,9 +3718,9 @@ const App: React.FC = () => {
                                     )}
 
                                     {plannerStep === 7 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '900px' }}>
+                                        <motion.div key="planner-step-7" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '900px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '30px', justifyContent: 'center' }}>
-                                                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
                                                     <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 7 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 7 ? 0.3 : 1 }} />
                                                 ))}
                                             </div>
@@ -3312,10 +3916,10 @@ const App: React.FC = () => {
                                     )}
 
                                     {plannerStep === 7.5 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '800px', textAlign: 'left' }}>
+                                        <motion.div key="planner-step-7-5" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '800px', textAlign: 'left' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '40px', justifyContent: 'center' }}>
-                                                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                                                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 7 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 7 ? 0.3 : 1 }} />
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+                                                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 8 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 8 ? 0.3 : 1 }} />
                                                 ))}
                                             </div>
                                             <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '10px', textAlign: 'center' }}>어디서 주무시나요?</h2>
@@ -3409,10 +4013,10 @@ const App: React.FC = () => {
                                     )}
 
                                     {plannerStep === 8 && (
-                                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+                                        <motion.div key="planner-step-8" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '40px', justifyContent: 'center' }}>
-                                                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                                                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 8 ? 'var(--primary)' : 'rgba(255,255,255,0.1)', opacity: i < 8 ? 0.3 : 1 }} />
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+                                                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i === 9 ? 'var(--primary)' : 'rgba(255,255,255,0.1)' }} />
                                                 ))}
                                             </div>
                                             <Loader2 size={100} className="animate-spin" style={{ color: 'var(--primary)', marginBottom: '32px', display: 'block', margin: '0 auto' }} />
@@ -3422,7 +4026,7 @@ const App: React.FC = () => {
                                     )}
 
                                     {plannerStep === 9 && (
-                                        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ width: '100%', maxWidth: '600px', textAlign: 'left' }}>
+                                        <motion.div key="planner-step-9" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', maxWidth: '600px', textAlign: 'left' }}>
                                             <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '10px', textAlign: 'center' }}>설계된 맞춤 코스 프리뷰</h2>
                                             <p style={{ opacity: 0.6, marginBottom: '32px', textAlign: 'center' }}>발행 전 마지막으로 코스를 확인해 주세요.</p>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '40px' }}>
@@ -3615,9 +4219,11 @@ const App: React.FC = () => {
                                             departurePoint: '',
                                             entryPoint: '',
                                             travelMode: 'plane',
+                                            useRentalCar: tripToEdit.metadata.useRentalCar || false,
                                             companion: '',
                                             transport: tripToEdit.metadata.useRentalCar ? 'rental' : 'bus', // Simplification
                                             pace: 'standard',
+                                            theme: '',
                                             accommodations: tripToEdit.metadata.accommodations || []
                                         });
 

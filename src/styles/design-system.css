@@ -416,3 +416,7 @@ body {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
+
+.spin {
+  animation: spin 1s linear infinite;
+}

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>숙소 예약 확인서</title>
+    <style>
+        body {
+            font-family: 'Apple SD Gothic Neo', sans-serif;
+            padding: 40px;
+            background: #f4f7f6;
+        }
+
+        .voucher {
+            background: white;
+            width: 600px;
+            margin: 0 auto;
+            border: 1px solid #ddd;
+            padding: 40px;
+            border-radius: 8px;
+        }
+
+        .header {
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .hotel-name {
+            font-size: 22px;
+            color: #e67e22;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px dashed #ddd;
+            font-size: 12px;
+            color: #95a5a6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="voucher">
+        <div class="header">
+            <div class="title">HOTEL CONFIRMATION</div>
+            <div>Reservation ID: #ABC-987654</div>
+        </div>
+
+        <div class="section">
+            <div class="label">Accommodation</div>
+            <div class="value hotel-name">힐튼 오키나와 차탄 리조트 (Hilton Okinawa Chatan Resort)</div>
+            <div style="font-size: 14px; color: #666;">40-1 Mihama, Chatan, Nakagami District, Okinawa 904-0115</div>
+        </div>
+
+        <div class="grid">
+            <div class="section">
+                <div class="label">Check-in</div>
+                <div class="value">2026-02-15 (Sun)</div>
+                <div style="font-size: 14px;">From 15:00</div>
+            </div>
+            <div class="section">
+                <div class="label">Check-out</div>
+                <div class="value">2026-02-17 (Tue)</div>
+                <div style="font-size: 14px;">Before 11:00</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="label">Room Type</div>
+            <div class="value">King Guest Room with Ocean View</div>
+            <div style="font-size: 14px;">Breakfast Included</div>
+        </div>
+
+        <div class="footer">
+            본 확인서는 예약 완료를 증명하며, 체크인 시 여권과 함께 제시해 주시기 바랍니다.
+        </div>
+    </div>
+</body>
+
+</html>

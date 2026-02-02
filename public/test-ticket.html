@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>테스트 항공권</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #f0f0f0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .ticket {
+            background: white;
+            width: 600px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #0066cc 0%, #0099ff 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .airline-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .boarding-pass {
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+        }
+        .field {
+            flex: 1;
+        }
+        .label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            letter-spacing: 0.5px;
+        }
+        .value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #000;
+        }
+        .large {
+            font-size: 24px;
+        }
+        .route {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .airport {
+            text-align: center;
+        }
+        .airport-code {
+            font-size: 36px;
+            font-weight: bold;
+            color: #0066cc;
+        }
+        .airport-name {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .arrow {
+            font-size: 30px;
+            color: #0066cc;
+            margin: 0 20px;
+        }
+        .barcode {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 2px dashed #ddd;
+        }
+        .barcode-img {
+            width: 300px;
+            height: 60px;
+            background: repeating-linear-gradient(
+                90deg,
+                #000 0px,
+                #000 2px,
+                #fff 2px,
+                #fff 4px
+            );
+        }
+        .barcode-text {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="ticket">
+        <div class="header">
+            <div class="airline-name">KOREAN AIR</div>
+            <div class="boarding-pass">BOARDING PASS</div>
+        </div>
+        
+        <div class="content">
+            <div class="row">
+                <div class="field">
+                    <div class="label">Passenger Name</div>
+                    <div class="value large">KIM MINHO</div>
+                </div>
+            </div>
+
+            <div class="route">
+                <div class="airport">
+                    <div class="airport-code">ICN</div>
+                    <div class="airport-name">인천국제공항</div>
+                </div>
+                <div class="arrow">✈</div>
+                <div class="airport">
+                    <div class="airport-code">OKA</div>
+                    <div class="airport-name">나하공항</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="field">
+                    <div class="label">Flight</div>
+                    <div class="value">KE 123</div>
+                </div>
+                <div class="field">
+                    <div class="label">Date</div>
+                    <div class="value">15 FEB 2026</div>
+                </div>
+                <div class="field">
+                    <div class="label">Departure</div>
+                    <div class="value">09:30</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="field">
+                    <div class="label">Gate</div>
+                    <div class="value">12</div>
+                </div>
+                <div class="field">
+                    <div class="label">Seat</div>
+                    <div class="value">23A</div>
+                </div>
+                <div class="field">
+                    <div class="label">Boarding</div>
+                    <div class="value">09:00</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="barcode">
+            <div class="barcode-img"></div>
+            <div class="barcode-text">KE123 ICN OKA 15FEB26</div>
+        </div>
+    </div>
+
+    <script>
+        // 페이지 로드 시 자동으로 스크린샷 안내
+        window.addEventListener('load', () => {
+            console.log('테스트 티켓이 준비되었습니다!');
+            console.log('이 페이지를 스크린샷하여 OCR 테스트에 사용하세요.');
+        });
+    </script>
+</body>
+</html>

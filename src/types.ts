@@ -9,6 +9,7 @@ export interface LocationPoint {
     coordinates: { lat: number; lng: number };
     tips: string[];
     isCompleted?: boolean;
+    description?: string;
     weather?: { temp: string; condition: string; wind: string; humidity: string; }
 }
 
@@ -43,4 +44,22 @@ export interface TripPlan {
     days?: { day: number; points: LocationPoint[] }[]; // Added for AI generated structure
     speechData: SpeechItem[];
     defaultFiles: TravelFile[];
+}
+
+export interface PlannerData {
+    title: string;
+    destination: string;
+    startDate: string;
+    endDate: string;
+    arrivalTime: string;
+    departureTime: string;
+    departurePoint: string;
+    entryPoint: string;
+    travelMode: 'plane' | 'ship' | 'car' | string;
+    useRentalCar: boolean;
+    companion: string;
+    transport: 'rental' | 'public' | string;
+    accommodations: { name: string, startDate: string, endDate: string }[];
+    theme: string;
+    pace: 'relaxed' | 'normal' | 'tight' | string;
 }

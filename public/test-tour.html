@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>투어 예약 확인서</title>
+    <style>
+        body {
+            font-family: 'Apple SD Gothic Neo', sans-serif;
+            padding: 40px;
+            background: #fff5f5;
+        }
+
+        .voucher {
+            background: white;
+            width: 600px;
+            margin: 0 auto;
+            border: 2px solid #ff6b6b;
+            padding: 40px;
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .stamp {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            border: 3px solid #ff6b6b;
+            color: #ff6b6b;
+            padding: 10px;
+            transform: rotate(15deg);
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .header {
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 26px;
+            font-weight: bold;
+            color: #ff6b6b;
+        }
+
+        .tour-name {
+            font-size: 20px;
+            background: #fff0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .label {
+            color: #666;
+            width: 100px;
+        }
+
+        .value {
+            font-weight: bold;
+            flex: 1;
+        }
+
+        .notice {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 13px;
+            color: #555;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="voucher">
+        <div class="stamp">CONFIRMED</div>
+        <div class="header">
+            <div class="title">ACTIVITY VOUCHER</div>
+            <div style="font-size: 14px; color: #999;">Booking No: T-2026-XKY</div>
+        </div>
+
+        <div class="tour-name">
+            🌊 푸른동굴 스노클링 & 다이빙 투어 (Blue Cave Snorkeling)
+        </div>
+
+        <div class="info-row">
+            <div class="label">Date</div>
+            <div class="value">2026년 2월 16일 (월요일)</div>
+        </div>
+        <div class="info-row">
+            <div class="label">Time</div>
+            <div class="value">오후 14:00 (미팅 13:40까지)</div>
+        </div>
+        <div class="info-row">
+            <div class="label">Location</div>
+            <div class="value">마에다 미사키 주차장 미팅 (Maeda Misaki)</div>
+        </div>
+        <div class="info-row">
+            <div class="label">Participants</div>
+            <div class="value">성인 2명</div>
+        </div>
+
+        <div class="notice">
+            <strong>유의사항:</strong><br>
+            - 수영복과 수건을 지참해 주세요.<br>
+            - 날씨에 따라 일정이 변경될 수 있으며, 취소 시 개별 연락 드립니다.
+        </div>
+    </div>
+</body>
+
+</html>
