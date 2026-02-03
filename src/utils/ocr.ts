@@ -1,6 +1,31 @@
 import Tesseract from 'tesseract.js';
 import * as pdfjs from 'pdfjs-dist';
 
+/**
+ * Convert File to Base64 string for Gemini Vision
+ */
+export const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result as string;
+            if (!result) {
+                reject(new Error('파일 읽기 결과가 없습니다.'));
+                return;
+            }
+            // data:image/jpeg;base64,/9j/4AAQSkZJRg... -> /9j/4AAQSkZJRg...
+            const base64Data = result.split(',')[1];
+            if (!base64Data) {
+                reject(new Error('Base64 데이터를 추출할 수 없습니다.'));
+                return;
+            }
+            resolve(base64Data);
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
+};
+
 // Set worker source for pdf.js using unpkg for more reliable version matching
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -235,4 +260,4 @@ export const extractTextFromFile = async (file: File): Promise<string> => {
 };
 
 export const parseFlightTicket = (ocrText: string) => parseUniversalDocument(ocrText) as any;
-export const parsePublicTransportTicket = (ocrText: string) => ({ departure: '미확인', arrival: '미확인' });
+export const parsePublicTransportTicket = (_ocrText: string) => ({ departure: '미확인', arrival: '미확인' });

@@ -34,7 +34,7 @@ export interface TripMetadata {
     endDate: string;
     useRentalCar: boolean;
     primaryColor?: string;
-    accommodations?: { name: string, startDate: string, endDate: string }[];
+    accommodations?: { name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number } }[];
 }
 
 export interface TripPlan {
@@ -55,11 +55,21 @@ export interface PlannerData {
     departureTime: string;
     departurePoint: string;
     entryPoint: string;
+    // New fields for detailed info
+    airline?: string;
+    flightNumber?: string;
+    shipName?: string;
+    tourName?: string;
+    arrivalDate?: string; // Specific arrival date for the leg
+
     travelMode: 'plane' | 'ship' | 'car' | string;
     useRentalCar: boolean;
     companion: string;
     transport: 'rental' | 'public' | string;
-    accommodations: { name: string, startDate: string, endDate: string }[];
+    accommodations: { name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number } }[];
     theme: string;
     pace: 'relaxed' | 'normal' | 'tight' | string;
+    // Coordinates for travel entry
+    departureCoordinates?: { lat: number; lng: number };
+    entryCoordinates?: { lat: number; lng: number };
 }

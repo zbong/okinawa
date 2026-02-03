@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import './styles/design-system.css';
 import { okinawaTrip } from './data';
 import { LocationPoint, SpeechItem, TripPlan, PlannerData } from './types';
-import { extractTextFromFile, parseFlightTicket, parsePublicTransportTicket, parseUniversalDocument } from './utils/ocr';
+import { extractTextFromFile, parseFlightTicket, parsePublicTransportTicket, parseUniversalDocument, fileToBase64 } from './utils/ocr';
+import { parseWithAI } from './utils/ai-parser';
 import {
     LayoutDashboard,
     Calendar,
@@ -438,28 +439,131 @@ const App: React.FC = () => {
             const updates: Partial<PlannerData> = {};
             const newAnalyzedFiles = [...analyzedFiles];
 
-            for (const file of files) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
                 // Add to analyzed list with loading status
                 const fileIdx = newAnalyzedFiles.length;
                 newAnalyzedFiles.push({ name: file.name, text: '', status: 'loading' });
                 setAnalyzedFiles([...newAnalyzedFiles]);
 
-                const text = await extractTextFromFile(file);
-                const parsed = parseUniversalDocument(text) as any;
+                const mimeType = file.type || 'image/jpeg';
+                const isSupportedMultimodal = mimeType.startsWith('image/') || mimeType === 'application/pdf';
+
+                let text = '';
+                let base64 = '';
+
+                // Only extract text locally if it's NOT a multimodal-supported file (like HTML)
+                if (!isSupportedMultimodal) {
+                    text = await extractTextFromFile(file);
+                } else {
+                    base64 = await fileToBase64(file);
+                }
+
+                let parsed;
+                try {
+                    const fileData = isSupportedMultimodal ? { base64, mimeType } : undefined;
+                    parsed = await parseWithAI(text, fileData);
+                } catch (err) {
+                    console.error(`AI Parsing failure for ${file.name}:`, err);
+                    // Only fallback to legacy if specifically text-based and AI failed completely
+                    if (!isSupportedMultimodal && text) {
+                        parsed = parseUniversalDocument(text);
+                    } else {
+                        // Mark as error
+                        newAnalyzedFiles[fileIdx] = { name: file.name, text: text || '(Analysis Failed)', status: 'error' };
+                        setAnalyzedFiles([...newAnalyzedFiles]);
+                        continue;
+                    }
+                }
+
+                if (i > 0) await sleep(1500); // Throttle batch requests
 
                 // Update analyzed list with results
-                newAnalyzedFiles[fileIdx] = { name: file.name, text, parsedData: parsed, status: 'done' };
+                newAnalyzedFiles[fileIdx] = { name: file.name, text: text || '(Vision Mode)', parsedData: parsed, status: 'done' };
                 setAnalyzedFiles([...newAnalyzedFiles]);
 
+                // Intelligent update mapping
                 if (parsed.type === 'flight') {
-                    updates.destination = parsed.arrival;
+                    const arrival = parsed.flight?.arrivalAirport || parsed.arrival;
+                    if (arrival && arrival !== '도착지 미확인') updates.destination = arrival;
+
+                    // Explicit Mapping for Step 3
+                    if (parsed.flight?.departureAirport) updates.departurePoint = parsed.flight.departureAirport;
+                    if (parsed.flight?.arrivalAirport) updates.entryPoint = parsed.flight.arrivalAirport;
+                    if (parsed.flight?.departureCoordinates) updates.departureCoordinates = parsed.flight.departureCoordinates;
+                    if (parsed.flight?.arrivalCoordinates) updates.entryCoordinates = parsed.flight.arrivalCoordinates;
+
+                    updates.travelMode = 'plane';
+
+                    const depDate = parsed.flight?.departureDate || parsed.startDate;
+                    if (depDate && depDate !== '미확인' && depDate !== null) updates.startDate = depDate;
+
+                    const arrDate = parsed.flight?.arrivalDate || parsed.endDate;
+                    if (arrDate && arrDate !== '미확인' && arrDate !== null) updates.endDate = arrDate;
+
+                    if (parsed.flight?.departureTime) updates.departureTime = parsed.flight.departureTime;
+                    if (parsed.flight?.arrivalTime) updates.arrivalTime = parsed.flight.arrivalTime;
+                    if (parsed.flight?.airline) updates.airline = parsed.flight.airline;
+                    if (parsed.flight?.flightNumber) updates.flightNumber = parsed.flight.flightNumber;
+                    if (parsed.flight?.arrivalDate) updates.arrivalDate = parsed.flight.arrivalDate;
                 } else if (parsed.type === 'accommodation') {
-                    if (!updates.destination) updates.destination = parsed.hotelName;
-                    if (parsed.checkIn && parsed.checkIn !== '미확인') updates.startDate = parsed.checkIn;
-                    if (parsed.checkOut && parsed.checkOut !== '미확인') updates.endDate = parsed.checkOut;
-                } else if (parsed.startDate && parsed.startDate !== '미확인') {
-                    updates.startDate = parsed.startDate;
-                    if (parsed.endDate && parsed.endDate !== '미확인') updates.endDate = parsed.endDate;
+                    const hotel = parsed.accommodation?.hotelName || parsed.hotelName;
+                    if (!updates.destination && hotel) updates.destination = hotel;
+
+                    const checkIn = parsed.accommodation?.checkInDate || parsed.checkIn;
+                    const checkOut = parsed.accommodation?.checkOutDate || parsed.checkOut;
+
+                    if (checkIn && checkIn !== '미확인' && checkIn !== null) updates.startDate = checkIn;
+                    if (checkOut && checkOut !== '미확인' && checkOut !== null) updates.endDate = checkOut;
+
+                    if (parsed.accommodation?.checkInTime) updates.arrivalTime = parsed.accommodation.checkInTime;
+
+                    // Add to accommodations list (don't overwrite, append if not exists)
+                    if (hotel) {
+                        setPlannerData(prev => {
+                            const exists = prev.accommodations.some(a => a.name === hotel);
+                            if (!exists) {
+                                return {
+                                    ...prev,
+                                    accommodations: [
+                                        ...prev.accommodations,
+                                        {
+                                            name: hotel,
+                                            startDate: checkIn || prev.startDate || '',
+                                            endDate: checkOut || prev.endDate || '',
+                                            coordinates: parsed.accommodation?.coordinates
+                                        }
+                                    ]
+                                };
+                            }
+                            return prev;
+                        });
+                    }
+                } else if (parsed.type === 'ship') {
+                    const dep = parsed.ship?.departurePort;
+                    const arr = parsed.ship?.arrivalPort;
+                    if (dep) updates.departurePoint = dep;
+                    if (arr) updates.entryPoint = arr;
+                    if (parsed.ship?.departureCoordinates) updates.departureCoordinates = parsed.ship.departureCoordinates;
+                    if (parsed.ship?.arrivalCoordinates) updates.entryCoordinates = parsed.ship.arrivalCoordinates;
+
+                    updates.travelMode = 'ship';
+
+                    if (parsed.ship?.departureDate) updates.startDate = parsed.ship.departureDate;
+                    if (parsed.ship?.arrivalDate) updates.arrivalDate = parsed.ship.arrivalDate;
+                    if (parsed.ship?.departureTime) updates.departureTime = parsed.ship.departureTime;
+                    if (parsed.ship?.arrivalTime) updates.arrivalTime = parsed.ship.arrivalTime;
+                    if (parsed.ship?.shipName) updates.shipName = parsed.ship.shipName;
+                } else if (parsed.type === 'tour') {
+                    if (parsed.tour?.tourName) updates.tourName = parsed.tour.tourName;
+                    if (parsed.tour?.date) updates.startDate = parsed.tour.date;
+                } else {
+                    // Unified date info
+                    const sDate = parsed.startDate || parsed.accommodation?.checkInDate || parsed.flight?.departureDate;
+                    const eDate = parsed.endDate || parsed.accommodation?.checkOutDate || parsed.flight?.arrivalDate;
+
+                    if (sDate && sDate !== '미확인' && sDate !== null) updates.startDate = sDate;
+                    if (eDate && eDate !== '미확인' && eDate !== null) updates.endDate = eDate;
                 }
             }
             setPlannerData((prev) => ({ ...prev, ...updates }));
@@ -469,6 +573,8 @@ const App: React.FC = () => {
             setIsOcrLoading(false);
         }
     };
+
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     // Fetch dynamic attractions using AI with Caching
     const fetchAttractionsWithAI = async (destination: string) => {
@@ -611,8 +717,8 @@ const App: React.FC = () => {
             const prompt = `
               You are a premium travel planner. Create a detailed ${plannerData.destination} travel itinerary.
               - Period: ${plannerData.startDate} to ${plannerData.endDate}
-              - Departure: ${plannerData.departurePoint}
-              - Destination Entry Point: ${plannerData.entryPoint}
+              - Departure: ${plannerData.departurePoint} ${plannerData.departureCoordinates ? `(Coords: ${plannerData.departureCoordinates.lat}, ${plannerData.departureCoordinates.lng})` : ''}
+              - Destination Entry Point: ${plannerData.entryPoint} ${plannerData.entryCoordinates ? `(Coords: ${plannerData.entryCoordinates.lat}, ${plannerData.entryCoordinates.lng})` : ''}
               - Selected Attractions: ${selectedPlaces.map(p => p.name).join(', ')}
               - Mode of Transport: ${plannerData.transport} (Rental: ${plannerData.useRentalCar})
               - Companion: ${plannerData.companion || 'Not specified'}
@@ -976,30 +1082,85 @@ const App: React.FC = () => {
         showToast('티켓 분석 중... (잠시만 기다려주세요)');
 
         try {
-            // 1. Extract text from file (supports Image or HTML)
-            const text = await extractTextFromFile(file);
+            const mimeType = file.type || 'image/jpeg';
+            const isSupportedMultimodal = mimeType.startsWith('image/') || mimeType === 'application/pdf';
 
-            // 2. Parse based on travel mode
-            let parsedInfo;
-            if (plannerData.travelMode === 'plane' || plannerData.travelMode === 'ship') {
-                parsedInfo = parseFlightTicket(text);
+            let text = '';
+            let base64 = '';
+
+            if (!isSupportedMultimodal) {
+                text = await extractTextFromFile(file);
             } else {
-                parsedInfo = parsePublicTransportTicket(text);
+                base64 = await fileToBase64(file);
+            }
+
+            // 2. Parse based on travel mode using AI (Multimodal)
+            let parsedInfo;
+            try {
+                const fileData = isSupportedMultimodal ? { base64, mimeType } : undefined;
+                parsedInfo = await parseWithAI(text, fileData);
+            } catch (err) {
+                console.warn('AI Parsing failed, falling back to legacy ticket parser', err);
+                if (!text) text = await extractTextFromFile(file);
+                if (plannerData.travelMode === 'plane' || plannerData.travelMode === 'ship') {
+                    parsedInfo = parseFlightTicket(text);
+                } else {
+                    parsedInfo = parsePublicTransportTicket(text);
+                }
             }
             // Record for Lab
-            setAnalyzedFiles(prev => [...prev, { name: file.name, text, parsedData: parsedInfo, status: 'done' }]);
+            setAnalyzedFiles(prev => [...prev, { name: file.name, text: text || '(Vision Mode)', parsedData: parsedInfo, status: 'done' }]);
 
             // 3. Update planner data
-            if (parsedInfo.departure !== '출발지 미확인' || parsedInfo.arrival !== '도착지 미확인') {
-                setPlannerData((prev) => ({
+            const dep = parsedInfo.flight?.departureAirport || parsedInfo.ship?.departurePort || parsedInfo.departure;
+            const arr = parsedInfo.flight?.arrivalAirport || parsedInfo.ship?.arrivalPort || parsedInfo.arrival;
+            const depCoords = parsedInfo.flight?.departureCoordinates || parsedInfo.ship?.departureCoordinates;
+            const arrCoords = parsedInfo.flight?.arrivalCoordinates || parsedInfo.ship?.arrivalCoordinates;
+
+            const sDate = parsedInfo.flight?.departureDate || parsedInfo.startDate;
+            const eDate = parsedInfo.flight?.arrivalDate || parsedInfo.endDate;
+            const depTime = parsedInfo.flight?.departureTime;
+            const arrTime = parsedInfo.flight?.arrivalTime;
+
+            setPlannerData((prev) => {
+                const newData = {
                     ...prev,
-                    departurePoint: parsedInfo.departure !== '출발지 미확인' ? parsedInfo.departure : prev.departurePoint,
-                    entryPoint: (parsedInfo.arrival !== '도착지 미확인' && parsedInfo.arrival !== '오키나와') ? parsedInfo.arrival : prev.entryPoint
-                }));
-                showToast('티켓 정보가 자동으로 입력되었습니다!');
-            } else {
-                showToast('티켓에서 정보를 찾을 수 없습니다. 수동으로 입력해 주세요.');
-            }
+                    departurePoint: (dep && dep !== '출발지 미확인') ? dep : prev.departurePoint,
+                    entryPoint: (arr && arr !== '도착지 미확인' && arr !== '오키나와') ? arr : prev.entryPoint,
+                    departureCoordinates: depCoords || prev.departureCoordinates,
+                    entryCoordinates: arrCoords || prev.entryCoordinates,
+                    startDate: (sDate && sDate !== '미확인') ? sDate : prev.startDate,
+                    endDate: (eDate && eDate !== '미확인') ? eDate : prev.endDate,
+                    departureTime: depTime || prev.departureTime,
+                    arrivalTime: arrTime || prev.arrivalTime,
+                    arrivalDate: parsedInfo.flight?.arrivalDate || parsedInfo.ship?.arrivalDate || prev.arrivalDate,
+                    airline: parsedInfo.flight?.airline || prev.airline,
+                    flightNumber: parsedInfo.flight?.flightNumber || prev.flightNumber,
+                    shipName: parsedInfo.ship?.shipName || prev.shipName,
+                    tourName: parsedInfo.tour?.tourName || prev.tourName
+                };
+
+                // Add accommodation if present
+                if (parsedInfo.type === 'accommodation' && parsedInfo.accommodation?.hotelName) {
+                    const hotel = parsedInfo.accommodation.hotelName;
+                    const exists = prev.accommodations.some(a => a.name === hotel);
+                    if (!exists) {
+                        newData.accommodations = [
+                            ...prev.accommodations,
+                            {
+                                name: hotel,
+                                startDate: parsedInfo.accommodation.checkInDate || prev.startDate || '',
+                                endDate: parsedInfo.accommodation.checkOutDate || prev.endDate || '',
+                                coordinates: parsedInfo.accommodation.coordinates
+                            }
+                        ];
+                    }
+                }
+
+                return newData;
+            });
+
+            showToast('티켓 정보가 자동으로 입력되었습니다!');
         } catch (err) {
             console.error('OCR Process Error:', err);
             showToast('티켓 분석에 실패했습니다.');
@@ -1030,10 +1191,37 @@ const App: React.FC = () => {
         for (let i = 0; i < fileList.length; i++) {
             const file = fileList[i];
             try {
-                const text = await extractTextFromFile(file);
-                const parsedData = parseUniversalDocument(text);
+                const mimeType = file.type || 'image/jpeg';
+                const isSupportedMultimodal = mimeType.startsWith('image/') || mimeType === 'application/pdf';
+
+                let text = '';
+                let base64 = '';
+
+                if (!isSupportedMultimodal) {
+                    text = await extractTextFromFile(file);
+                } else {
+                    base64 = await fileToBase64(file);
+                }
+
+                if (i > 0) await sleep(1500); // Throttle batch requests
+
+                let parsedData;
+                try {
+                    const fileData = isSupportedMultimodal ? { base64, mimeType } : undefined;
+                    parsedData = await parseWithAI(text, fileData);
+                } catch (err) {
+                    console.error(`AI Parsing failure for ${file.name}:`, err);
+                    if (!isSupportedMultimodal && text) {
+                        parsedData = parseUniversalDocument(text);
+                    } else {
+                        setAnalyzedFiles(prev => prev.map((item, idx) =>
+                            idx === i ? { ...item, status: 'error' as const } : item
+                        ));
+                        continue;
+                    }
+                }
                 setAnalyzedFiles(prev => prev.map((item, idx) =>
-                    idx === i ? { ...item, text, parsedData, status: 'done' as const } : item
+                    idx === i ? { ...item, text: text || '(Vision Mode)', parsedData, status: 'done' as const } : item
                 ));
             } catch (err) {
                 console.error(`Error processing ${file.name}:`, err);
@@ -1517,11 +1705,42 @@ const App: React.FC = () => {
     const bottomSheetTop = activeTab === 'summary' ? '380px' : '280px';
 
     return (
-        <ErrorBoundary>
+        <>
             <div style={{ position: 'absolute', top: 0, right: 0, color: 'lime', zIndex: 9999, padding: 5, background: 'rgba(0,0,0,0.5)' }}>
                 Debug: App Rendered
             </div>
             <div className="app">
+                {/* Global Loading Overlay for OCR */}
+                <AnimatePresence>
+                    {isOcrLoading && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            style={{
+                                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                                background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)',
+                                zIndex: 10000000, display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center', gap: 20
+                            }}
+                        >
+                            <div style={{ position: 'relative', width: 80, height: 80 }}>
+                                <Loader2 size={80} className="spin" color="var(--primary)" />
+                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <FileText size={30} color="var(--primary)" />
+                                </div>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <h3 style={{ fontSize: '24px', fontWeight: 900, color: 'white', marginBottom: '8px' }}>AI 문서 분석 중</h3>
+                                <p style={{ opacity: 0.7, color: 'white', fontSize: '15px' }}>서류에서 정보를 추출하고 있습니다. 잠시만 기다려주세요.</p>
+                                <div style={{ marginTop: 15, fontSize: '12px', color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                                    <span className="pulse">●</span> 대기 중인 요청 처리 중 (API Throttling 적용됨)
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* AnimatePresence removed to fix black screen crash */}
                 <>
                     {view === 'ocr_lab' && (
@@ -1564,24 +1783,69 @@ const App: React.FC = () => {
                                                         <span style={{ fontSize: '11px', opacity: 0.4 }}>Type: {file.parsedData?.type || 'Searching...'}</span>
                                                     </div>
                                                 </div>
-                                                <span style={{
-                                                    fontSize: '11px', padding: '4px 12px', borderRadius: '10px', fontWeight: 900,
-                                                    background: file.status === 'done' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(251, 191, 36, 0.15)',
-                                                    color: file.status === 'done' ? '#34d399' : '#fbbf24',
-                                                    border: `1px solid ${file.status === 'done' ? '#34d39940' : '#fbbf2440'}`
-                                                }}>
-                                                    {file.status === 'loading' ? 'ANALYZING' : file.status === 'done' ? 'COMPLETE' : 'ERROR'}
-                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    {file.status === 'loading' && <Loader2 size={14} className="spin" color="#fbbf24" />}
+                                                    <span style={{
+                                                        fontSize: '11px', padding: '4px 12px', borderRadius: '10px', fontWeight: 900,
+                                                        background: file.status === 'done' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(251, 191, 36, 0.15)',
+                                                        color: file.status === 'done' ? '#34d399' : '#fbbf24',
+                                                        border: `1px solid ${file.status === 'done' ? '#34d39940' : '#fbbf2440'}`,
+                                                        display: 'flex', alignItems: 'center', gap: 6
+                                                    }}>
+                                                        {file.status === 'loading' ? 'ANALYZING' : file.status === 'done' ? 'COMPLETE' : 'ERROR'}
+                                                    </span>
+                                                </div>
                                             </div>
 
                                             {file.status === 'done' && file.parsedData && (
                                                 <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '20px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    {file.parsedData.summary && (
+                                                        <div style={{ fontSize: '14px', color: 'white', marginBottom: '20px', padding: '15px', background: 'rgba(0, 212, 255, 0.05)', borderRadius: '12px', borderLeft: '4px solid var(--primary)', lineHeight: 1.5 }}>
+                                                            {file.parsedData.summary}
+                                                            {file.parsedData.confidence && (
+                                                                <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '8px' }}>
+                                                                    Reliability: {Math.round(file.parsedData.confidence * 100)}%
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
                                                         {file.parsedData.type === 'flight' && (
                                                             <>
+                                                                <div style={{ gridColumn: '1 / -1' }}>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>ROUTE & FLIGHT</div>
+                                                                    <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                        ✈️ {file.parsedData.flight?.airline} {file.parsedData.flight?.flightNumber}
+                                                                        <span style={{ fontSize: '14px', opacity: 0.6, fontWeight: 400 }}>({file.parsedData.flight?.departureAirport} ➔ {file.parsedData.flight?.arrivalAirport})</span>
+                                                                    </div>
+                                                                </div>
                                                                 <div>
-                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>DEP ➔ ARR</div>
-                                                                    <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>✈️ {file.parsedData.departure} ➔ {file.parsedData.arrival}</div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>DEPARTURE</div>
+                                                                    <div style={{ fontSize: '15px', fontWeight: 700 }}>📅 {file.parsedData.flight?.departureDate || file.parsedData.startDate} <span style={{ color: 'var(--primary)', marginLeft: 8 }}>🕒 {file.parsedData.flight?.departureTime}</span></div>
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>ARRIVAL</div>
+                                                                    <div style={{ fontSize: '15px', fontWeight: 700 }}>📅 {file.parsedData.flight?.arrivalDate || file.parsedData.flight?.departureDate || file.parsedData.endDate} <span style={{ color: 'var(--primary)', marginLeft: 8 }}>🕒 {file.parsedData.flight?.arrivalTime}</span></div>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                        {file.parsedData.type === 'ship' && (
+                                                            <>
+                                                                <div style={{ gridColumn: '1 / -1' }}>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>FERRY & ROUTE</div>
+                                                                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                        🚢 {file.parsedData.ship?.shipName}
+                                                                        <span style={{ fontSize: '14px', opacity: 0.6, fontWeight: 400 }}>({file.parsedData.ship?.departurePort} ➔ {file.parsedData.ship?.arrivalPort})</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>DEPARTURE</div>
+                                                                    <div style={{ fontSize: '15px', fontWeight: 700 }}>📅 {file.parsedData.ship?.departureDate} <span style={{ color: '#60a5fa', marginLeft: 8 }}>🕒 {file.parsedData.ship?.departureTime}</span></div>
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>ARRIVAL</div>
+                                                                    <div style={{ fontSize: '15px', fontWeight: 700 }}>📅 {file.parsedData.ship?.arrivalDate || file.parsedData.ship?.departureDate} <span style={{ color: '#60a5fa', marginLeft: 8 }}>🕒 {file.parsedData.ship?.arrivalTime}</span></div>
                                                                 </div>
                                                             </>
                                                         )}
@@ -1589,19 +1853,19 @@ const App: React.FC = () => {
                                                             <>
                                                                 <div style={{ gridColumn: '1 / -1' }}>
                                                                     <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>HOTEL NAME</div>
-                                                                    <div style={{ fontSize: '20px', fontWeight: 900, color: '#fbbf24' }}>🏨 {file.parsedData.hotelName}</div>
+                                                                    <div style={{ fontSize: '20px', fontWeight: 900, color: '#fbbf24' }}>🏨 {file.parsedData.accommodation?.hotelName || file.parsedData.hotelName}</div>
                                                                 </div>
                                                                 <div>
                                                                     <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>CHECK-IN</div>
-                                                                    <div style={{ fontSize: '16px', fontWeight: 700 }}>📅 {file.parsedData.checkIn} {file.parsedData.checkInTime && <span style={{ color: 'var(--primary)', marginLeft: 8 }}>🕒 {file.parsedData.checkInTime}</span>}</div>
+                                                                    <div style={{ fontSize: '16px', fontWeight: 700 }}>📅 {file.parsedData.accommodation?.checkInDate || file.parsedData.checkIn} {(file.parsedData.accommodation?.checkInTime || file.parsedData.checkInTime) && <span style={{ color: 'var(--primary)', marginLeft: 8 }}>🕒 {file.parsedData.accommodation?.checkInTime || file.parsedData.checkInTime}</span>}</div>
                                                                 </div>
                                                                 <div>
                                                                     <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>CHECK-OUT</div>
-                                                                    <div style={{ fontSize: '16px', fontWeight: 700 }}>📅 {file.parsedData.checkOut}</div>
+                                                                    <div style={{ fontSize: '16px', fontWeight: 700 }}>📅 {file.parsedData.accommodation?.checkOutDate || file.parsedData.checkOut}</div>
                                                                 </div>
                                                             </>
                                                         )}
-                                                        {file.parsedData.type === 'unknown' && (
+                                                        {(file.parsedData.type === 'other' || file.parsedData.type === 'unknown' || file.parsedData.type === 'transport') && (
                                                             <>
                                                                 <div>
                                                                     <div style={{ fontSize: '11px', opacity: 0.5, marginBottom: '4px' }}>START DATE</div>
@@ -3333,6 +3597,47 @@ const App: React.FC = () => {
                                                         </div>
                                                     </div>
 
+                                                    {/* Added Accommodation Section */}
+                                                    <div className="glass-card" style={{ padding: '20px' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                                            <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>등록된 숙소</label>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const name = window.prompt("숙소 이름을 입력하세요:");
+                                                                    if (name) {
+                                                                        setPlannerData({
+                                                                            ...plannerData,
+                                                                            accommodations: [...plannerData.accommodations, { name, startDate: plannerData.startDate, endDate: plannerData.endDate }]
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                style={{ background: 'rgba(0,212,255,0.1)', border: 'none', borderRadius: '4px', padding: '2px 8px', color: 'var(--primary)', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                                            >+ 직접 추가</button>
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                            {plannerData.accommodations.length === 0 ? (
+                                                                <div style={{ fontSize: '12px', opacity: 0.4, textAlign: 'center', padding: '10px 0' }}>등록된 숙소가 없습니다.<br />(바우처를 올리면 자동 등록됩니다)</div>
+                                                            ) : (
+                                                                plannerData.accommodations.map((acc, idx) => (
+                                                                    <div key={idx} style={{ padding: '10px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                        <div>
+                                                                            <div style={{ fontSize: '13px', fontWeight: 700 }}>🏨 {acc.name}</div>
+                                                                            <div style={{ fontSize: '11px', opacity: 0.5 }}>{acc.startDate} ~ {acc.endDate}</div>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const newList = [...plannerData.accommodations];
+                                                                                newList.splice(idx, 1);
+                                                                                setPlannerData({ ...plannerData, accommodations: newList });
+                                                                            }}
+                                                                            style={{ background: 'none', border: 'none', color: '#ff4d4f', cursor: 'pointer', padding: '5px' }}
+                                                                        ><X size={14} /></button>
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    </div>
+
                                                     <div className="glass-card" style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
                                                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '15px', color: 'var(--primary)', opacity: 0.8 }}>선택된 일정</label>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
@@ -3548,12 +3853,71 @@ const App: React.FC = () => {
                                                 )}
 
                                                 <div style={{ display: 'grid', gap: '20px' }}>
+                                                    {/* Field: Airline / Ship Name / Tour Name (Conditional) */}
+                                                    {plannerData.travelMode === 'plane' && (
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                                            <div>
+                                                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>항공사</label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="예: 대한항공"
+                                                                    value={plannerData.airline || ''}
+                                                                    onChange={(e) => setPlannerData({ ...plannerData, airline: e.target.value })}
+                                                                    style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '15px' }}
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>편명</label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="예: OZ172"
+                                                                    value={plannerData.flightNumber || ''}
+                                                                    onChange={(e) => setPlannerData({ ...plannerData, flightNumber: e.target.value })}
+                                                                    style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '15px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {plannerData.travelMode === 'ship' && (
+                                                        <div>
+                                                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>선박/선사명</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="예: 퀸제누비아"
+                                                                value={plannerData.shipName || ''}
+                                                                onChange={(e) => setPlannerData({ ...plannerData, shipName: e.target.value })}
+                                                                style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '15px' }}
+                                                            />
+                                                        </div>
+                                                    )}
+
+                                                    {plannerData.travelMode === 'public' && (
+                                                        <div>
+                                                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>투어/교통편 명칭</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="예: 오키나와 북부 버스투어"
+                                                                value={plannerData.tourName || ''}
+                                                                onChange={(e) => setPlannerData({ ...plannerData, tourName: e.target.value })}
+                                                                style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '15px' }}
+                                                            />
+                                                        </div>
+                                                    )}
+
                                                     {/* Field 1: Departure */}
                                                     <div>
-                                                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>
-                                                            {plannerData.travelMode === 'plane' ? '출발 공항' :
-                                                                plannerData.travelMode === 'ship' ? '출발 항구' :
-                                                                    plannerData.travelMode === 'car' ? '출발지 (집 주소)' : '출발 터미널/역'}
+                                                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>
+                                                            <span>
+                                                                {plannerData.travelMode === 'plane' ? '출발 공항' :
+                                                                    plannerData.travelMode === 'ship' ? '출발 항구' :
+                                                                        plannerData.travelMode === 'car' ? '출발지 (집 주소)' : '출발 터미널/역'}
+                                                            </span>
+                                                            {plannerData.departureCoordinates && (
+                                                                <span style={{ fontSize: '10px', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                                    <MapPin size={10} /> 위치 매핑됨
+                                                                </span>
+                                                            )}
                                                         </label>
                                                         <input
                                                             type="text"
@@ -3571,9 +3935,16 @@ const App: React.FC = () => {
                                                     {/* Field 2: Arrival (Hidden for Car) */}
                                                     {plannerData.travelMode !== 'car' && (
                                                         <div>
-                                                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>
-                                                                {plannerData.travelMode === 'plane' ? '도착 공항' :
-                                                                    plannerData.travelMode === 'ship' ? '도착 항구' : '도착 터미널/역'}
+                                                            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>
+                                                                <span>
+                                                                    {plannerData.travelMode === 'plane' ? '도착 공항' :
+                                                                        plannerData.travelMode === 'ship' ? '도착 항구' : '도착 터미널/역'}
+                                                                </span>
+                                                                {plannerData.entryCoordinates && (
+                                                                    <span style={{ fontSize: '10px', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                                        <MapPin size={10} /> 위치 매핑됨
+                                                                    </span>
+                                                                )}
                                                             </label>
                                                             <input
                                                                 type="text"
@@ -3587,6 +3958,44 @@ const App: React.FC = () => {
                                                             />
                                                         </div>
                                                     )}
+
+                                                    {/* Field 3: Date & Time Info */}
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', gridColumn: '1 / -1' }}>
+                                                        <div>
+                                                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>출발 일시</label>
+                                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                                <input
+                                                                    type="date"
+                                                                    value={plannerData.startDate || ''}
+                                                                    onChange={(e) => setPlannerData({ ...plannerData, startDate: e.target.value })}
+                                                                    style={{ flex: 1.5, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '14px' }}
+                                                                />
+                                                                <input
+                                                                    type="time"
+                                                                    value={plannerData.departureTime || ''}
+                                                                    onChange={(e) => setPlannerData({ ...plannerData, departureTime: e.target.value })}
+                                                                    style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '14px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)', opacity: 0.8 }}>도착 일시</label>
+                                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                                <input
+                                                                    type="date"
+                                                                    value={plannerData.arrivalDate || plannerData.startDate || ''}
+                                                                    onChange={(e) => setPlannerData({ ...plannerData, arrivalDate: e.target.value })}
+                                                                    style={{ flex: 1.5, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '14px' }}
+                                                                />
+                                                                <input
+                                                                    type="time"
+                                                                    value={plannerData.arrivalTime || ''}
+                                                                    onChange={(e) => setPlannerData({ ...plannerData, arrivalTime: e.target.value })}
+                                                                    style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '14px' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -4175,6 +4584,7 @@ const App: React.FC = () => {
                     )}
                 </AnimatePresence>
             </div>
+
             {/* Re-Edit Confirmation Modal */}
             {isReEditModalOpen && (
                 <motion.div
@@ -4266,64 +4676,66 @@ const App: React.FC = () => {
                         </div>
                     </motion.div>
                 </motion.div>
-            )}
+            )
+            }
 
             {/* 상세 정보 모달 (Review Modal) */}
-            {isReviewModalOpen && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    style={{
-                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                        background: 'rgba(20, 20, 25, 0.95)', backdropFilter: 'blur(20px)', zIndex: 100,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
-                    }}
-                >
-                    <div style={{ width: '100%', maxWidth: '600px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '32px', textAlign: 'left' }}>
-                        <h2 style={{ fontSize: '28px', fontWeight: 900, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <CheckCircle color="var(--primary)" size={32} /> 경로 검토 및 요청
-                        </h2>
+            {
+                isReviewModalOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        style={{
+                            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                            background: 'rgba(20, 20, 25, 0.95)', backdropFilter: 'blur(20px)', zIndex: 100,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+                        }}
+                    >
+                        <div style={{ width: '100%', maxWidth: '600px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '32px', textAlign: 'left' }}>
+                            <h2 style={{ fontSize: '28px', fontWeight: 900, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <CheckCircle color="var(--primary)" size={32} /> 경로 검토 및 요청
+                            </h2>
 
-                        {(() => {
-                            const start = new Date(plannerData.startDate);
-                            const end = new Date(plannerData.endDate);
-                            const days = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1;
-                            const placeCount = selectedPlaceIds.length;
-                            let minPerDay = 3; let maxPerDay = 6;
-                            if (plannerData.pace === 'slow') { minPerDay = 1; maxPerDay = 3; }
-                            if (plannerData.pace === 'fast') { minPerDay = 5; maxPerDay = 8; }
-                            const minTotal = Math.floor(days * minPerDay);
-                            const maxTotal = Math.ceil(days * maxPerDay);
-                            let color = '#4ade80'; let msg = '여행 기간과 선택한 장소의 비율이 적절합니다!'; let subMsg = 'AI가 최적의 동선을 짤 수 있습니다.';
-                            if (placeCount < minTotal) { color = '#fbbf24'; msg = `여행 기간(${days}일)에 비해 장소가 조금 부족해 보여요.`; subMsg = `(${minTotal}곳 이상 권장, 현재 ${placeCount}곳) 남는 시간은 어떻게 보낼까요?`; }
-                            else if (placeCount > maxTotal) { color = '#f87171'; msg = `여행 기간(${days}일)에 비해 장소가 너무 많습니다.`; subMsg = `(${maxTotal}곳 이하 권장, 현재 ${placeCount}곳) 일부 장소는 제외될 수 있습니다.`; }
+                            {(() => {
+                                const start = new Date(plannerData.startDate);
+                                const end = new Date(plannerData.endDate);
+                                const days = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1;
+                                const placeCount = selectedPlaceIds.length;
+                                let minPerDay = 3; let maxPerDay = 6;
+                                if (plannerData.pace === 'slow') { minPerDay = 1; maxPerDay = 3; }
+                                if (plannerData.pace === 'fast') { minPerDay = 5; maxPerDay = 8; }
+                                const minTotal = Math.floor(days * minPerDay);
+                                const maxTotal = Math.ceil(days * maxPerDay);
+                                let color = '#4ade80'; let msg = '여행 기간과 선택한 장소의 비율이 적절합니다!'; let subMsg = 'AI가 최적의 동선을 짤 수 있습니다.';
+                                if (placeCount < minTotal) { color = '#fbbf24'; msg = `여행 기간(${days}일)에 비해 장소가 조금 부족해 보여요.`; subMsg = `(${minTotal}곳 이상 권장, 현재 ${placeCount}곳) 남는 시간은 어떻게 보낼까요?`; }
+                                else if (placeCount > maxTotal) { color = '#f87171'; msg = `여행 기간(${days}일)에 비해 장소가 너무 많습니다.`; subMsg = `(${maxTotal}곳 이하 권장, 현재 ${placeCount}곳) 일부 장소는 제외될 수 있습니다.`; }
 
-                            return (
-                                <div style={{ marginBottom: '32px', padding: '20px', borderRadius: '16px', background: `${color}15`, border: `1px solid ${color}40`, display: 'flex', gap: '16px' }}>
-                                    <div style={{ width: 4, background: color, borderRadius: '4px' }} />
-                                    <div>
-                                        <div style={{ fontWeight: 800, fontSize: '18px', color: color, marginBottom: '4px' }}>{msg}</div>
-                                        <div style={{ fontSize: '14px', opacity: 0.8 }}>{subMsg}</div>
+                                return (
+                                    <div style={{ marginBottom: '32px', padding: '20px', borderRadius: '16px', background: `${color}15`, border: `1px solid ${color}40`, display: 'flex', gap: '16px' }}>
+                                        <div style={{ width: 4, background: color, borderRadius: '4px' }} />
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: '18px', color: color, marginBottom: '4px' }}>{msg}</div>
+                                            <div style={{ fontSize: '14px', opacity: 0.8 }}>{subMsg}</div>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })()}
+                                );
+                            })()}
 
-                        <label style={{ display: 'block', fontWeight: 700, marginBottom: '12px', fontSize: '16px' }}>AI에게 특별히 요청할 사항이 있나요?</label>
-                        <textarea
-                            placeholder="예: 맛집 위주로 짜줘 등..."
-                            value={customAiPrompt}
-                            onChange={(e) => setCustomAiPrompt(e.target.value)}
-                            style={{ width: '100%', height: '120px', padding: '16px', borderRadius: '16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '15px', resize: 'none', marginBottom: '32px' }}
-                        />
+                            <label style={{ display: 'block', fontWeight: 700, marginBottom: '12px', fontSize: '16px' }}>AI에게 특별히 요청할 사항이 있나요?</label>
+                            <textarea
+                                placeholder="예: 맛집 위주로 짜줘 등..."
+                                value={customAiPrompt}
+                                onChange={(e) => setCustomAiPrompt(e.target.value)}
+                                style={{ width: '100%', height: '120px', padding: '16px', borderRadius: '16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '15px', resize: 'none', marginBottom: '32px' }}
+                            />
 
-                        <div style={{ display: 'flex', gap: '16px' }}>
-                            <button onClick={() => setIsReviewModalOpen(false)} style={{ flex: 1, padding: '18px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', fontWeight: 700, cursor: 'pointer' }}>취소</button>
-                            <button onClick={() => { setIsReviewModalOpen(false); generatePlanWithAI(); }} style={{ flex: 2, padding: '18px', borderRadius: '16px', background: 'var(--primary)', border: 'none', color: 'black', fontWeight: 800, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Sparkles size={20} /> AI 코스 생성 시작</button>
+                            <div style={{ display: 'flex', gap: '16px' }}>
+                                <button onClick={() => setIsReviewModalOpen(false)} style={{ flex: 1, padding: '18px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', fontWeight: 700, cursor: 'pointer' }}>취소</button>
+                                <button onClick={() => { setIsReviewModalOpen(false); generatePlanWithAI(); }} style={{ flex: 2, padding: '18px', borderRadius: '16px', background: 'var(--primary)', border: 'none', color: 'black', fontWeight: 800, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Sparkles size={20} /> AI 코스 생성 시작</button>
+                            </div>
                         </div>
-                    </div>
-                </motion.div>
-            )}
+                    </motion.div>
+                )}
 
             {/* Delete Confirmation Modal */}
             {deleteConfirmModal.isOpen && (
@@ -4405,8 +4817,9 @@ const App: React.FC = () => {
                         </div>
                     </motion.div>
                 </motion.div>
-            )}
-        </ErrorBoundary >
+            )
+            }
+        </>
     );
 };
 
