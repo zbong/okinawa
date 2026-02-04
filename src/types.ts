@@ -58,6 +58,14 @@ export interface PlannerData {
     // New fields for detailed info
     airline?: string;
     flightNumber?: string;
+    returnAirline?: string;
+    returnFlightNumber?: string;
+    returnDepartureDate?: string;
+    returnDepartureTime?: string;
+    returnArrivalDate?: string;
+    returnArrivalTime?: string;
+    returnDeparturePoint?: string;
+    returnArrivalPoint?: string;
     shipName?: string;
     tourName?: string;
     arrivalDate?: string; // Specific arrival date for the leg
@@ -72,4 +80,5 @@ export interface PlannerData {
     // Coordinates for travel entry
     departureCoordinates?: { lat: number; lng: number };
     entryCoordinates?: { lat: number; lng: number };
+    peopleCount?: number;
 }
