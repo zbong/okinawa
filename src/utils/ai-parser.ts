@@ -22,7 +22,10 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, initial
 
       if (shouldRetry && i < maxRetries) {
         const delay = initialDelay * Math.pow(2, i);
-        console.warn(`⚠️ Gemini API Issue (Rate Limit/Server). Retrying in ${delay}ms... (Attempt ${i + 1}/${maxRetries})`);
+        // Only log warning if it's not the first standard backoff (reduce noise)
+        if (i > 0) {
+          console.warn(`⏳ Gemini API Rate Limit. Waiting ${delay}ms before retry...`);
+        }
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -105,9 +108,16 @@ export const parseWithAI = async (text: string, fileData?: { base64: string, mim
 }
 
 [규칙]
-1. 날짜 형식: YYYY-MM-DD (연도 정보가 없는 문서라면 올해인 2026년으로 적용)
-2. 좌표 필수: 공항/호텔 이름을 기반으로 위경도 좌표(lat/lng)를 당신의 지식을 활용해 반드시 포함하세요. 
-3. 출력: 오직 순수 JSON만 출력하세요. (마크다운 불필요)
+1. 날짜/시간 논리 필독:
+   - 문서에 나오는 **가장 빠른 날짜와 시간**이 무조건 '출발(departure)'입니다.
+   - **가장 늦은 날짜와 시간**이 무조건 '도착(arrival)'입니다.
+   - 절대 출발 날짜에 도착 날짜를 적지 마세요.
+2. 시간 포맷:
+   - 오후/오전(PM/AM) 표현은 반드시 24시간제 'HH:mm'으로 변환하세요. (예: 2:30 PM -> 14:30)
+   - 만약 도착 시간이 문서에 '25:00'이나 '+1일'로 표기되어 있다면, 날짜를 다음 날로 조정하고 시간을 01:00으로 변환하세요.
+3. 데이터 필수: 도착 시간(arrivalTime)이 명시되어 있지 않다면 비행 시간을 고려해 추정해서라도 넣으세요.
+4. 좌표: 공항/호텔 이름을 기반으로 정확한 위경도를 포함하세요.
+5. 출력: 오직 순수 JSON만 출력하세요.
 `;
 
       const result = await retryWithBackoff(async () => {
@@ -126,6 +136,11 @@ export const parseWithAI = async (text: string, fileData?: { base64: string, mim
 
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+        console.log("---------------------------------------------------");
+        console.log("🤖 AI PARSED RESULT (DEBUG):");
+        console.log(JSON.stringify(parsed, null, 2)); // Pretty print critical for debugging
+        console.log("---------------------------------------------------");
+
         // Simple validation to ensure we got real content
         if (parsed.summary || parsed.flight?.airline || parsed.accommodation?.hotelName) {
           console.log(`✅ AI Parsing Successful with model: ${modelName}`);

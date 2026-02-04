@@ -476,7 +476,9 @@ const App: React.FC = () => {
                     }
                 }
 
-                if (i > 0) await sleep(1500); // Throttle batch requests
+                if (i > 0) {
+                    await sleep(4500); // Throttle to ~4.5s to fit Gemini Free Tier (15 RPM)
+                }
 
                 // Update analyzed list with results
                 newAnalyzedFiles[fileIdx] = { name: file.name, text: text || '(Vision Mode)', parsedData: parsed, status: 'done' };
@@ -495,11 +497,21 @@ const App: React.FC = () => {
 
                     updates.travelMode = 'plane';
 
-                    const depDate = parsed.flight?.departureDate || parsed.startDate;
-                    if (depDate && depDate !== '미확인' && depDate !== null) updates.startDate = depDate;
+                    // Strict mapping: Only use explicit flight dates if available
+                    if (parsed.flight?.departureDate) {
+                        updates.startDate = parsed.flight.departureDate;
+                    } else if (parsed.startDate && parsed.startDate !== '미확인') {
+                        // Fallback only if flight date is missing
+                        updates.startDate = parsed.startDate;
+                    }
 
-                    const arrDate = parsed.flight?.arrivalDate || parsed.endDate;
-                    if (arrDate && arrDate !== '미확인' && arrDate !== null) updates.endDate = arrDate;
+                    if (parsed.flight?.arrivalDate) {
+                        updates.arrivalDate = parsed.flight.arrivalDate; // Store specific leg arrival
+                    }
+
+                    // For overall trip end date, usually it's the return flight, but for one-way, it might be arrival
+                    const overallEnd = parsed.endDate || parsed.flight?.arrivalDate;
+                    if (overallEnd && overallEnd !== '미확인') updates.endDate = overallEnd;
 
                     if (parsed.flight?.departureTime) updates.departureTime = parsed.flight.departureTime;
                     if (parsed.flight?.arrivalTime) updates.arrivalTime = parsed.flight.arrivalTime;
@@ -1706,9 +1718,6 @@ const App: React.FC = () => {
 
     return (
         <>
-            <div style={{ position: 'absolute', top: 0, right: 0, color: 'lime', zIndex: 9999, padding: 5, background: 'rgba(0,0,0,0.5)' }}>
-                Debug: App Rendered
-            </div>
             <div className="app">
                 {/* Global Loading Overlay for OCR */}
                 <AnimatePresence>
@@ -1981,12 +1990,6 @@ const App: React.FC = () => {
                                                     style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer' }}
                                                 >
                                                     <LogOut size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => setView('debug')}
-                                                    style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--text-dim)', padding: '8px 12px', borderRadius: '10px', fontSize: '11px', cursor: 'pointer' }}
-                                                >
-                                                    데이터 디버그
                                                 </button>
                                                 <button
                                                     onClick={() => document.getElementById('multi-ocr-input')?.click()}
