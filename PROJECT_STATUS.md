@@ -1,61 +1,113 @@
-# 오키나와 여행 앱 프로젝트 현황
+# Okinawa 여행 가이드 프로젝트 현황
 
-**프로젝트명**: 오키나와 가족 여행 가이드 앱  
-**기간**: 2026.01.16 - 01.19  
-**최종 업데이트**: 2026-02-04 (10:30)
+## 📅 최종 업데이트: 2026-02-05 22:50
+
+## 🎯 프로젝트 개요
+오키나와 여행을 위한 인터랙티브 가이드 웹 애플리케이션
+
+## 📊 현재 상태
+
+### 파일 크기
+- **App.tsx**: 10,425줄
+- **전체 프로젝트**: ~15,000줄
+
+### 최근 작업 (2026-02-05)
+#### ✅ 완료
+1. **컴포넌트 분리**
+   - Toast 컴포넌트 분리 (78줄 감소)
+   - ConfirmModal 컴포넌트 분리 (94줄 감소)
+   - 총 165줄 감소
+
+2. **한국어 텍스트 수정**
+   - 21개 누락/깨진 텍스트 수정
+   - "알려 주세요", "언제, 어디로 떠나시나요" 등
+
+3. **자동화 시스템 구축**
+   - `analyze_structure.cjs` - 구조 분석
+   - `extract_component.cjs` - 컴포넌트 추출
+   - `update_app.cjs` - App.tsx 업데이트
+   - `refactor_all.cjs` - 전체 자동 실행
+
+#### 📁 생성된 파일
+```
+src/components/Common/
+├── Toast.tsx (80줄)
+└── ConfirmModal.tsx (120줄)
+
+프로젝트 루트/
+├── analyze_structure.cjs
+├── extract_component.cjs
+├── update_app.cjs
+├── refactor_all.cjs
+├── REFACTORING_ROADMAP.md
+├── TOKEN_EFFICIENT_STRATEGY.md
+├── TOMORROW_GUIDE.md
+├── TODAY_COMPLETION.md
+└── REFACTORING_COMPLETE.md
+```
+
+## 🚀 다음 작업 계획
+
+### Phase 1: Tab 컴포넌트 자동 분리 (다음 세션)
+**목표**: App.tsx 3,500줄 감소
+
+**실행 방법**:
+```bash
+node refactor_all.cjs
+```
+
+**예상 결과**:
+- Phrasebook Tab: ~400줄
+- OCR Lab: ~200줄
+- Documents Tab: ~600줄
+- Map Tab: ~800줄
+- Schedule Tab: ~1,500줄
+- **App.tsx**: 10,425줄 → ~6,900줄
+
+### Phase 2: Planner Context 리팩토링
+- PlannerContext 생성
+- 5개 Step 컴포넌트 분리
+- 예상 감소: ~3,400줄
+
+### Phase 3: Hooks 분리
+- useToast, useWeather, useOCR, useTrips
+- 예상 감소: ~800줄
+
+### Phase 4: 유틸리티 분리
+- tripHelpers, dateHelpers, routeHelpers
+- 예상 감소: ~300줄
+
+## 🎯 최종 목표
+**App.tsx를 2,400줄 이하로 축소** (77% 감소)
+
+## 🔧 기술 스택
+- React + TypeScript
+- Vite
+- Framer Motion
+- Lucide React Icons
+- Leaflet (지도)
+- Google Gemini AI (일정 생성, OCR)
+
+## 📝 주요 기능
+1. ✅ 여행 일정 관리
+2. ✅ 인터랙티브 지도
+3. ✅ 문서 OCR 및 자동 입력
+4. ✅ AI 기반 일정 생성
+5. ✅ 날씨 정보
+6. ✅ 여행 문구집
+
+## 🐛 알려진 이슈
+- 없음 (컴파일 성공, 런타임 정상)
+
+## 📦 백업
+- `App.tsx.backup_final` - 최종 백업 (10,425줄)
+- `App.tsx.backup2` - 이전 백업 (11,025줄)
+
+## 🔗 참고 문서
+- `REFACTORING_ROADMAP.md` - 전체 리팩토링 계획
+- `TOMORROW_GUIDE.md` - 다음 작업 가이드
+- `TOKEN_EFFICIENT_STRATEGY.md` - 토큰 절약 전략
 
 ---
 
-## 📋 완료된 기능 (Completed Features)
-
-### 33. ✅ AI 분석 안정성 고도화 (AI Parsing Stability)
-- **Model Ladder 시스템**: 구형 모델(1.5-flash)의 404 에러와 리밋(429) 문제를 해결하기 위해 `gemini-2.0-flash` 등 가용 모델을 순차적으로 탐색하는 사다리 로직 적용.
-- **공식 모델 매핑**: 사용자 API 키로 접근 가능한 실제 모델 리스트를 조사하여(2.0-flash, flash-latest) 정확한 타겟팅 구현.
-- **시각적 피드백 강화**: 전역 로딩 오버레이 및 개별 파일 분석 상태(ANALYZING/COMPLETE) 실시간 표시.
-- **데이터 정밀 추출**: 도착 일시(arrivalDate), 항공사, 숙소 명칭, GPS 좌표 등 핵심 데이터 누락 방지 및 검증 로직 추가.
-- **Throttle 정책**: 무료 API 리밋 고려하여 파일 분석 간격을 4.5초로 조정, 안정적인 처리 보장.
-- **날짜 로직 엄격화**: 출발일/도착일 매핑 시 AI가 명시한 flight 날짜를 최우선으로 적용하여 덮어쓰기 오류 해결.
-- **디버그 UI 제거**: 개발용 데이터 디버그 버튼 및 오버레이 제거로 UI/UX 클린업.
-
-### 34. ✅ UI/UX 개선 및 저장 안정화 (Stabilization & Polish)
-- **저장 시스템 안정화**: 작성 중인 여행(Draft) 저장 포맷을 통일하고, 구버전 데이터 로딩 시 앱이 종료되는 크래시(Crash) 문제 해결.
-- **저장 UX 개선**: 저장 완료 시 Toast 메시지 출력 후 자동으로 플래너 모드 종료(1.5초 지연)하여 사용성 개선.
-- **왕복 항공권 지원**: 왕복 항공권 파싱 로직(AI) 및 수동 입력 UI(Step 3) 추가. 귀국편 정보(출발/도착 공항, 편명 등)까지 완벽하게 관리.
-- **레이아웃 수정**: 긴 콘텐츠(Step 3 등)에서 상단 헤더가 잘리는 문제 해결 및 닫기 버튼 제거로 화면 공간 확보.
-
-
-### 32. ✅ 설계 마법사 시스템 고도화 (Wizard Enhancement)
-- **Step-by-Step Flow**: 단계별 애니메이션 및 네비게이션 안정화 (Step 1-9)
-- **멀티 파일 OCR**: 여러 장의 서류를 드래그 앤 드롭으로 동시 분석 가능
-- **분석 트레이싱**: 위저드 내에서 각 서류의 파싱 결과(유형, 데이터 등)를 실시간으로 확인 가능
-
----
-
-### 35. ✅ 장소 직접 입력 및 AI 검증 시스템 (Manual Place Entry & Validation)
-- **직접 입력 UI**: AI 추천 리스트 하단에 사용자 정의 장소 입력 폼 추가 (Place Selection Step).
-- **AI 위치 검증**: 입력된 장소명을 Gemini AI로 분석하여 유효성, 카테고리, 좌표(위도/경도) 자동 확보.
-- **중복 방지 로직**: 리스트 내 중복 장소 입력 시 '이미 존재' 경고 및 UI 피드백(Red Alert) 제공.
-- **스마트 UI**: 성공 시 '저장 완료(Green)', 실패/중복 시 '에러(Red)' 등 직관적인 버튼 상태 변화 애니메이션 적용.
-
-### 36. ✅ AI 검색/로딩 UX 최적화
-- **로딩 스테이트**: 숙소/장소 검색 시 `Loader2` 스피너와 진행 상태 텍스트 표시로 중복 요청 방지.
-- **API 에러 핸들링**: 429(Too Many Requests) 에러 발생 시 사용자 친화적 Toast 메시지로 안내.
-
----
-
-## 📝 남은 할 일 (TODO)
-
-### 1. Phase 3: UX/Engine 안정화 (Stabilization)
-- **Wizard Flow 재설계(중요)**: '파일 업로드 우선' -> '기본 정보 입력 우선'으로 변경하여 자연스러운 사용자 경험 유도.
-    - Step 1: 목적지/날짜 입력 (기본)
-    - Step 3: 교통편 입력 단계에서 OCR/티켓 검색 옵션 제공
-    - Step 4: 숙소 단계에서 바우처 OCR/검색 옵션 제공
-- **OCR 파싱 정밀도 향상**: 특정 항공사(아시아나 등)나 숙소 플랫폼(부킹닷컴 등)의 특수한 레이아웃 대응 로직 보강
-- **숙소 연동 강화**: AI 일정 생성 시 사용자가 입력한 숙소 위치를 기점으로 하루 동선 최적화
-
----
-
-**최종 업데이트**: 2026-02-04 (21:35)
-
-**마지막 작업**: AI 에러 핸들링, 장소 수동 입력 및 AI 좌표 검증 시스템 구현 완료.
-**다음 작업 예정**: 여행 생성 마법사(Wizard) 흐름 전면 재설계 (파일 업로드 후순위 배치)
+**마지막 커밋**: 2026-02-05 22:50 - "Refactor: Extract Toast and ConfirmModal components, add automation scripts"

@@ -1,5 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Initialize at module level to allow exports
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+export const genAI = new GoogleGenerativeAI(apiKey || 'missing-key');
+
 /**
  * Utility to retry a function with exponential backoff
  */
@@ -39,12 +43,11 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, initial
  * AI-powered parser for OCR text or images using Gemini (Multimodal)
  */
 export const parseWithAI = async (text: string, fileData?: { base64: string, mimeType: string }) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!apiKey || apiKey === 'missing-key') {
     throw new Error('Gemini API Key is not configured');
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
+  // genAI is now imported from module scope
 
   /**
    * Verified model list for this account:

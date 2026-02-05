@@ -1,194 +1,183 @@
-
 import React, { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { LocationPoint } from '../types';
 
-// Fix for default marker icon issues in Leaflet with Webpack/Vite
-import iconUrl from 'leaflet/dist/images/marker-icon.png';
-import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
-
-const DefaultIcon = L.icon({
-    iconUrl: iconUrl,
-    iconRetinaUrl: iconRetinaUrl,
-    shadowUrl: shadowUrl,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    tooltipAnchor: [16, -28],
-    shadowSize: [41, 41]
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
-
-interface MapProps {
+interface MapComponentProps {
     points: LocationPoint[];
     selectedPoint: LocationPoint | null;
-    onPointClick: (p: LocationPoint) => void;
+    onPointClick: (point: LocationPoint) => void;
 }
 
-const MapComponent: React.FC<MapProps> = ({ points, selectedPoint, onPointClick }) => {
-    const mapRef = useRef<L.Map | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const markersRef = useRef<L.Marker[]>([]);
-    const [isInitialized, setIsInitialized] = useState(false);
-    const mountedRef = useRef(true);
+const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPointClick }) => {
+    const mapRef = useRef<HTMLDivElement>(null);
+    const googleMapRef = useRef<any>(null);
+    const markersRef = useRef<any[]>([]);
+    const directionsRendererRef = useRef<any>(null);
 
-    // Initialize Map
+    const [isMapLoaded, setIsMapLoaded] = useState(false);
+    const [mapError, setMapError] = useState<string | null>(null);
+
     useEffect(() => {
-        mountedRef.current = true;
-
-        // Delay initialization slightly to ensure DOM is ready
-        const initTimer = setTimeout(() => {
-            if (!mountedRef.current) return;
-            if (!containerRef.current) return;
-            if (mapRef.current) return;
-
-            try {
-                console.log("Initializing Leaflet map...");
-
-                // Initial view (Okinawa center approx)
-                const map = L.map(containerRef.current, {
-                    zoomControl: false,
-                    attributionControl: false
-                }).setView([26.4839, 127.8118], 10);
-
-                L.tileLayer('https://mt0.google.com/vt/lyrs=m&hl=ko&x={x}&y={y}&z={z}', {
-                    maxZoom: 19,
-                }).addTo(map);
-
-                mapRef.current = map;
-                setIsInitialized(true);
-            } catch (e) {
-                console.error("Error initializing map:", e);
+        const interval = setInterval(() => {
+            if (window.google && window.google.maps) {
+                setIsMapLoaded(true);
+                clearInterval(interval);
             }
-        }, 50);
+        }, 100);
 
-        // Cleanup
-        return () => {
-            mountedRef.current = false;
-            clearTimeout(initTimer);
+        setTimeout(() => {
+            clearInterval(interval);
+            if (!window.google) {
+                setMapError("Google Maps API 로드 실패 (Timeout)");
+            }
+        }, 10000);
 
-            console.log("Cleaning up Leaflet map...");
+        return () => clearInterval(interval);
+    }, []);
 
-            // Remove all markers first
-            const markers = [...markersRef.current];
-            markersRef.current = [];
+    const [isMapInstanceReady, setIsMapInstanceReady] = useState(false);
 
-            markers.forEach(marker => {
-                try {
-                    marker.off();
-                    marker.remove();
-                } catch (e) {
-                    console.warn("Error removing marker:", e);
-                }
-            });
+    useEffect(() => {
+        if (!isMapLoaded || !mapRef.current || !window.google) return;
 
-            // Remove the map
-            const map = mapRef.current;
-            if (map) {
-                mapRef.current = null;
+        const initMap = async () => {
+            try {
+                if (!googleMapRef.current) {
+                    const { Map } = await window.google.maps.importLibrary("maps") as any;
+                    const { DirectionsRenderer } = await window.google.maps.importLibrary("routes") as any;
 
-                try {
-                    // Remove all layers
-                    map.eachLayer((layer) => {
-                        try {
-                            map.removeLayer(layer);
-                        } catch (e) {
-                            console.warn("Error removing layer:", e);
+                    const initialCenter = (points && points.length > 0 && points[0].coordinates)
+                        ? { lat: Number(points[0].coordinates.lat), lng: Number(points[0].coordinates.lng) }
+                        : { lat: 26.2124, lng: 127.6809 };
+
+                    googleMapRef.current = new Map(mapRef.current, {
+                        center: initialCenter,
+                        zoom: 11,
+                        disableDefaultUI: true,
+                        zoomControl: true,
+                        styles: [
+                            {
+                                "featureType": "all",
+                                "elementType": "labels.text.fill",
+                                "stylers": [{ "color": "#ffffff" }]
+                            },
+                            {
+                                "featureType": "all",
+                                "elementType": "labels.text.stroke",
+                                "stylers": [{ "color": "#000000" }, { "lightness": 13 }]
+                            },
+                            {
+                                "featureType": "administrative",
+                                "elementType": "geometry.fill",
+                                "stylers": [{ "color": "#000000" }, { "lightness": 20 }]
+                            },
+                            {
+                                "featureType": "landscape",
+                                "elementType": "geometry",
+                                "stylers": [{ "color": "#000000" }, { "lightness": 20 }]
+                            },
+                            {
+                                "featureType": "water",
+                                "elementType": "geometry",
+                                "stylers": [{ "color": "#0f172a" }, { "lightness": 17 }]
+                            }
+                        ]
+                    });
+
+                    directionsRendererRef.current = new DirectionsRenderer({
+                        map: googleMapRef.current,
+                        suppressMarkers: true,
+                        polylineOptions: {
+                            strokeColor: '#00D4FF',
+                            strokeWeight: 4,
+                            strokeOpacity: 0.8
                         }
                     });
 
-                    // Clear all event listeners
-                    map.off();
-
-                    // Only call remove if container still exists
-                    if (containerRef.current && containerRef.current.parentNode) {
-                        map.remove();
-                    }
-                } catch (e) {
-                    console.warn("Error during map cleanup:", e);
+                    setIsMapInstanceReady(true);
                 }
+            } catch (e) {
+                console.error("Map Initialization Error:", e);
+                setMapError("지도 초기화 중 오류가 발생했습니다.");
+            }
+        };
+
+        initMap();
+    }, [isMapLoaded]);
+
+    useEffect(() => {
+        if (!isMapInstanceReady || !googleMapRef.current || !window.google) return;
+
+        let isMounted = true;
+
+        const updateMap = async () => {
+            const validPoints = (points || []).filter(p => {
+                const lat = Number(p?.coordinates?.lat);
+                const lng = Number(p?.coordinates?.lng);
+                return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+            });
+
+            if (markersRef.current) {
+                markersRef.current.forEach(m => { try { if (m) m.setMap(null); } catch (e) { } });
+                markersRef.current = [];
             }
 
-            setIsInitialized(false);
-        };
-    }, []);
+            try {
+                if (!isMounted) return;
 
-    // Update Markers
-    useEffect(() => {
-        if (!isInitialized || !mapRef.current || !mountedRef.current) return;
+                const { Marker } = await window.google.maps.importLibrary("marker") as any;
+                const { LatLngBounds } = await window.google.maps.importLibrary("core") as any;
+                const bounds = new LatLngBounds();
 
-        const map = mapRef.current;
+                validPoints.forEach((p, i) => {
+                    const position = { lat: Number(p.coordinates.lat), lng: Number(p.coordinates.lng) };
+                    const isSelected = p.id === selectedPoint?.id;
 
-        try {
-            // Clear existing markers
-            markersRef.current.forEach(m => {
-                try {
-                    m.off();
-                    m.remove();
-                } catch (e) {
-                    console.warn("Error removing marker:", e);
-                }
-            });
-            markersRef.current = [];
-
-            // Add new markers
-            points.forEach((p, index) => {
-                if (!mountedRef.current) return;
-
-                try {
-                    // Create a custom numbered icon
-                    const numberedIcon = L.divIcon({
-                        className: 'custom-marker',
-                        html: `<span>${index + 1}</span>`,
-                        iconSize: [30, 30],
-                        iconAnchor: [15, 15],
-                        popupAnchor: [0, -15]
+                    const marker = new Marker({
+                        position,
+                        map: googleMapRef.current,
+                        zIndex: isSelected ? 999 : 1,
+                        icon: {
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: isSelected ? 12 : 8,
+                            fillColor: isSelected ? '#ffffff' : '#3b82f6',
+                            fillOpacity: 1,
+                            strokeColor: isSelected ? '#3b82f6' : '#ffffff',
+                            strokeWeight: 3,
+                        }
                     });
 
-                    const marker = L.marker([p.coordinates.lat, p.coordinates.lng], { icon: numberedIcon })
-                        .addTo(map)
-                        .on('click', () => {
-                            if (mountedRef.current) {
-                                onPointClick(p);
-                            }
-                        });
-
-                    marker.bindTooltip(p.name, {
-                        permanent: false,
-                        direction: 'top',
-                        offset: [0, -10],
-                        opacity: 0.9
-                    });
+                    marker.addListener('click', () => onPointClick(p));
                     markersRef.current.push(marker);
-                } catch (e) {
-                    console.warn("Error creating marker:", e);
+                    bounds.extend(position);
+                });
+
+                if (validPoints.length > 0) {
+                    googleMapRef.current.fitBounds(bounds);
                 }
-            });
-        } catch (e) {
-            console.error("Error updating markers:", e);
-        }
+            } catch (e) {
+                console.error("Error updating map:", e);
+            }
+        };
 
-    }, [points, selectedPoint, onPointClick, isInitialized]);
+        updateMap();
 
-    // Handle Selection & Auto-pan
-    useEffect(() => {
-        if (!isInitialized || !mapRef.current || !selectedPoint || !mountedRef.current) return;
+        return () => { isMounted = false; };
+    }, [points, selectedPoint, onPointClick, isMapInstanceReady]);
 
-        try {
-            const map = mapRef.current;
-            map.setView([selectedPoint.coordinates.lat, selectedPoint.coordinates.lng], 13, {
-                animate: true
-            });
-        } catch (e) {
-            console.warn("Error panning to selected point:", e);
-        }
-
-    }, [selectedPoint, isInitialized]);
-
-    return <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: '300px' }} />;
+    return (
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+            {(!isMapLoaded || mapError) && (
+                <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                    background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: mapError ? '#ef4444' : '#94a3b8', zIndex: 10
+                }}>
+                    {mapError || "지도를 불러오는 중..."}
+                </div>
+            )}
+        </div>
+    );
 };
 
 export default MapComponent;

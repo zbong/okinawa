@@ -34,7 +34,7 @@ export interface TripMetadata {
     endDate: string;
     useRentalCar: boolean;
     primaryColor?: string;
-    accommodations?: { name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number } }[];
+    accommodations?: { id?: string, name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number } }[];
 }
 
 export interface TripPlan {
@@ -74,11 +74,12 @@ export interface PlannerData {
     useRentalCar: boolean;
     companion: string;
     transport: 'rental' | 'public' | string;
-    accommodations: { name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number } }[];
+    accommodations: { id?: string, name: string, startDate: string, endDate: string, nights?: number, area?: string, coordinates?: { lat: number; lng: number } }[];
     theme: string;
     pace: 'relaxed' | 'normal' | 'tight' | string;
     // Coordinates for travel entry
     departureCoordinates?: { lat: number; lng: number };
     entryCoordinates?: { lat: number; lng: number };
     peopleCount?: number;
+    companionCount?: number;
 }

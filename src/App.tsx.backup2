@@ -79,9 +79,6 @@ declare global {
 // Map UI Components - Removed Leaflet imports as we use Google Maps manually
 // const MapComponent = ... (Deleted old implementation)
 import MapComponent from "./components/MapComponent";
-import { Toast, ToastMessage } from "./components/Common/Toast";
-import { ConfirmModal } from "./components/Common/ConfirmModal";
-
 
 interface CustomFile {
   id: string;
@@ -781,7 +778,7 @@ const App: React.FC = () => {
         e.toString().includes("429") ||
         e.toString().includes("Resource exhausted")
       ) {
-        showToast("AI 요청량이 많습니다. 잠시 후 다시 시도해 주세요.");
+        showToast("AI 요청량이 많습니다.   시 후 다시 시도해 주세요.");
       } else {
         showToast("숙소 정보를 불러오는 중 오류가 발생했습니다.");
       }
@@ -1168,9 +1165,12 @@ const App: React.FC = () => {
   >(null);
   const [trip, setTrip] = useState<TripPlan>(okinawaTrip); // Default to okinawaTrip for types, but logic handles view switching
 
-
   // Toast Notification State
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [toast, setToast] = useState<{
+    message: string;
+    visible: boolean;
+    type: "success" | "error" | "info";
+  }>({ message: "", visible: false, type: "info" });
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [customAiPrompt, setCustomAiPrompt] = useState("");
 
@@ -1178,15 +1178,8 @@ const App: React.FC = () => {
     message: string,
     type: "success" | "error" | "info" = "info",
   ) => {
-    const id = Date.now().toString();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
-  };
-
-  const closeToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    setToast({ message, visible: true, type });
+    setTimeout(() => setToast((prev) => ({ ...prev, visible: false })), 2000);
   };
 
   // Planning State
@@ -1550,7 +1543,7 @@ const App: React.FC = () => {
         return newData;
       });
 
-      showToast("티켓 정보가 자동으로 입력되었습니다!");
+      showToast("티켓    보가 자동으로 입   되었습니다!");
     } catch (err) {
       console.error("OCR Process Error:", err);
       showToast("티켓 분석에 실패했습니다.");
@@ -6451,7 +6444,7 @@ const App: React.FC = () => {
                             alignItems: "center",
                           }}
                         >
-                          취소하고 돌아가기
+                          취소하  돌아가기
                         </button>
                       </motion.div>
                     )}
@@ -6496,10 +6489,10 @@ const App: React.FC = () => {
                             marginBottom: "8px",
                           }}
                         >
-                          여행의 기본 정보를 알려 주세요
+                          여행의 기본 정보를 알   주세요
                         </h2>
                         <p style={{ opacity: 0.6, marginBottom: "32px" }}>
-                          언제, 어디로 떠나시나요?
+                          언   , 어디로   나시나요?
                         </p>
 
                         <div
@@ -6533,7 +6526,7 @@ const App: React.FC = () => {
                                   opacity: 0.8,
                                 }}
                               >
-                                여행 제목
+                                여행    목
                               </label>
                               <input
                                 type="text"
@@ -6571,7 +6564,7 @@ const App: React.FC = () => {
                                   opacity: 0.8,
                                 }}
                               >
-                                여행 제목적지
+                                여행 목   지
                               </label>
                               <div style={{ position: "relative" }}>
                                 <button
@@ -6582,7 +6575,7 @@ const App: React.FC = () => {
                                         "_blank",
                                       );
                                     } else {
-                                      alert("목적지를 먼저 입력해 주세요.");
+                                      alert("목   지를 먼    입   해 주세요.");
                                     }
                                   }}
                                   style={{
@@ -6650,7 +6643,7 @@ const App: React.FC = () => {
                                   opacity: 0.8,
                                 }}
                               >
-                                선택된 일정
+                                택된 일
                               </label>
                               <div
                                 style={{
@@ -6683,7 +6676,7 @@ const App: React.FC = () => {
                                       fontSize: "18px",
                                     }}
                                   >
-                                    {plannerData.startDate || "날짜 선택"}
+                                    {plannerData.startDate || "  짜   택"}
                                   </div>
                                 </div>
                                 <div
@@ -6709,7 +6702,7 @@ const App: React.FC = () => {
                                       fontSize: "18px",
                                     }}
                                   >
-                                    {plannerData.endDate || "날짜 선택"}
+                                    {plannerData.endDate || "  짜   택"}
                                   </div>
                                 </div>
                               </div>
@@ -7046,7 +7039,7 @@ const App: React.FC = () => {
                             cursor: "pointer",
                           }}
                         >
-                          취소하고 돌아가기
+                          취소하  돌아가기
                         </button>
                       </motion.div>
                     )}
@@ -8432,7 +8425,7 @@ const App: React.FC = () => {
                                 "trip_draft_v1",
                                 JSON.stringify(draft),
                               );
-                              showToast("여행 계획이 저장되었습니다.");
+                              showToast("여행 계획이    장되었습니다.");
                               setTimeout(() => setIsPlanning(false), 1500);
                             }}
                             style={{
@@ -8940,7 +8933,7 @@ const App: React.FC = () => {
                                   : isPlaceAddedError
                                     ? "이미 존재"
                                     : isPlaceAddedSuccess
-                                      ? "저장 완료"
+                                      ? "   장 완료"
                                       : "추가"}
                               </button>
                             </div>
@@ -10476,7 +10469,85 @@ const App: React.FC = () => {
           </motion.div>
         )}
 
-      </div>
+        <AnimatePresence>
+          {toast.visible && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, x: "-50%", y: "-50%" }}
+              animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
+              exit={{ opacity: 0, scale: 0.8, x: "-50%", y: "-50%" }}
+              style={{
+                position: "fixed",
+                top: "50%",
+                left: "50%",
+                background: "rgba(15, 23, 42, 0.95)",
+                backdropFilter: "blur(20px)",
+                color: "white",
+                padding: "32px 48px",
+                borderRadius: "32px",
+                zIndex: 7000000,
+                border: `1px solid ${toast.type === "error" ? "rgba(239, 68, 68, 0.3)" : toast.type === "success" ? "rgba(52, 211, 153, 0.3)" : "rgba(255,255,255,0.1)"}`,
+                textAlign: "center",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+              }}
+            >
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: "50%",
+                  background:
+                    toast.type === "error"
+                      ? "rgba(239, 68, 68, 0.1)"
+                      : toast.type === "success"
+                        ? "rgba(52, 211, 153, 0.1)"
+                        : "rgba(0, 212, 255, 0.1)",
+                  border: `2px solid ${toast.type === "error" ? "#ef4444" : toast.type === "success" ? "#34d399" : "var(--primary)"}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color:
+                    toast.type === "error"
+                      ? "#ef4444"
+                      : toast.type === "success"
+                        ? "#34d399"
+                        : "var(--primary)",
+                  margin: "0 auto 20px",
+                }}
+              >
+                {toast.type === "error" ? (
+                  <AlertCircle size={32} />
+                ) : toast.type === "success" ? (
+                  <CheckCircle size={32} />
+                ) : (
+                  <Info size={32} />
+                )}
+              </div>
+              <div
+                style={{
+                  fontWeight: 900,
+                  fontSize: "20px",
+                  marginBottom: "8px",
+                  color:
+                    toast.type === "error"
+                      ? "#ef4444"
+                      : toast.type === "success"
+                        ? "#34d399"
+                        : "white",
+                }}
+              >
+                {toast.type === "error"
+                  ? "오류 발생"
+                  : toast.type === "success"
+                    ? "   장 완료"
+                    : "알림"}
+              </div>
+              <div style={{ opacity: 0.8, fontSize: "16px", fontWeight: 500 }}>
+                {toast.message}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div >
 
       {/* Re-Edit Confirmation Modal */}
       {
@@ -10536,7 +10607,7 @@ const App: React.FC = () => {
                   color: "white",
                 }}
               >
-                경로를 재설정하시겠습니까?
+                경로를 재설   하시  습니까?
               </h2>
               <p
                 style={{
@@ -10546,9 +10617,9 @@ const App: React.FC = () => {
                   fontSize: "15px",
                 }}
               >
-                선택한 여행의 장소 선택 단계로 이동합니다.
+                택하  여행의 장소   택 단계로 이동합니다.
                 <br />
-                기존 동선 순서는 초기화되며, AI가 새로운 최적의 경로를 제안합니다.
+                기존 동  순서는 초기화되며, AI가 새로운 최    경로를 제안합니다.
               </p>
               <div style={{ display: "flex", gap: "12px" }}>
                 <button
@@ -10632,7 +10703,7 @@ const App: React.FC = () => {
                     cursor: "pointer",
                   }}
                 >
-                  확인 및 수정
+                  확인 및 수
                 </button>
               </div>
             </motion.div>
@@ -10823,35 +10894,126 @@ const App: React.FC = () => {
         )
       }
 
-
       {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={deleteConfirmModal.isOpen}
-        title={deleteConfirmModal.title}
-        message={deleteConfirmModal.message}
-        onConfirm={() => {
-          deleteConfirmModal.onConfirm();
-          setDeleteConfirmModal({
-            isOpen: false,
-            title: "",
-            message: "",
-            onConfirm: () => { },
-          });
-        }}
-        onCancel={() =>
-          setDeleteConfirmModal({
-            isOpen: false,
-            title: "",
-            message: "",
-            onConfirm: () => { },
-          })
-        }
-        confirmText="삭제"
-        cancelText="취소"
-      />
-
-      {/* Toast Notifications */}
-      <Toast toasts={toasts} onClose={closeToast} />
+      {
+        deleteConfirmModal.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0,0,0,0.8)",
+              backdropFilter: "blur(10px)",
+              zIndex: 9999999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              style={{
+                width: "100%",
+                maxWidth: "420px",
+                background:
+                  "linear-gradient(135deg, rgba(30, 30, 40, 0.95) 0%, rgba(20, 20, 30, 0.98) 100%)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                borderRadius: "24px",
+                padding: "32px",
+                textAlign: "center",
+                boxShadow: "0 25px 50px -12px rgba(239, 68, 68, 0.3)",
+              }}
+            >
+              <div
+                style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: "50%",
+                  background: "rgba(239, 68, 68, 0.1)",
+                  color: "#ef4444",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 20px",
+                  border: "2px solid rgba(239, 68, 68, 0.3)",
+                }}
+              >
+                <Trash2 size={28} />
+              </div>
+              <h2
+                style={{
+                  fontSize: "22px",
+                  fontWeight: 900,
+                  marginBottom: "12px",
+                  color: "white",
+                }}
+              >
+                {deleteConfirmModal.title}
+              </h2>
+              <p
+                style={{
+                  opacity: 0.7,
+                  marginBottom: "32px",
+                  lineHeight: 1.6,
+                  fontSize: "15px",
+                  color: "#cbd5e1",
+                }}
+              >
+                {deleteConfirmModal.message}
+              </p>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  onClick={() =>
+                    setDeleteConfirmModal({
+                      isOpen: false,
+                      title: "",
+                      message: "",
+                      onConfirm: () => { },
+                    })
+                  }
+                  style={{
+                    flex: 1,
+                    padding: "16px",
+                    borderRadius: "16px",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "white",
+                    border: "none",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  onClick={deleteConfirmModal.onConfirm}
+                  style={{
+                    flex: 1,
+                    padding: "16px",
+                    borderRadius: "16px",
+                    background:
+                      "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                    color: "white",
+                    border: "none",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 15px rgba(239, 68, 68, 0.3)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  삭제
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )
+      }
     </>
   );
 };
