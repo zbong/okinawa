@@ -1,96 +1,32 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./styles/design-system.css";
 import { okinawaTrip } from "./data";
-import { LocationPoint, SpeechItem, TripPlan, PlannerData } from "./types";
+import { LocationPoint, TripPlan, PlannerData } from "./types";
 import {
   extractTextFromFile,
-  parseFlightTicket,
-  parsePublicTransportTicket,
   parseUniversalDocument,
   fileToBase64,
 } from "./utils/ocr";
 import { parseWithAI } from "./utils/ai-parser";
-import {
-  LayoutDashboard,
-  Calendar,
-  Map as MapIcon,
-  FileText,
-  Phone,
-  RefreshCw,
-  CheckCircle,
-  Circle,
-  CloudSun,
-  Wind,
-  Droplets,
-  X,
-  Moon,
-  Sun,
-  Star,
-  Lock,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-  Upload,
-  UploadCloud,
-  Trash2,
-  MessageCircle,
-  Volume2,
-  MapPin,
-  Sparkles,
-  ArrowRight,
-  Loader2,
-  User,
-  LogIn,
-  UserPlus,
-  LogOut,
-  Users,
-  Heart,
-  Compass,
-  Utensils,
-  Camera,
-  Clock,
-  Car,
-  Bus,
-  ExternalLink,
-  Hotel,
-  Edit3,
-  Save,
-  Search,
-  Plane,
-  Globe,
-  Plus,
-  Minus,
-  AlertCircle,
-  Info,
-  Check,
-  Calendar as CalendarIcon,
-} from "lucide-react";
-import { motion, AnimatePresence, Reorder } from "framer-motion";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-// Google Maps Types
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
-// Map UI Components - Removed Leaflet imports as we use Google Maps manually
-// const MapComponent = ... (Deleted old implementation)
-import MapComponent from "./components/MapComponent";
-import { Toast, ToastMessage } from "./components/Common/Toast";
+import { usePlanner } from "./contexts/PlannerContext";
+import { Toast } from "./components/Common/Toast";
 import { ConfirmModal } from "./components/Common/ConfirmModal";
-
-
-interface CustomFile {
-  id: string;
-  name: string;
-  type: "image" | "pdf";
-  data: string; // Base64
-  linkedTo?: string; // Point ID
-  date: string;
-}
+import { ScheduleTab } from "./components/Schedule/ScheduleTab";
+import { SummaryTab } from "./components/Summary/SummaryTab";
+import { DocumentsTab } from "./components/Documents/DocumentsTab";
+import { ExchangeTab } from "./components/Exchange/ExchangeTab";
+import { PhrasebookTab } from "./components/Phrasebook/PhrasebookTab";
+import { Ocr_labTab } from "./components/Ocr_lab/Ocr_labTab";
+// GoogleGenerativeAI moved to context
+import {
+  Loader2, FileText, Sparkles, LogOut, Edit3, X, MapPin, Trash2, LogIn, User, UserPlus,
+  LayoutDashboard, Calendar, RefreshCw, MessageCircle, Sun, Moon, MapIcon, Phone,
+  Upload, ChevronUp, ChevronDown, Volume2, Star, Lock, ArrowRight, ChevronLeft,
+  ChevronRight, Minus, Plus, Clock, Compass, Wind, Car, Bus, Plane, Save, Camera,
+  Utensils, CheckCircle, AlertCircle, Hotel, Search, ExternalLink, Heart, Users,
+  Calendar as CalendarIcon
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -104,112 +40,16 @@ class ErrorBoundary extends React.Component<
     return { hasError: true, error };
   }
   componentDidCatch(error: any, errorInfo: any) {
+    this.setState({ error, errorInfo });
     console.error("ErrorBoundary caught:", error, errorInfo);
-    this.setState({ errorInfo });
   }
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 99999,
-            background: "#1e293b",
-            color: "white",
-            padding: "40px",
-            overflow: "auto",
-            textAlign: "left",
-          }}
-        >
-          <h1
-            style={{ color: "#ff5555", fontSize: "24px", marginBottom: "20px" }}
-          >
-            🚨 심각한 오류 발생
-          </h1>
-          <p style={{ marginBottom: "20px", opacity: 0.8 }}>
-            앱 실행 중 치명적인 오류가 발생했습니다. 아래 내용을 개발자에게
-            전달해 주세요.
-          </p>
-
-          <div style={{ display: "flex", gap: "10px", marginBottom: "30px" }}>
-            <button
-              onClick={() => window.location.reload()}
-              style={{
-                padding: "12px 24px",
-                fontSize: "16px",
-                fontWeight: "bold",
-                background: "#3b82f6",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-              }}
-            >
-              새로고침
-            </button>
-            <button
-              onClick={() => {
-                const errorText = `Error: ${this.state.error?.toString()}\n\nStack:\n${this.state.errorInfo?.componentStack}`;
-                navigator.clipboard.writeText(errorText);
-                alert("에러 내용이 클립보드에 복사되었습니다.");
-              }}
-              style={{
-                padding: "12px 24px",
-                fontSize: "16px",
-                fontWeight: "bold",
-                background: "#64748b",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-              }}
-            >
-              📋 에러 내용 복사
-            </button>
-          </div>
-
-          <div
-            style={{
-              background: "#0f172a",
-              padding: "20px",
-              borderRadius: "12px",
-              border: "1px solid #334155",
-              fontFamily: "monospace",
-            }}
-          >
-            <h3 style={{ color: "#f87171", margin: "0 0 10px 0" }}>
-              Error Message:
-            </h3>
-            <pre
-              style={{
-                color: "#ffaaaa",
-                whiteSpace: "pre-wrap",
-                marginBottom: "20px",
-                fontSize: "14px",
-              }}
-            >
-              {this.state.error?.toString()}
-            </pre>
-
-            <h3 style={{ color: "#94a3b8", margin: "0 0 10px 0" }}>
-              Component Stack:
-            </h3>
-            <pre
-              style={{
-                color: "#cbd5e1",
-                whiteSpace: "pre-wrap",
-                fontSize: "12px",
-                lineHeight: 1.5,
-              }}
-            >
-              {this.state.errorInfo?.componentStack ||
-                "No stack trace available"}
-            </pre>
-          </div>
+        <div style={{ padding: 20, color: "white", background: "#1e293b", minHeight: "100vh" }}>
+          <h3>Something went wrong.</h3>
+          <pre style={{ fontSize: 10 }}>{this.state.error?.toString()}</pre>
+          <button onClick={() => window.location.reload()}>Reload</button>
         </div>
       );
     }
@@ -217,7 +57,50 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+interface SpeechItem {
+  id: string;
+  kor: string;
+  jp: string;
+  pron: string;
+  category: string;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const App: React.FC = () => {
+  const {
+    view, setView, activeTab, setActiveTab,
+    theme, toggleTheme, trips, setTrips, trip, setTrip,
+    allPoints, setAllPoints,
+    selectedPoint, setSelectedPoint,
+    isPlanning, setIsPlanning,
+    plannerStep, setPlannerStep, plannerData, setPlannerData,
+    selectedPlaceIds, setSelectedPlaceIds, dynamicAttractions, setDynamicAttractions,
+    isSearchingAttractions, fetchAttractionsWithAI,
+    attractionCategoryFilter, setAttractionCategoryFilter,
+    isValidatingPlace, validateAndAddPlace,
+    isPlaceAddedError, isPlaceAddedSuccess,
+    isSearchingHotels, fetchHotelsWithAI,
+    validatedHotel, setValidatedHotel, validateHotel,
+    recommendedHotels, setRecommendedHotels,
+    customFiles, setCustomFiles,
+    isOcrLoading, setIsOcrLoading, analyzedFiles, setAnalyzedFiles, ticketFileInputRef,
+    customAiPrompt, setCustomAiPrompt,
+    isLoggedIn, setIsLoggedIn, currentUser, setCurrentUser,
+    toasts, showToast, closeToast, deleteConfirmModal, setDeleteConfirmModal,
+    isReviewModalOpen, setIsReviewModalOpen,
+    isReEditModalOpen, setIsReEditModalOpen, tripToEdit, setTripToEdit,
+    isEditingPoint, setIsEditingPoint,
+    hotelAddStatus, setHotelAddStatus,
+    convert, speak,
+    activePlannerDetail, setActivePlannerDetail,
+    isDragging, setIsDragging,
+    generatePlanWithAI,
+    userReviews, userLogs, updateReview, updateLog,
+    calendarDate, prevMonth, nextMonth
+  } = usePlanner();
+
+
   // DEBUG: Global Error Handler & Render Log
   useEffect(() => {
     const errorHandler = (event: ErrorEvent) =>
@@ -263,25 +146,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Top Level Navigation State
-  // DEV MODE: Force login state, but start at landing (list view)
-  const [view, setView] = useState<
-    "landing" | "login" | "signup" | "app" | "debug" | "ocr_lab"
-  >("landing");
-
-  // console.log(`🎨 App Re-render. Current View: ${view}`); // Commented out to reduce console noise
-
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
-  const [currentUser, setCurrentUser] = useState<{
-    name: string;
-    homeAddress?: string;
-  } | null>({
-    name: "Tester",
-    homeAddress: "경기도 평택시 서재로 36 자이아파트",
-  });
-  const [dynamicAttractions, setDynamicAttractions] = useState<any[]>([]);
-
-  const [isEditingPoint, setIsEditingPoint] = useState(false);
 
   const savePointEdit = (id: string, updates: Partial<LocationPoint>) => {
     const updatedPoints = allPoints.map((p) =>
@@ -294,27 +158,6 @@ const App: React.FC = () => {
     setIsEditingPoint(false);
     showToast("정보가 수정되었습니다.");
   };
-  const [recommendedHotels, setRecommendedHotels] = useState<any[]>([]);
-  const [isSearchingHotels, setIsSearchingHotels] = useState(false);
-  const [hotelAddStatus, setHotelAddStatus] = useState<
-    "IDLE" | "VALIDATING" | "SUCCESS" | "ERROR"
-  >("IDLE");
-  const [validatedHotel, setValidatedHotel] = useState<{
-    name: string;
-    area: string;
-    desc: string;
-  } | null>(null);
-  const isValidatingHotel = hotelAddStatus === "VALIDATING";
-
-  const [isSearchingAttractions, setIsSearchingAttractions] = useState(false);
-  const [isValidatingPlace, setIsValidatingPlace] = useState(false);
-
-  const [isPlaceAddedSuccess, setIsPlaceAddedSuccess] = useState(false);
-  const [isPlaceAddedError, setIsPlaceAddedError] = useState(false);
-  const [attractionCategoryFilter, setAttractionCategoryFilter] = useState<
-    "all" | "sightseeing" | "food" | "cafe"
-  >("all");
-  const [isDragging, setIsDragging] = useState(false);
 
   const handleFileAnalysis = async (files: File[]) => {
     if (files.length === 0) return;
@@ -636,1083 +479,57 @@ const App: React.FC = () => {
         }
         return { ...prev, ...newUpdates };
       });
-    } catch (err) {
-      console.error("OCR Wizard Error:", err);
     } finally {
       setIsOcrLoading(false);
     }
   };
 
-  const sleep = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
 
-  // Fetch dynamic attractions using AI with Caching
-  const fetchAttractionsWithAI = async (destination: string) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey || !destination) return;
-
-    // 1. Check Cache First (7 days validity)
-    const CACHE_KEY = "attraction_recommendation_cache";
-    const cachedStr = localStorage.getItem(CACHE_KEY);
-    const cache = cachedStr ? JSON.parse(cachedStr) : {};
-    const destinationKey = destination.toLowerCase().trim();
-
-    if (cache[destinationKey]) {
-      const { timestamp, data } = cache[destinationKey];
-      const now = Date.now();
-      const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-
-      if (now - timestamp < sevenDaysInMs) {
-        console.log(`Using cached attractions for ${destination}`);
-        setDynamicAttractions(data);
-        return;
-      }
-    }
-
-    setIsSearchingAttractions(true);
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-      const prompt = `
-              Search for top 15 tourist attractions in "${destination}" including popular restaurants and cafes.
-              
-              Requirements:
-              Requirements:
-              1. Diversity: Provide a mix of Sightseeing (6), Restaurants (4), Cafes (3), and Activities (2).
-              2. Quality: Select places with high reputation (implicitly 4.0+ rating).
-              3. Context: Strongly consider the companion type ("${plannerData.companion || "Not specified"}") for recommendations.
-              4. Info: accurate coordinates, estimated rating, and price level.
-              5. Language: Korean.
-
-              Return EXACTLY a JSON array of objects with this structure (no markdown):
-              [{
-                "id": "unique_id",
-                "name": "Place Name",
-                "category": "sightseeing" | "food" | "cafe" | "activity",
-                "desc": "Short attractive description",
-                "longDesc": "Detailed description why it's popular",
-                "rating": 4.5,
-                "reviewCount": 1200,
-                "priceLevel": "Cheap" | "Moderate" | "Expensive",
-                "attractions": ["Highlight 1", "Highlight 2"],
-                "tips": ["Best time to visit", "Signature dish if restaurant"],
-                "coordinates": {"lat": 26.123, "lng": 127.123},
-                "link": "https://www.google.com/search?q=PlaceName"
-              }]
-            `;
-
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().trim();
-
-      // Clean JSON string from potential markdown backticks
-      const cleanedText = text
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-      const jsonMatch = cleanedText.match(/\[[\s\S]*\]/);
-
-      if (jsonMatch) {
-        const attractions = JSON.parse(jsonMatch[0]);
-        setDynamicAttractions(attractions);
-
-        // 2. Update Cache
-        const CACHE_KEY = "attraction_recommendation_cache";
-        const cachedStr = localStorage.getItem(CACHE_KEY);
-        const currentCache = cachedStr ? JSON.parse(cachedStr) : {};
-
-        currentCache[destination.toLowerCase().trim()] = {
-          timestamp: Date.now(),
-          data: attractions,
-        };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(currentCache));
-
-        console.log(
-          "Successfully fetched attractions for",
-          destination,
-          attractions,
-        );
-      } else {
-        console.error("Failed to find JSON array in response:", text);
-      }
-    } catch (error) {
-      console.error("Fetch Attractions Error:", error);
-      setDynamicAttractions([]);
-    } finally {
-      setIsSearchingAttractions(false);
-    }
+  const handleMultipleOcr = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    handleFileAnalysis(files);
   };
 
-  const fetchHotelsWithAI = async (destination: string) => {
-    if (isSearchingHotels) return;
-    setIsSearchingHotels(true);
-
-    try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-      const prompt = `
-                Search for top 5 popular hotels/accommodations in "${destination}".
-                Requirements:
-                1. Diversity: Luxury, Business, Guesthouse, etc.
-                2. Context: For companion type "${plannerData.companion || "all"}".
-                3. Language: Korean.
-
-                Return EXACTLY a JSON array of objects (no markdown):
-                [{"name": "Hotel Name", "desc": "Brief description"}]
-            `;
-
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().trim();
-      const cleanedText = text
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-      const jsonMatch = cleanedText.match(/\[[\s\S]*\]/);
-
-      if (jsonMatch) {
-        setRecommendedHotels(JSON.parse(jsonMatch[0]));
-      }
-    } catch (e: any) {
-      console.error("Hotel search failed:", e);
-      if (
-        e.message?.includes("429") ||
-        e.toString().includes("429") ||
-        e.toString().includes("Resource exhausted")
-      ) {
-        showToast("AI 요청량이 많습니다. 잠시 후 다시 시도해 주세요.");
-      } else {
-        showToast("숙소 정보를 불러오는 중 오류가 발생했습니다.");
-      }
-    } finally {
-      setIsSearchingHotels(false);
-    }
-  };
-
-  const validateAndAddPlace = async (name: string) => {
-    if (!name) return;
-
-    // 1. Check if already properly added (by ID or Name match in selected)
-    const normalizedName = name.replace(/\s+/g, "").toLowerCase();
-
-    // Find in existing list
-    const existingPlace = dynamicAttractions.find(
-      (p) =>
-        p.name.replace(/\s+/g, "").toLowerCase() === normalizedName ||
-        (p.name.includes(name) && name.length > 2), // Loose match for short names
-    );
-
-    if (existingPlace) {
-      if (selectedPlaceIds.includes(existingPlace.id)) {
-        showToast(`이미 추가된 장소입니다: ${existingPlace.name}`);
-        setIsPlaceAddedError(true);
-        setTimeout(() => setIsPlaceAddedError(false), 2000);
-        return true; // Treat as success to clear input
-      } else {
-        if (
-          window.confirm(
-            `"${existingPlace.name}"이(가) 추천 목록에 이미 있습니다.\n추가하시  습니까?`,
-          )
-        ) {
-          setSelectedPlaceIds((prev) => [...prev, existingPlace.id]);
-          showToast(`${existingPlace.name}이(가)   택되었습니다.`);
-          setIsPlaceAddedSuccess(true);
-          setTimeout(() => setIsPlaceAddedSuccess(false), 2000);
-          return true;
-        } else {
-          return false;
-        }
-      }
-    }
-
-    setIsValidatingPlace(true);
-
-    try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-      const prompt = `
-                Check if the place "${name}" exists in or near "${plannerData.destination}".
-                If it exists (or is a valid generic place like "Starbucks Naha"), return its details.
-                If it's likely invalid or nonsense, return null.
-
-                Return EXACTLY a JSON object (no markdown):
-                {
-                    "isValid": boolean,
-                    "name": "Official Name",
-                    "category": "sightseeing" | "food" | "cafe" | "shopping" | "other",
-                    "desc": "Short description (Korean)",
-                    "coordinates": { "lat": number, "lng": number }
-                }
-            `;
-
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().trim();
-      const cleanedText = text
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-
-      try {
-        const data = JSON.parse(cleanedText);
-        if (data && data.isValid) {
-          const newPlace = {
-            id: `manual-${Date.now()}`,
-            name: data.name || name,
-            category: data.category || "custom",
-            desc: data.desc || "사용자가 직접 추가한 장소",
-            longDesc:
-              data.desc || "사용자가 직접 입력하여 추가한 장소입니다.",
-            rating: 0,
-            reviewCount: 0,
-            priceLevel: "",
-            coordinates: data.coordinates || { lat: 0, lng: 0 },
-          };
-          setDynamicAttractions((prev) => [newPlace, ...prev]);
-          setSelectedPlaceIds((prev) => [...prev, newPlace.id]);
-          showToast(`${newPlace.name}이(가) 추가되었습니다.`);
-          setIsPlaceAddedSuccess(true);
-          setTimeout(() => setIsPlaceAddedSuccess(false), 2000);
-          return true;
-        } else {
-          if (
-            window.confirm(
-              `"${name}"의    확한 위치    보를 찾을 수 없습니다.\n그래도 추가하시  습니까?\n(위치    보가 없으면 동선 최적화에서    외   수 있습니다.)`,
-            )
-          ) {
-            const newPlace = {
-              id: `manual-${Date.now()}`,
-              name: name,
-              category: "custom",
-              desc: "사용자가 직접 추가한 장소",
-              longDesc: "사용자가 직접 입력하여 추가한 장소입니다.",
-              rating: 0,
-              reviewCount: 0,
-              priceLevel: "",
-              coordinates: { lat: 0, lng: 0 },
-            };
-            setDynamicAttractions((prev) => [newPlace, ...prev]);
-            setSelectedPlaceIds((prev) => [...prev, newPlace.id]);
-            showToast(`${name}이(가) 추가되었습니다.`);
-            setIsPlaceAddedSuccess(true);
-            setTimeout(() => setIsPlaceAddedSuccess(false), 2000);
-            return true;
-          }
-        }
-      } catch (jsonError) {
-        console.error("JSON Parse Error:", jsonError);
-        alert(
-          "장소 정보를 검증하는 중 오류가 발생했습니다.   시 후 다시 시도해주세요.",
-        );
-      }
-    } catch (e) {
-      console.error("Place validation failed:", e);
-      alert("장소 정보를 검증하는 중 오류가 발생했습니다.");
-    } finally {
-      setIsValidatingPlace(false);
-    }
-    return false;
-  };
-
-  const validateHotel = async (name: string) => {
-    if (!name) return;
-    setHotelAddStatus("VALIDATING");
-    setValidatedHotel(null);
-
-    try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-      const prompt = `
-                Analyze the hotel name: "${name}"
-                Context: Accommodation in "${plannerData.destination}"
-
-                Instructions:
-                1. Identify the official or most common name of this hotel.
-                2. Determine its area/region (e.g. 북부, 중부, 남부, 시내, 서귀포 etc).
-                3. Write a 1-sentence description in Korean.
-                
-                OUTPUT FORMAT:
-                Return ONLY a valid JSON object. Do not include any other text, markdown formatting, or explanations.
-                {
-                  "isValid": boolean,
-                  "name": "string",
-                  "area": "string",
-                  "desc": "string" 
-                }
-                
-                If the hotel is not found or is invalid, return: { "isValid": false }
-            `;
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text().trim();
-
-      // Robust JSON extraction
-      const jsonStart = text.indexOf('{');
-      const jsonEnd = text.lastIndexOf('}');
-
-      let data;
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        const jsonString = text.substring(jsonStart, jsonEnd + 1);
-        data = JSON.parse(jsonString);
-      } else {
-        throw new Error("No JSON found in response");
-      }
-
-      if (data && data.isValid) {
-        setValidatedHotel({
-          name: data.name || name,
-          area: data.area || "기타",
-          desc: data.desc || "",
-        });
-        setHotelAddStatus("SUCCESS");
-        showToast(`숙소 정보를 확인했습니다: ${data.name}`);
-      } else {
-        showToast(
-          "숙소 정보를 찾을 수 없습니다. 직접 입력한 이름으로 추가   수 있습니다.",
-          "info",
-        );
-        setHotelAddStatus("IDLE");
-      }
-    } catch (e) {
-      console.error("Hotel validation failed:", e);
-      showToast("숙소 확인 중 오류가 발생했습니다.", "error");
-      setHotelAddStatus("IDLE");
-    }
-  };
-
-  // AI Plan Generation
-  const generatePlanWithAI = async () => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      alert(
-        "Gemini API Key가 설   되지 않았습니다. .env 파일을 확인해 주세요.",
-      );
-      return;
-    }
-
-    setPlannerStep(6);
-
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-      const selectedPlaces = dynamicAttractions.filter((a) =>
-        selectedPlaceIds.includes(a.id),
-      );
-      const prompt = `
-              You are a premium travel planner. Create a detailed ${plannerData.destination} travel itinerary.
-              - Period: ${plannerData.startDate} to ${plannerData.endDate}
-              - Departure: ${plannerData.departurePoint} ${plannerData.departureCoordinates ? `(Coords: ${plannerData.departureCoordinates.lat}, ${plannerData.departureCoordinates.lng})` : ""}
-              - Destination Entry Point: ${plannerData.entryPoint} ${plannerData.entryCoordinates ? `(Coords: ${plannerData.entryCoordinates.lat}, ${plannerData.entryCoordinates.lng})` : ""}
-              - Selected Attractions: ${selectedPlaces.map((p) => p.name).join(", ")}
-              - Mode of Transport: ${plannerData.transport} (Rental: ${plannerData.useRentalCar})
-              - Companion: ${plannerData.companion || "Not specified"}
-              - Travel Pace: ${plannerData.pace}
-               - Preferred Accommodations (Already Booked): ${plannerData.accommodations.length > 0 ? plannerData.accommodations.map((a: any) => `${a.name} (From ${a.startDate} To ${a.endDate})`).join(", ") : "Not specified"}
-               
-               [USER'S SPECIAL REQUEST]:
-               "${customAiPrompt || "No special requests. Just optimize the route."}"
-               (Please prioritized this request above all else if it conflicts with default logic.)
-
-               [CRITICAL ROUTE RULES]:
-               1. GEOGRAPHICAL OPTIMIZATION: Group attractions that are near each other. Minimize the total travel distance and avoid "zig-zagging" back and forth across the city/region.
-               2. ACCOMMODATION ALIGNMENT: 
-                  - For each day, if an accommodation is specified for that night, the day's itinerary should ideally start and END near that hotel. 
-                  - If the user moves hotels, the logic should reflect checking out and moving to the next area.
-               3. TRAVEL PACE: 
-                  - 'relaxed': 2-3 main spots per day. Lots of "rest" time.
-                  - 'standard': 4-5 spots per day. Balanced.
-                  - 'tight': 6-7 spots per day. Dynamic and busy.
-               4. SMART OMISSION: If the user selected too many attractions for the period and pace, prioritize the most famous ones and BOLDLY OMIT others. Do not squeeze them all in if it ruins the experience.
-               5. DAILY COMPLETENESS: You MUST generate a daily itinerary for EVERY SINGLE DAY from ${plannerData.startDate} to ${plannerData.endDate}. Even if short of places, suggest local walks, markets, or rest.
-
-              Please return ONLY a JSON object exactly matching this structure (no other text):
-              {
-                "id": "generated-plan",
-                "title": "${plannerData.destination} ${plannerData.companion || ""} 여행",
-                "period": "${plannerData.startDate} ~ ${plannerData.endDate}",
-                "destination": "${plannerData.destination}",
-                "color": "#00D4FF",
-                "progress": 0,
-                "days": [
-                  {
-                    "day": 1,
-                    "points": [
-                      { 
-                        "id": "gen_p1", 
-                        "name": "Location Name", 
-                        "category": "sightseeing" | "food" | "cafe" | "stay" | "transport", 
-                        "coordinates": {"lat": 26.2124, "lng": 127.6809}, 
-                        "tips": ["One liner tip in Korean"], 
-                        "description": "Short description in Korean",
-                        "phone": "Contact info if any", 
-                        "mapcode": "Mapcode for rental car users" 
-                      }
-                    ]
-                  }
-                ],
-                "defaultFiles": [],
-                "speechData": []
-              }
-              Language: Korean (descriptions, tips, titles).
-              Coordinates: Must be highly accurate for ${plannerData.destination}.
-            `;
-
-      const result = await model.generateContent(prompt);
-      const response = result.response;
-      const text = response.text();
-
-      // Extract JSON from text (sometimes AI wraps it in markdown)
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const planData = JSON.parse(jsonMatch[0]);
-
-        // Flatten days into points with day property
-        const flattenedPoints: LocationPoint[] = [];
-        if (planData.days && Array.isArray(planData.days)) {
-          planData.days.forEach((dayObj: any) => {
-            if (dayObj.points && Array.isArray(dayObj.points)) {
-              dayObj.points.forEach((p: any) => {
-                // Try to find better coordinates from known attractions if available
-                const knownAttraction = dynamicAttractions.find(
-                  (a: any) => a.id === p.id || a.name === p.name,
-                );
-                const validCoords = knownAttraction?.coordinates ||
-                  p.coordinates || { lat: 0, lng: 0 };
-
-                flattenedPoints.push({
-                  ...p,
-                  id: p.id || `gen-${Math.random().toString(36).substr(2, 9)}`,
-                  day: dayObj.day || 1,
-                  category: p.category || "sightseeing",
-                  coordinates: {
-                    lat: Number(validCoords.lat),
-                    lng: Number(validCoords.lng),
-                  },
-                });
-              });
-            }
-          });
-        }
-
-        const finalPlan: TripPlan = {
-          ...okinawaTrip, // Spread default structure (speechData, defaultFiles, etc.)
-          id: `trip-${Math.random().toString(36).substr(2, 9)}`,
-          metadata: {
-            ...okinawaTrip.metadata,
-            destination: plannerData.destination,
-            title:
-              plannerData.title ||
-              planData.title ||
-              `${plannerData.destination} 맞춤 여행`,
-            period:
-              planData.period ||
-              `${plannerData.startDate} ~ ${plannerData.endDate}`,
-            startDate: plannerData.startDate,
-            endDate: plannerData.endDate,
-            useRentalCar: plannerData.useRentalCar,
-            primaryColor: planData.color || "#00D4FF",
-            accommodations: plannerData.accommodations,
-          },
-          points: flattenedPoints,
-        };
-
-        setTrip(finalPlan);
-        setPlannerStep(7);
-      }
-    } catch (error) {
-      console.error("AI Generation Error:", error);
-      alert("코스 생성 중 오류가 발생했습니다. 다시 시도해 주세요.");
-      setPlannerStep(5);
-    } finally {
-      // isGenerating removed
-    }
-  };
-
-  // Mock Trips - Initial Load
-  const [trips, setTrips] = useState<any[]>(() => {
-    const saved = localStorage.getItem("user_trips_v2");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse trips:", e);
-      }
-    }
-    return [okinawaTrip]; // Simply return the full okinawaTrip as the default
-  });
-
-  useEffect(() => {
-    localStorage.setItem("user_trips_v2", JSON.stringify(trips));
-  }, [trips]);
-
-  const [activeTab, setActiveTab] = useState<string>("summary");
-  const [overviewMode, setOverviewMode] = useState<"map" | "text">("map");
-  const [scheduleDay, setScheduleDay] = useState<number>(1);
-  const [scheduleViewMode, setScheduleViewMode] = useState<"map" | "list">(
-    "list",
-  );
-  const [selectedPoint, setSelectedPoint] = useState<LocationPoint | null>(
-    null,
-  );
-  const [weatherIndex, setWeatherIndex] = useState(0);
-  const [selectedWeatherLocation, setSelectedWeatherLocation] =
-    useState<LocationPoint | null>(null);
-  const [expandedSection, setExpandedSection] = useState<
-    "review" | "log" | "localSpeech" | null
-  >(null);
-  const [trip, setTrip] = useState<TripPlan>(okinawaTrip); // Default to okinawaTrip for types, but logic handles view switching
-
-
-  // Toast Notification State
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const [customAiPrompt, setCustomAiPrompt] = useState("");
-
-  const showToast = (
-    message: string,
-    type: "success" | "error" | "info" = "info",
-  ) => {
-    const id = Date.now().toString();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
-  };
-
-  const closeToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  // Planning State
-  // Planning State - With Draft Restoration
-  const [isPlanning, setIsPlanning] = useState(() => {
-    // Always start at landing, even if draft exists
-    return false;
-  });
-
-  const [plannerStep, setPlannerStep] = useState(() => {
-    const saved = localStorage.getItem("trip_draft_v1");
-    return saved ? JSON.parse(saved).step : 0;
-  });
-
-  const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem("trip_draft_v1");
-    return saved ? JSON.parse(saved).selectedIds : [];
-  });
-
-  const [activePlannerDetail, setActivePlannerDetail] = useState<any | null>(
-    null,
-  );
-  // attractionCategoryFilter is already defined above
-  const [isReEditModalOpen, setIsReEditModalOpen] = useState(false);
-  const [tripToEdit, setTripToEdit] = useState<any>(null);
-
-  // Delete Confirmation Modal State
-  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-  }>({ isOpen: false, title: "", message: "", onConfirm: () => { } });
-
-  const [plannerData, setPlannerData] = useState<PlannerData>(() => {
-    const saved = localStorage.getItem("trip_draft_v1");
-    const defaultData: PlannerData = {
-      title: "",
-      destination: "",
-      startDate: "",
-      endDate: "",
-      arrivalTime: "10:00",
-      departureTime: "18:00",
-      departurePoint: "",
-      entryPoint: "",
-      travelMode: "plane",
-      useRentalCar: false,
-      companion: "",
-      transport: "rental",
-      accommodations: [] as {
-        name: string;
-        startDate: string;
-        endDate: string;
-      }[],
-      theme: "",
-      pace: "normal",
-    };
-    return saved ? { ...defaultData, ...JSON.parse(saved).data } : defaultData;
-  });
-
-  const [isOcrLoading, setIsOcrLoading] = useState(false);
-  const [analyzedFiles, setAnalyzedFiles] = useState<
-    {
-      name: string;
-      text: string;
-      status: "loading" | "done" | "error";
-      parsedData?: any;
-    }[]
-  >([]);
-  const ticketFileInputRef = useRef<HTMLInputElement>(null);
-
-  // Restore dynamic attractions if available in draft
-  useEffect(() => {
-    const saved = localStorage.getItem("trip_draft_v1");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.attractions && parsed.attractions.length > 0) {
-        setDynamicAttractions(parsed.attractions);
-      }
-    }
-  }, []);
-
-  // Auto-Save Draft Effect
-  useEffect(() => {
-    if (isPlanning) {
-      // Only save if there's some data or we've moved past step 0
-      const hasData =
-        plannerData.destination.trim() !== "" ||
-        plannerData.title.trim() !== "";
-      if (!hasData && plannerStep === 0) return;
-
-      const draft = {
-        step: plannerStep,
-        data: plannerData,
-        selectedIds: selectedPlaceIds,
-        attractions: dynamicAttractions,
-      };
-      localStorage.setItem("trip_draft_v1", JSON.stringify(draft));
-    }
-  }, [
-    isPlanning,
-    plannerStep,
-    plannerData,
-    selectedPlaceIds,
-    dynamicAttractions,
-  ]);
-
-  // Saved Points Order State
-  const [allPoints, setAllPoints] = useState<LocationPoint[]>(() => {
-    if (!trip?.metadata?.destination) return trip.points || [];
-    const saved = localStorage.getItem(
-      `points_order_${trip.metadata.destination}`,
-    );
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return trip.points || [];
-      }
-    }
-    return trip.points || [];
-  });
-
-  const isDraggingRef = useRef(false);
-
-  // Sync allPoints when trip changes (e.g., selecting a trip or generating a new one)
-  useEffect(() => {
-    if (trip && trip.metadata?.destination) {
-      const saved = localStorage.getItem(
-        `points_order_${trip.metadata.destination}`,
-      );
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          // Basic validation: must be an array
-          if (Array.isArray(parsed)) {
-            setAllPoints(parsed);
-            return;
-          }
-        } catch (e) {
-          console.error("Failed to parse saved points order:", e);
-        }
-      }
-      setAllPoints(trip.points || []);
-    } else if (trip && trip.points) {
-      setAllPoints(trip.points);
-    }
-  }, [trip]);
-
-  useEffect(() => {
-    if (trip && trip.metadata && trip.metadata.destination) {
-      localStorage.setItem(
-        `points_order_${trip.metadata.destination}`,
-        JSON.stringify(allPoints),
-      );
-    }
-  }, [allPoints, trip]);
-
-  // Checklist State
-  const [completedItems, setCompletedItems] = useState<Record<string, boolean>>(
-    () => {
-      const saved = localStorage.getItem(
-        `checklist_${trip.metadata.destination}`,
-      );
-      return saved ? JSON.parse(saved) : {};
-    },
-  );
-
-  // Review & Log State
-  const [userReviews, setUserReviews] = useState<
-    Record<string, { rating: number; text: string }>
-  >(() => {
-    const saved = localStorage.getItem(`reviews_${trip.metadata.destination}`);
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  const [userLogs, setUserLogs] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem(`logs_${trip.metadata.destination}`);
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  useEffect(() => {
-    if (trip.metadata?.destination) {
-      localStorage.setItem(
-        `reviews_${trip.metadata.destination}`,
-        JSON.stringify(userReviews),
-      );
-    }
-  }, [userReviews, trip.metadata?.destination]);
-
-  useEffect(() => {
-    if (trip.metadata?.destination) {
-      localStorage.setItem(
-        `logs_${trip.metadata.destination}`,
-        JSON.stringify(userLogs),
-      );
-    }
-  }, [userLogs, trip.metadata?.destination]);
-
-  // Custom Files State
-  const [customFiles, setCustomFiles] = useState<CustomFile[]>(() => {
-    const saved = localStorage.getItem(`files_${trip.metadata.destination}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  useEffect(() => {
-    if (trip.metadata?.destination) {
-      localStorage.setItem(
-        `files_${trip.metadata.destination}`,
-        JSON.stringify(customFiles),
-      );
-    }
-  }, [customFiles, trip.metadata?.destination]);
-
-  const handleFileUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    linkedTo?: string,
-  ) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, linkedTo?: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      const newFile: CustomFile = {
-        id: Date.now().toString(),
+    try {
+      const base64 = await fileToBase64(file);
+      const newFile: any = {
+        id: `file-${Date.now()}`,
         name: file.name,
-        type: file.type.includes("image") ? "image" : "pdf",
+        type: file.type.includes("pdf") ? "pdf" : "image",
         data: base64,
         linkedTo,
-        date: new Date().toLocaleDateString(),
+        date: new Date().toISOString(),
       };
-      setCustomFiles([...customFiles, newFile]);
-      showToast("파일이 업로드되었습니다.");
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleTicketOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsOcrLoading(true);
-    showToast("티켓 분석 중... (  시만 기다   주세요)");
-
-    try {
-      const mimeType = file.type || "image/jpeg";
-      const isSupportedMultimodal =
-        mimeType.startsWith("image/") || mimeType === "application/pdf";
-
-      let text = "";
-      let base64 = "";
-
-      if (!isSupportedMultimodal) {
-        text = await extractTextFromFile(file);
-      } else {
-        base64 = await fileToBase64(file);
-      }
-
-      // 2. Parse based on travel mode using AI (Multimodal)
-      let parsedInfo;
-      try {
-        const fileData = isSupportedMultimodal
-          ? { base64, mimeType }
-          : undefined;
-        parsedInfo = await parseWithAI(text, fileData);
-      } catch (err) {
-        console.warn(
-          "AI Parsing failed, falling back to legacy ticket parser",
-          err,
-        );
-        if (!text) text = await extractTextFromFile(file);
-        if (
-          plannerData.travelMode === "plane" ||
-          plannerData.travelMode === "ship"
-        ) {
-          parsedInfo = parseFlightTicket(text);
-        } else {
-          parsedInfo = parsePublicTransportTicket(text);
-        }
-      }
-      // Record for Lab
-      setAnalyzedFiles((prev) => [
-        ...prev,
-        {
-          name: file.name,
-          text: text || "(Vision Mode)",
-          parsedData: parsedInfo,
-          status: "done",
-        },
-      ]);
-
-      // 3. Update planner data
-      const dep =
-        parsedInfo.flight?.departureAirport ||
-        parsedInfo.ship?.departurePort ||
-        parsedInfo.departure;
-      const arr =
-        parsedInfo.flight?.arrivalAirport ||
-        parsedInfo.ship?.arrivalPort ||
-        parsedInfo.arrival;
-      const depCoords =
-        parsedInfo.flight?.departureCoordinates ||
-        parsedInfo.ship?.departureCoordinates;
-      const arrCoords =
-        parsedInfo.flight?.arrivalCoordinates ||
-        parsedInfo.ship?.arrivalCoordinates;
-
-      const sDate = parsedInfo.flight?.departureDate || parsedInfo.startDate;
-      const eDate = parsedInfo.flight?.arrivalDate || parsedInfo.endDate;
-      const depTime = parsedInfo.flight?.departureTime;
-      const arrTime = parsedInfo.flight?.arrivalTime;
-
-      setPlannerData((prev) => {
-        const newData = {
-          ...prev,
-          departurePoint:
-            dep && dep !== "출발지 미확인" ? dep : prev.departurePoint,
-          entryPoint:
-            arr && arr !== "도착지 미확인" && arr !== "오키나와"
-              ? arr
-              : prev.entryPoint,
-          departureCoordinates: depCoords || prev.departureCoordinates,
-          entryCoordinates: arrCoords || prev.entryCoordinates,
-          startDate: sDate && sDate !== "미확인" ? sDate : prev.startDate,
-          endDate: eDate && eDate !== "미확인" ? eDate : prev.endDate,
-          departureTime: depTime || prev.departureTime,
-          arrivalTime: arrTime || prev.arrivalTime,
-          arrivalDate:
-            parsedInfo.flight?.arrivalDate ||
-            parsedInfo.ship?.arrivalDate ||
-            prev.arrivalDate,
-          airline: parsedInfo.flight?.airline || prev.airline,
-          flightNumber: parsedInfo.flight?.flightNumber || prev.flightNumber,
-          shipName: parsedInfo.ship?.shipName || prev.shipName,
-          tourName: parsedInfo.tour?.tourName || prev.tourName,
-        };
-
-        // Add accommodation if present
-        if (
-          parsedInfo.type === "accommodation" &&
-          parsedInfo.accommodation?.hotelName
-        ) {
-          const hotel = parsedInfo.accommodation.hotelName;
-          const exists = prev.accommodations.some((a) => a.name === hotel);
-          if (!exists) {
-            newData.accommodations = [
-              ...prev.accommodations,
-              {
-                name: hotel,
-                startDate:
-                  parsedInfo.accommodation.checkInDate || prev.startDate || "",
-                endDate:
-                  parsedInfo.accommodation.checkOutDate || prev.endDate || "",
-                coordinates: parsedInfo.accommodation.coordinates,
-              },
-            ];
-          }
-        }
-
-        return newData;
-      });
-
-      showToast("티켓 정보가 자동으로 입력되었습니다!");
+      setCustomFiles((prev: any) => [...prev, newFile]);
+      showToast("서류가 업로드되었습니다.", "success");
     } catch (err) {
-      console.error("OCR Process Error:", err);
-      showToast("티켓 분석에 실패했습니다.");
-    } finally {
-      setIsOcrLoading(false);
-      // Reset input so same file can be uploaded again
-      if (ticketFileInputRef.current) ticketFileInputRef.current.value = "";
-    }
-  };
-
-  const handleMultipleOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const fileList = Array.from(files);
-
-    // Initial state for all files
-    const initialStates = fileList.map((f) => ({
-      name: f.name,
-      text: "",
-      status: "loading" as const,
-    }));
-
-    setAnalyzedFiles(initialStates);
-    setView("ocr_lab"); // Switch to lab view to see results
-
-    // Process each file
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      try {
-        const mimeType = file.type || "image/jpeg";
-        const isSupportedMultimodal =
-          mimeType.startsWith("image/") || mimeType === "application/pdf";
-
-        let text = "";
-        let base64 = "";
-
-        if (!isSupportedMultimodal) {
-          text = await extractTextFromFile(file);
-        } else {
-          base64 = await fileToBase64(file);
-        }
-
-        if (i > 0) await sleep(1500); // Throttle batch requests
-
-        let parsedData;
-        try {
-          const fileData = isSupportedMultimodal
-            ? { base64, mimeType }
-            : undefined;
-          parsedData = await parseWithAI(text, fileData);
-        } catch (err) {
-          console.error(`AI Parsing failure for ${file.name}:`, err);
-          if (!isSupportedMultimodal && text) {
-            parsedData = parseUniversalDocument(text);
-          } else {
-            setAnalyzedFiles((prev) =>
-              prev.map((item, idx) =>
-                idx === i ? { ...item, status: "error" as const } : item,
-              ),
-            );
-            continue;
-          }
-        }
-        setAnalyzedFiles((prev) =>
-          prev.map((item, idx) =>
-            idx === i
-              ? {
-                ...item,
-                text: text || "(Vision Mode)",
-                parsedData,
-                status: "done" as const,
-              }
-              : item,
-          ),
-        );
-      } catch (err) {
-        console.error(`Error processing ${file.name}:`, err);
-        setAnalyzedFiles((prev) =>
-          prev.map((item, idx) =>
-            idx === i ? { ...item, status: "error" as const } : item,
-          ),
-        );
-      }
+      showToast("파일 업로드 실패", "error");
     }
   };
 
   const deleteFile = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (window.confirm("   말 이 파일을 삭제하시겠습니까까?")) {
-      setCustomFiles((prev) => prev.filter((f) => f.id !== id));
-    }
+    setCustomFiles((prev: any) => prev.filter((f: any) => f.id !== id));
+    showToast("서류가 삭제되었습니다.");
   };
 
-  // Theme State
-  const [theme, setTheme] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("theme") || "dark";
-    }
-    return "dark";
-  });
-
-  useEffect(() => {
-    document.body.style.backgroundColor =
-      trip.metadata?.primaryColor || "var(--bg-color)";
-  }, [trip.metadata?.primaryColor]);
-
-  useEffect(() => {
-    localStorage.setItem("theme", theme);
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  const handleTicketOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    handleFileAnalysis([file]);
   };
 
-  // Currency
-  const [jpyAmount, setJpyAmount] = useState("1000");
-  const [krwAmount, setKrwAmount] = useState("9000");
-  const [rate, setRate] = useState(9.0);
+  const sleep = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
 
-  useEffect(() => {
-    fetch("https://open.er-api.com/v6/latest/JPY")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.rates?.KRW) setRate(d.rates.KRW);
-      })
-      .catch((e) => console.warn(e));
-  }, []);
+  // AI Logic - MOVED TO CONTEXT
+  // isGenerating removed
 
-  useEffect(() => {
-    if (trip.metadata?.destination) {
-      localStorage.setItem(
-        `checklist_${trip.metadata.destination}`,
-        JSON.stringify(completedItems),
-      );
-    }
-  }, [completedItems, trip.metadata?.destination]);
-
-  // NEW: Sync all sub-states when trip changes
-  useEffect(() => {
-    if (!trip.metadata?.destination) return;
-
-    const dest = trip.metadata.destination;
-
-    // Reload all related data for this destination
-    const savedChecklist = localStorage.getItem(`checklist_${dest}`);
-    setCompletedItems(savedChecklist ? JSON.parse(savedChecklist) : {});
-
-    const savedReviews = localStorage.getItem(`reviews_${dest}`);
-    setUserReviews(savedReviews ? JSON.parse(savedReviews) : {});
-
-    const savedLogs = localStorage.getItem(`logs_${dest}`);
-    setUserLogs(savedLogs ? JSON.parse(savedLogs) : {});
-
-    const savedFiles = localStorage.getItem(`files_${dest}`);
-    setCustomFiles(savedFiles ? JSON.parse(savedFiles) : []);
-
-    // Reset navigation states
-    setScheduleDay(1);
-    setSelectedPoint(null);
-  }, [trip.metadata?.destination]);
+  // No redundant states here
 
   // Cleanup old attraction cache (older than 7 days)
   useEffect(() => {
@@ -1743,442 +560,21 @@ const App: React.FC = () => {
   }, []);
 
   // Close bottom sheet when switching tabs
-  useEffect(() => {
-    setSelectedPoint(null);
-    setExpandedSection(null);
-  }, [activeTab]);
-
-  const toggleComplete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCompletedItems((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-  const updateReview = (id: string, rating: number, text: string) => {
-    setUserReviews((prev) => ({
-      ...prev,
-      [id]: { rating, text },
-    }));
-  };
-
-  const updateLog = (id: string, text: string) => {
-    setUserLogs((prev) => ({
-      ...prev,
-      [id]: text,
-    }));
-  };
-
-  const speak = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "ja-JP";
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const convert = (val: string, type: "jpy" | "krw") => {
-    const num = parseFloat(val.replace(/,/g, ""));
-    if (isNaN(num)) {
-      if (type === "jpy") {
-        setJpyAmount(val);
-        setKrwAmount("0");
-      } else {
-        setKrwAmount(val);
-        setJpyAmount("0");
-      }
-      return;
-    }
-    if (type === "jpy") {
-      setJpyAmount(val);
-      setKrwAmount(Math.round(num * rate).toLocaleString());
-    } else {
-      setKrwAmount(val);
-      setJpyAmount(Math.round(num / rate).toString());
-    }
-  };
-
-  const getPoints = () => {
-    return allPoints.filter((p) => p.day === scheduleDay);
-  };
-
-  const handleReorder = (newOrder: LocationPoint[]) => {
-    // 현재   택된   짜가 아닌 포인트들 분리
-    const otherPoints = allPoints.filter((p) => p.day !== scheduleDay);
-    // 새 순서와 합치기 (주의: newOrder는 현재   짜의 포인트들만 담   있음)
-    // 원래 데이터 순서를   지하기 위해,   짜별로 다시       하거나 하는 것이 좋  지만
-    // 여기서는 간단히 다른   짜 데이터를 앞/뒤에 붙이는 식으로 처리하기엔 원래 순서가 섞일 수 있음.
-    // 가장 안   한 방법:    체 리스트에서 해당 포인트들의 위치만 교체.
-
-    // 하지만 더 간단한 방법:
-    // 1. 현재   짜의 포인트들을    외한 리스트를 만듦.
-    // 2. 현재   짜의 포인트들을 newOrder로 대체.
-    // 3. 다시   짜별로       하거나, 그냥 합침 (일차별 필터링을 하므로 순서만 맞으면 됨).
-
-    // 구현:
-    // 다른   짜의 데이터는 그대로   지하  , 현재   짜의 데이터만 newOrder로 교체
-    // 단, allPoints 배열 내에서의 상대    위치는   지되지 않을 수 있음.
-    // 하지만 getPoints()는 filter로 가   오므로, allPoints 내의 순서는 중요하지 않 
-    // filter된 결과 내의 순서가 중요함.
-    // -> 아님. filter 결과의 순서는 allPoints 내의 순서를 따름.
-    // 따라서 allPoints 내에서도 순서를 맞춰줘야 함.
-
-    // 개  된 로직:
-    //    체 리스트 재구성: [Day 1, Day 2, ...] 순서로       되어 있다   가   하면 쉬움.
-    // 그냥   짜와 상관없이 다른 포인트 + 새 순서 포인트 로 합치면 됨.
-    // 다만   짜별 그룹핑을   지하   싶다면, scheduleDay를 기준으로        로직이 필요.
-
-    // 여기서는 간단하게:
-    // 1. 현재   짜가 아닌 것들 (otherPoints)
-    // 2. 현재   짜인 것들 (newOrder)
-    // 3. 합쳐서   짜순, 그리   인덱스순       ?
-    // 아니면 그냥 합치면 됨. 어차피    더링   때 filter(day === x) 하니까.
-
-    setAllPoints([...otherPoints, ...newOrder]);
-  };
-
-  const deletePoint = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setDeleteConfirmModal({
-      isOpen: true,
-      title: "장소 삭   ",
-      message: "이 장소를 일   에서 삭제하시겠습니까까?",
-      onConfirm: () => {
-        const updatedPoints = allPoints.filter((p) => p.id !== id);
-        setAllPoints(updatedPoints);
-        showToast("장소가 삭제되었습니다.");
-        setDeleteConfirmModal({
-          isOpen: false,
-          title: "",
-          message: "",
-          onConfirm: () => { },
-        });
-      },
-    });
-  };
-
-  const addPoint = (
-    category: "sightseeing" | "food" | "logistics" | "stay" = "sightseeing",
-  ) => {
-    const name = window.prompt("장소 이름을 입력해주세요:");
-    if (!name) return;
-
-    const newPoint: LocationPoint = {
-      id: `point-${Date.now()}`,
-      name,
-      category,
-      coordinates: { lat: 26.2124, lng: 127.6809 }, // Default to Naha
-      tips: ["사용자가 직접 추가한 장소입니다."],
-      day: scheduleDay,
-      description: "",
-    };
-
-    setAllPoints([...allPoints, newPoint]);
-    showToast("장소가 추가되었습니다.");
-  };
-
-  const addAccommodation = () => {
-    const name = window.prompt("숙소 이름을 입력해주세요:");
-    if (!name) return;
-    const startDate = window.prompt(
-      "시작   짜 (YYYY-MM-DD):",
-      trip.metadata.startDate,
-    );
-    if (!startDate) return;
-    const endDate = window.prompt("종료   짜 (YYYY-MM-DD):", startDate);
-    if (!endDate) return;
-
-    const newAcc = { name, startDate, endDate };
-    const updatedTrip = {
-      ...trip,
-      metadata: {
-        ...trip.metadata,
-        accommodations: [...(trip.metadata.accommodations || []), newAcc],
-      },
-    };
-
-    setTrip(updatedTrip);
-    setTrips((prev) => prev.map((t) => (t.id === trip.id ? updatedTrip : t)));
-    showToast("숙소가 추가되었습니다.");
-  };
-
-  const deleteAccommodation = (index: number) => {
-    setDeleteConfirmModal({
-      isOpen: true,
-      title: "숙소 삭   ",
-      message: "이 숙소 정보를 삭제하시겠습니까까?",
-      onConfirm: () => {
-        const updatedAccs = (trip.metadata.accommodations || []).filter(
-          (_, i) => i !== index,
-        );
-        const updatedTrip = {
-          ...trip,
-          metadata: {
-            ...trip.metadata,
-            accommodations: updatedAccs,
-          },
-        };
-
-        setTrip(updatedTrip);
-        setTrips((prev) =>
-          prev.map((t) => (t.id === trip.id ? updatedTrip : t)),
-        );
-        showToast("숙소 정보가 삭제되었습니다.");
-        setDeleteConfirmModal({
-          isOpen: false,
-          title: "",
-          message: "",
-          onConfirm: () => { },
-        });
-      },
-    });
-  };
-
-  // Get formatted date string
-  const getFormattedDate = (daysOffset: number = 0) => {
-    const now = new Date();
-    now.setDate(now.getDate() + daysOffset);
-    const month = now.getMonth() + 1;
-    const date = now.getDate();
-    const days = [
-      "일요일",
-      "월요일",
-      "화요일",
-      "수요일",
-      "목요일",
-      "금요일",
-      "  요일",
-    ];
-    const dayName = days[now.getDay()];
-    return `${month}월 ${date}일 ${dayName}`;
-  };
-
-  // Calendar State for Planner
-  const [calendarDate, setCalendarDate] = useState(new Date());
-
-  const prevMonth = () => {
-    setCalendarDate((prev) => {
-      const newDate = new Date(prev);
-      newDate.setMonth(newDate.getMonth() - 1);
-      return newDate;
-    });
-  };
-
-  const nextMonth = () => {
-    setCalendarDate((prev) => {
-      const newDate = new Date(prev);
-      newDate.setMonth(newDate.getMonth() + 1);
-      return newDate;
-    });
-  };
-
-  // Weather State Management
-  const [weatherData, setWeatherData] = useState<any>(null);
-  const [isLoadingWeather, setIsLoadingWeather] = useState(false);
-  const [weatherError, setWeatherError] = useState<string | null>(null);
-
-  // Fetch real weather data from WeatherAPI.com
-  const fetchWeatherData = async (
-    location: string,
-    coordinates?: { lat: number; lng: number },
-  ) => {
-    const apiKey = import.meta.env.VITE_WEATHER_API_KEY;
-
-    // Fallback to mock data if no API key
-    if (!apiKey || apiKey === "YOUR_WEATHERAPI_KEY_HERE") {
-      console.warn("  ️ Weather API key not configured. Using mock data.");
-      return null;
-    }
-
-    // Check cache first (valid for 1 hour)
-    const cacheKey = `weather_${location}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const { timestamp, data } = JSON.parse(cached);
-        const oneHourInMs = 60 * 60 * 1000;
-        if (Date.now() - timestamp < oneHourInMs) {
-          console.log("✅ Using cached weather data for", location);
-          setWeatherData(data);
-          return data;
-        }
-      } catch (e) {
-        console.error("Cache parse error:", e);
-      }
-    }
-
-    setIsLoadingWeather(true);
-    setWeatherError(null);
-
-    try {
-      // Use coordinates if available, otherwise use location name
-      const query = coordinates
-        ? `${coordinates.lat},${coordinates.lng}`
-        : location;
-
-      const response = await fetch(
-        `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(query)}&days=3&lang=ko`,
-      );
-
-      if (!response.ok) {
-        throw new Error(`Weather API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // Cache the result
-      localStorage.setItem(
-        cacheKey,
-        JSON.stringify({
-          timestamp: Date.now(),
-          data,
-        }),
-      );
-
-      setWeatherData(data);
-      console.log(
-        "✅ Weather data fetched successfully for",
-        data.location?.name,
-      );
-      return data;
-    } catch (error) {
-      console.error("❌ Weather fetch error:", error);
-      setWeatherError("  씨    정보를 불러올 수 없습니다.");
-      return null;
-    } finally {
-      setIsLoadingWeather(false);
-    }
-  };
-
-  // Fetch weather when trip destination changes
-
-  // Fetch weather when trip destination changes
-  useEffect(() => {
-    if (trip?.metadata?.destination) {
-      const destination = trip.metadata.destination;
-      // Try to get coordinates from first point
-      const firstPoint = trip.points?.[0];
-      const coords = firstPoint?.coordinates;
-
-      fetchWeatherData(destination, coords);
-    }
-  }, [trip?.metadata?.destination]);
-
-  // Fetch weather when user clicks on a specific location
-  useEffect(() => {
-    if (selectedWeatherLocation?.coordinates) {
-      const coords = selectedWeatherLocation.coordinates;
-      const locationName =
-        selectedWeatherLocation.name ||
-        trip?.metadata?.destination ||
-        "오키나와";
-
-      fetchWeatherData(locationName, coords);
-    }
-  }, [selectedWeatherLocation?.id]); // Only trigger when location changes
-
-  // Map English location names to Korean
-  const getKoreanLocationName = (
-    englishName: string,
-    originalName?: string,
-  ) => {
-    // If we have the original Korean name from trip data, use it
-    if (originalName && originalName !== englishName) {
-      return `${originalName} (${englishName})`;
-    }
-
-    const locationMap: Record<string, string> = {
-      // Okinawa Main Island
-      Naha: "나하",
-      "Naha-shi": "나하",
-      Okinawa: "오키나와",
-      Nago: "나  ",
-      "Nago-shi": "나  ",
-      Urasoe: "우라소에",
-      Ginowan: "기노완",
-      Itoman: "이  만",
-      Chatan: "차탄",
-      Tomigusuku: "  미구스  ",
-      Nanjo: "난조",
-      Uruma: "우루마",
-      "Okinawa City": "오키나와시",
-      Onna: "온나",
-      "Onna-son": "온나",
-      Motobu: "모  부",
-      "Motobu-cho": "모  부",
-      Kunigami: "  니가미",
-      Yomitan: "요미탄",
-
-      // Remote Islands
-      Ishigaki: "이시가키",
-      "Ishigaki-shi": "이시가키",
-      Miyakojima: "미야코지마",
-      "Miyako-jima": "미야코지마",
-      Taketomi: "다케  미",
-      Iriomote: "이리오모테",
-
-      // Common variations
-      "Okinawa Prefecture": "오키나와현",
-      "Okinawa-ken": "오키나와현",
-    };
-
-    const mapped = locationMap[englishName];
-
-    // If found in map, return Korean (English) format
-    if (mapped) {
-      return `${mapped} (${englishName})`;
-    }
-
-    // If not found, return as is
-    return englishName;
-  };
-
-  // Get weather for specific day index (0=today, 1=tomorrow, 2=day after)
-  const getWeatherForDay = (dayIndex: number) => {
-    const originalLocationName =
-      selectedWeatherLocation?.name || trip?.metadata?.destination;
-    const location = originalLocationName || "오키나와 (나하)";
-
-    // If we have real weather data from API
-    if (weatherData?.forecast?.forecastday?.[dayIndex]) {
-      const dayData = weatherData.forecast.forecastday[dayIndex];
-      const current = dayIndex === 0 ? weatherData.current : dayData.day;
-
-      // Get location name and convert to Korean if possible
-      const apiLocationName = weatherData.location?.name || "";
-      const koreanLocationName = getKoreanLocationName(
-        apiLocationName,
-        originalLocationName,
-      );
-
-      return {
-        location: koreanLocationName,
-        temp: `${Math.round(current.temp_c || current.avgtemp_c)}°`,
-        condition: current.condition?.text || "   보 없음",
-        wind: `${Math.round((current.wind_kph || current.maxwind_kph) / 3.6)} m/s`,
-        humidity: `${current.humidity || current.avghumidity}%`,
-      };
-    }
-
-    // Fallback to mock data
-    const forecasts = [
-      { temp: "22°", condition: "맑음", wind: "3 m/s", humidity: "60%" },
-      { temp: "20°", condition: "구름 조금", wind: "5 m/s", humidity: "70%" },
-      { temp: "23°", condition: "대체로 맑음", wind: "4 m/s", humidity: "55%" },
-    ];
-
-    return {
-      location,
-      ...forecasts[dayIndex],
-    };
-  };
-
-  const calculateProgress = () => {
-    const total = trip.points.length;
-    const complete = Object.values(completedItems).filter(Boolean).length;
-    return Math.round((complete / total) * 100);
-  };
-
   const bottomSheetTop = activeTab === "summary" ? "380px" : "280px";
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const isValidatingHotel = hotelAddStatus === "VALIDATING";
+
+  const tabProps = {
+    SummaryTab: {},
+    ScheduleTab: { ErrorBoundary },
+    DocumentsTab: { handleFileUpload, deleteFile },
+    ExchangeTab: { convert },
+    PhrasebookTab: { speak },
+    Ocr_labTab: {
+      analyzedFiles, handleMultipleOcr, ticketFileInputRef,
+      isOcrLoading, handleTicketOcr, handleFileUpload, deleteFile
+    }
+  };
 
   return (
     <>
@@ -2235,7 +631,7 @@ const App: React.FC = () => {
                   AI 문서 분석 중
                 </h3>
                 <p style={{ opacity: 0.7, color: "white", fontSize: "15px" }}>
-                  서류에서    보를 추출하  있습니다.   시만 기다   주세요.
+                  서류에서 정보를 추출하고 있습니다. 잠시만 기다려 주세요.
                 </p>
                 <div
                   style={{
@@ -2250,7 +646,7 @@ const App: React.FC = () => {
                   }}
                 >
                   <span className="pulse">●</span> 대기 중인 요청 처리 중 (API
-                  Throttling    용됨)
+                  Throttling 적용됨)
                 </div>
               </div>
             </motion.div>
@@ -2259,560 +655,6 @@ const App: React.FC = () => {
 
         {/* AnimatePresence removed to fix black screen crash */}
         <>
-          {view === "ocr_lab" && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                padding: "40px",
-                background:
-                  "radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)",
-                minHeight: "100vh",
-                overflowY: "auto",
-              }}
-            >
-              <div
-                style={{ maxWidth: "800px", margin: "0 auto", width: "100%" }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "40px",
-                  }}
-                >
-                  <div>
-                    <h1
-                      style={{
-                        fontSize: "32px",
-                        fontWeight: 900,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      🔍 Document Intelligence Lab
-                    </h1>
-                    <p style={{ opacity: 0.6, fontSize: "14px" }}>
-                      업로드된 서류에서 핵심 여행 데이터를 자동으로
-                      추출했습니다.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setView("landing")}
-                    style={{
-                      padding: "12px 24px",
-                      borderRadius: "12px",
-                      background: "rgba(255,255,255,0.1)",
-                      border: "none",
-                      color: "white",
-                      cursor: "pointer",
-                      fontWeight: 700,
-                    }}
-                  >
-                    나가기
-                  </button>
-                </div>
-
-                <div style={{ display: "grid", gap: "30px" }}>
-                  {analyzedFiles.map((file, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: "30px",
-                        background: "rgba(255,255,255,0.02)",
-                        borderRadius: "24px",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: "24px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: "10px",
-                              background: "rgba(255,255,255,0.05)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <FileText size={20} color="var(--primary)" />
-                          </div>
-                          <div>
-                            <h3 style={{ fontSize: "16px", fontWeight: 700 }}>
-                              {file.name}
-                            </h3>
-                            <span style={{ fontSize: "11px", opacity: 0.4 }}>
-                              Type: {file.parsedData?.type || "Searching..."}
-                            </span>
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
-                        >
-                          {file.status === "loading" && (
-                            <Loader2
-                              size={14}
-                              className="spin"
-                              color="#fbbf24"
-                            />
-                          )}
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              padding: "4px 12px",
-                              borderRadius: "10px",
-                              fontWeight: 900,
-                              background:
-                                file.status === "done"
-                                  ? "rgba(52, 211, 153, 0.15)"
-                                  : "rgba(251, 191, 36, 0.15)",
-                              color:
-                                file.status === "done" ? "#34d399" : "#fbbf24",
-                              border: `1px solid ${file.status === "done" ? "#34d39940" : "#fbbf2440"}`,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
-                            {file.status === "loading"
-                              ? "ANALYZING"
-                              : file.status === "done"
-                                ? "COMPLETE"
-                                : "ERROR"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {file.status === "done" && file.parsedData && (
-                        <div
-                          style={{
-                            background: "rgba(255,255,255,0.03)",
-                            borderRadius: "16px",
-                            padding: "20px",
-                            marginBottom: "20px",
-                            border: "1px solid rgba(255,255,255,0.05)",
-                          }}
-                        >
-                          {file.parsedData.summary && (
-                            <div
-                              style={{
-                                fontSize: "14px",
-                                color: "white",
-                                marginBottom: "20px",
-                                padding: "15px",
-                                background: "rgba(0, 212, 255, 0.05)",
-                                borderRadius: "12px",
-                                borderLeft: "4px solid var(--primary)",
-                                lineHeight: 1.5,
-                              }}
-                            >
-                              {file.parsedData.summary}
-                              {file.parsedData.confidence && (
-                                <div
-                                  style={{
-                                    fontSize: "10px",
-                                    opacity: 0.5,
-                                    marginTop: "8px",
-                                  }}
-                                >
-                                  Reliability:{" "}
-                                  {Math.round(file.parsedData.confidence * 100)}
-                                  %
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns:
-                                "repeat(auto-fit, minmax(200px, 1fr))",
-                              gap: "20px",
-                            }}
-                          >
-                            {file.parsedData.type === "flight" && (
-                              <>
-                                <div style={{ gridColumn: "1 / -1" }}>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    ROUTE & FLIGHT
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "18px",
-                                      fontWeight: 800,
-                                      color: "var(--primary)",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 10,
-                                    }}
-                                  >
-                                    ✈️ {file.parsedData.flight?.airline}{" "}
-                                    {file.parsedData.flight?.flightNumber}
-                                    <span
-                                      style={{
-                                        fontSize: "14px",
-                                        opacity: 0.6,
-                                        fontWeight: 400,
-                                      }}
-                                    >
-                                      (
-                                      {file.parsedData.flight?.departureAirport}{" "}
-                                      ➔ {file.parsedData.flight?.arrivalAirport}
-                                      )
-                                    </span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    DEPARTURE
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "15px",
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    📅{" "}
-                                    {file.parsedData.flight?.departureDate ||
-                                      file.parsedData.startDate}{" "}
-                                    <span
-                                      style={{
-                                        color: "var(--primary)",
-                                        marginLeft: 8,
-                                      }}
-                                    >
-                                      🕒 {file.parsedData.flight?.departureTime}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    ARRIVAL
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "15px",
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    📅{" "}
-                                    {file.parsedData.flight?.arrivalDate ||
-                                      file.parsedData.flight?.departureDate ||
-                                      file.parsedData.endDate}{" "}
-                                    <span
-                                      style={{
-                                        color: "var(--primary)",
-                                        marginLeft: 8,
-                                      }}
-                                    >
-                                      🕒 {file.parsedData.flight?.arrivalTime}
-                                    </span>
-                                  </div>
-                                </div>
-                              </>
-                            )}
-                            {file.parsedData.type === "ship" && (
-                              <>
-                                <div style={{ gridColumn: "1 / -1" }}>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    FERRY & ROUTE
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "18px",
-                                      fontWeight: 800,
-                                      color: "#60a5fa",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 10,
-                                    }}
-                                  >
-                                    🚢 {file.parsedData.ship?.shipName}
-                                    <span
-                                      style={{
-                                        fontSize: "14px",
-                                        opacity: 0.6,
-                                        fontWeight: 400,
-                                      }}
-                                    >
-                                      ({file.parsedData.ship?.departurePort} ➔{" "}
-                                      {file.parsedData.ship?.arrivalPort})
-                                    </span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    DEPARTURE
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "15px",
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    📅 {file.parsedData.ship?.departureDate}{" "}
-                                    <span
-                                      style={{
-                                        color: "#60a5fa",
-                                        marginLeft: 8,
-                                      }}
-                                    >
-                                      🕒 {file.parsedData.ship?.departureTime}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    ARRIVAL
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "15px",
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    📅{" "}
-                                    {file.parsedData.ship?.arrivalDate ||
-                                      file.parsedData.ship?.departureDate}{" "}
-                                    <span
-                                      style={{
-                                        color: "#60a5fa",
-                                        marginLeft: 8,
-                                      }}
-                                    >
-                                      🕒 {file.parsedData.ship?.arrivalTime}
-                                    </span>
-                                  </div>
-                                </div>
-                              </>
-                            )}
-                            {file.parsedData.type === "accommodation" && (
-                              <>
-                                <div style={{ gridColumn: "1 / -1" }}>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    HOTEL NAME
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "20px",
-                                      fontWeight: 900,
-                                      color: "#fbbf24",
-                                    }}
-                                  >
-                                    🏨{" "}
-                                    {file.parsedData.accommodation?.hotelName ||
-                                      file.parsedData.hotelName}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    CHECK-IN
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "16px",
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    📅{" "}
-                                    {file.parsedData.accommodation
-                                      ?.checkInDate ||
-                                      file.parsedData.checkIn}{" "}
-                                    {(file.parsedData.accommodation
-                                      ?.checkInTime ||
-                                      file.parsedData.checkInTime) && (
-                                        <span
-                                          style={{
-                                            color: "var(--primary)",
-                                            marginLeft: 8,
-                                          }}
-                                        >
-                                          🕒{" "}
-                                          {file.parsedData.accommodation
-                                            ?.checkInTime ||
-                                            file.parsedData.checkInTime}
-                                        </span>
-                                      )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      opacity: 0.5,
-                                      marginBottom: "4px",
-                                    }}
-                                  >
-                                    CHECK-OUT
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "16px",
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    📅{" "}
-                                    {file.parsedData.accommodation
-                                      ?.checkOutDate ||
-                                      file.parsedData.checkOut}
-                                  </div>
-                                </div>
-                              </>
-                            )}
-                            {(file.parsedData.type === "other" ||
-                              file.parsedData.type === "unknown" ||
-                              file.parsedData.type === "transport") && (
-                                <>
-                                  <div>
-                                    <div
-                                      style={{
-                                        fontSize: "11px",
-                                        opacity: 0.5,
-                                        marginBottom: "4px",
-                                      }}
-                                    >
-                                      START DATE
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: "16px",
-                                        fontWeight: 700,
-                                      }}
-                                    >
-                                      📅 {file.parsedData.startDate}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div
-                                      style={{
-                                        fontSize: "11px",
-                                        opacity: 0.5,
-                                        marginBottom: "4px",
-                                      }}
-                                    >
-                                      END DATE
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: "16px",
-                                        fontWeight: 700,
-                                      }}
-                                    >
-                                      📅 {file.parsedData.endDate}
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                          </div>
-                        </div>
-                      )}
-
-                      <details>
-                        <summary
-                          style={{
-                            fontSize: "12px",
-                            opacity: 0.5,
-                            cursor: "pointer",
-                            marginBottom: "10px",
-                            outline: "none",
-                          }}
-                        >
-                          원본 텍스트 보기 (Raw Data)
-                        </summary>
-                        <pre
-                          style={{
-                            background: "rgba(0,0,0,0.3)",
-                            padding: "15px",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                            color: "#888",
-                            whiteSpace: "pre-wrap",
-                            maxHeight: "150px",
-                            overflowY: "auto",
-                          }}
-                        >
-                          {file.text}
-                        </pre>
-                      </details>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
           {view === "landing" && !isPlanning && (
             <motion.div
               key="landing"
@@ -2949,7 +791,7 @@ const App: React.FC = () => {
                         <p
                           style={{ fontSize: "12px", color: "var(--text-dim)" }}
                         >
-                          {currentUser?.name}님의 여   들
+                          {currentUser?.name}님의 여행들
                         </p>
                       </div>
                       <div style={{ display: "flex", gap: 10 }}>
@@ -3068,7 +910,7 @@ const App: React.FC = () => {
                           const draft = rawDraft.data
                             ? rawDraft
                             : { data: rawDraft, step: 0 };
-                          const dest = draft.data.destination || "여행지 미   ";
+                          const dest = draft.data.destination || "여행지 미정";
                           const step = draft.step || 0;
                           return (
                             <div>
@@ -3176,9 +1018,9 @@ const App: React.FC = () => {
                                     e.stopPropagation();
                                     setDeleteConfirmModal({
                                       isOpen: true,
-                                      title: "작성 중인 여행 삭   ",
+                                      title: "작성 중인 여행 삭제",
                                       message:
-                                        "작성 중인 내용을 삭제하시겠습니까까?",
+                                        "작성 중인 내용을 삭제하시겠습니까?",
                                       onConfirm: () => {
                                         localStorage.removeItem(
                                           "trip_draft_v1",
@@ -3284,12 +1126,12 @@ const App: React.FC = () => {
                                   tripItem.title ||
                                   (tripItem.metadata &&
                                     tripItem.metadata.title) ||
-                                  "무    여행";
+                                  "제목 없는 여행";
                                 const displayPeriod =
                                   tripItem.period ||
                                   (tripItem.metadata &&
                                     tripItem.metadata.period) ||
-                                  "  짜 미   ";
+                                  "날짜 미정";
                                 const displayColor =
                                   tripItem.color ||
                                   (tripItem.metadata &&
@@ -3445,7 +1287,7 @@ const App: React.FC = () => {
                                           cursor: "pointer",
                                           pointerEvents: "auto",
                                         }}
-                                        title="경로 재설   "
+                                        title="경로 재설정"
                                       >
                                         <Edit3 size={16} />
                                       </button>
@@ -3455,9 +1297,9 @@ const App: React.FC = () => {
                                           e.stopPropagation();
                                           setDeleteConfirmModal({
                                             isOpen: true,
-                                            title: "여행 가이드 삭   ",
+                                            title: "여행 가이드 삭제",
                                             message:
-                                              "이 여행 가이드를 삭제하시겠습니까까?",
+                                              "이 여행 가이드를 삭제하시겠습니까?",
                                             onConfirm: () => {
                                               const updated = trips.filter(
                                                 (t) => t.id !== tripItem.id,
@@ -3743,7 +1585,7 @@ const App: React.FC = () => {
                         document.querySelector(
                           'input[placeholder="홍길동"]',
                         ) as HTMLInputElement
-                      )?.value || "  규여행자";
+                      )?.value || "신규여행자";
                     const addrInput =
                       (
                         document.getElementById(
@@ -3841,7 +1683,7 @@ const App: React.FC = () => {
                   }}
                 >
                   <Calendar size={18} />{" "}
-                  <span style={{ marginLeft: "4px" }}>일   </span>
+                  <span style={{ marginLeft: "4px" }}>일정</span>
                 </button>
                 <button
                   className={`tab ${activeTab === "files" ? "active" : ""}`}
@@ -3898,1585 +1740,18 @@ const App: React.FC = () => {
                   flexDirection: "column",
                 }}
               >
-                {activeTab === "summary" && (
-                  <div className="overview-content">
-                    {/* Toggle Switch */}
-                    <div
-                      style={{
-                        display: "flex",
-                        background:
-                          theme === "dark"
-                            ? "rgba(255,255,255,0.1)"
-                            : "rgba(0,0,0,0.08)",
-                        padding: 4,
-                        borderRadius: 24,
-                        marginBottom: 20,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <button
-                        onClick={() => setOverviewMode("map")}
-                        style={{
-                          flex: 1,
-                          padding: "8px",
-                          borderRadius: 20,
-                          border: "none",
-                          background:
-                            overviewMode === "map"
-                              ? "var(--primary)"
-                              : "transparent",
-                          color:
-                            overviewMode === "map"
-                              ? "var(--text-on-primary)"
-                              : "var(--text-secondary)",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        지도로 보기
-                      </button>
-                      <button
-                        onClick={() => setOverviewMode("text")}
-                        style={{
-                          flex: 1,
-                          padding: "8px",
-                          borderRadius: 20,
-                          border: "none",
-                          background:
-                            overviewMode === "text"
-                              ? "var(--primary)"
-                              : "transparent",
-                          color:
-                            overviewMode === "text"
-                              ? "var(--text-on-primary)"
-                              : "var(--text-secondary)",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        내용 보기
-                      </button>
-                    </div>
-
-                    {overviewMode === "map" ? (
-                      <div
-                        style={{
-                          flex: 1,
-                          width: "100%",
-                          borderRadius: "16px",
-                          overflow: "hidden",
-                          minHeight: "300px",
-                        }}
-                      >
-                        <MapComponent
-                          points={trip.points}
-                          selectedPoint={selectedPoint}
-                          onPointClick={(p) => {
-                            setSelectedPoint(p);
-                            setSelectedWeatherLocation(p);
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <section style={{ marginBottom: 24 }}>
-                          <div
-                            style={{
-                              position: "relative",
-                              width: "100%",
-                              height: "210px",
-                            }}
-                          >
-                            <motion.div
-                              key={weatherIndex}
-                              className="glass-card"
-                              drag="x"
-                              dragConstraints={{ left: 0, right: 0 }}
-                              dragElastic={0.2}
-                              whileTap={{ cursor: "grabbing" }}
-                              whileDrag={{ scale: 0.98, cursor: "grabbing" }}
-                              onDragEnd={(_, info) => {
-                                console.log(
-                                  "Drag ended, offset:",
-                                  info.offset.x,
-                                );
-                                const threshold = 40;
-                                if (info.offset.x > threshold) {
-                                  console.log(
-                                    "Swiped right - going to previous day",
-                                  );
-                                  setWeatherIndex((prev) => (prev - 1 + 3) % 3);
-                                } else if (info.offset.x < -threshold) {
-                                  console.log(
-                                    "Swiped left - going to next day",
-                                  );
-                                  setWeatherIndex((prev) => (prev + 1) % 3);
-                                }
-                              }}
-                              animate={{ x: 0, scale: 1 }}
-                              transition={{
-                                type: "spring",
-                                stiffness: 300,
-                                damping: 30,
-                              }}
-                              style={{
-                                background:
-                                  weatherIndex === 0
-                                    ? "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-                                    : weatherIndex === 1
-                                      ? "linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%)"
-                                      : "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
-                                border: "none",
-                                position: "absolute",
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                height: "100%",
-                                padding: "20px",
-                                cursor: "grab",
-                                touchAction: "pan-y",
-                              }}
-                            >
-                              {isLoadingWeather ? (
-                                // Loading State
-                                <div
-                                  style={{
-                                    position: "relative",
-                                    zIndex: 2,
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    height: "100%",
-                                    color: "white",
-                                  }}
-                                >
-                                  <Loader2
-                                    size={48}
-                                    className="spin"
-                                    style={{ marginBottom: 12 }}
-                                  />
-                                  <div style={{ fontSize: 14, opacity: 0.9 }}>
-                                    씨    보 불러오는 중...
-                                  </div>
-                                </div>
-                              ) : weatherError ? (
-                                // Error State
-                                <div
-                                  style={{
-                                    position: "relative",
-                                    zIndex: 2,
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    height: "100%",
-                                    color: "white",
-                                  }}
-                                >
-                                  <CloudSun
-                                    size={48}
-                                    style={{ marginBottom: 12, opacity: 0.5 }}
-                                  />
-                                  <div style={{ fontSize: 14, opacity: 0.9 }}>
-                                    {weatherError}
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: 11,
-                                      opacity: 0.6,
-                                      marginTop: 4,
-                                    }}
-                                  >
-                                    목업 데이터를 표시합니다
-                                  </div>
-                                </div>
-                              ) : (
-                                // Normal Weather Display
-                                <>
-                                  <div
-                                    style={{
-                                      position: "relative",
-                                      zIndex: 2,
-                                      display: "flex",
-                                      justifyContent: "space-between",
-                                      alignItems: "center",
-                                      color: "white",
-                                    }}
-                                  >
-                                    <div>
-                                      <div
-                                        style={{
-                                          fontSize: 11,
-                                          fontWeight: 500,
-                                          opacity: 0.7,
-                                          marginBottom: 2,
-                                        }}
-                                      >
-                                        {getFormattedDate(weatherIndex)}
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontSize: 14,
-                                          fontWeight: 600,
-                                          opacity: 0.9,
-                                          marginBottom: 4,
-                                        }}
-                                      >
-                                        {
-                                          getWeatherForDay(weatherIndex)
-                                            .location
-                                        }
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontSize: 42,
-                                          fontWeight: 800,
-                                        }}
-                                      >
-                                        {getWeatherForDay(weatherIndex).temp}
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontSize: 14,
-                                          fontWeight: 500,
-                                        }}
-                                      >
-                                        {
-                                          getWeatherForDay(weatherIndex)
-                                            .condition
-                                        }
-                                      </div>
-                                    </div>
-                                    <div style={{ textAlign: "right" }}>
-                                      <CloudSun size={64} color="white" />
-                                    </div>
-                                  </div>
-                                  <div
-                                    style={{
-                                      marginTop: 20,
-                                      paddingTop: 15,
-                                      borderTop:
-                                        "1px solid rgba(255,255,255,0.2)",
-                                      display: "flex",
-                                      gap: 20,
-                                      color: "white",
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        fontSize: 13,
-                                      }}
-                                    >
-                                      <Wind size={16} />{" "}
-                                      <span>
-                                        {getWeatherForDay(weatherIndex).wind}
-                                      </span>
-                                    </div>
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        fontSize: 13,
-                                      }}
-                                    >
-                                      <Droplets size={16} />{" "}
-                                      <span>
-                                        습도{" "}
-                                        {
-                                          getWeatherForDay(weatherIndex)
-                                            .humidity
-                                        }
-                                      </span>
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                            </motion.div>
-                          </div>
-                          {/* Pagination Dots */}
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "center",
-                              gap: 8,
-                              marginTop: 12,
-                              padding: "8px 0",
-                            }}
-                          >
-                            {[0, 1, 2].map((i) => (
-                              <div
-                                key={i}
-                                onClick={() => {
-                                  console.log("Dot clicked:", i);
-                                  setWeatherIndex(i);
-                                }}
-                                style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: "50%",
-                                  background:
-                                    weatherIndex === i
-                                      ? "var(--primary)"
-                                      : "rgba(255,255,255,0.3)",
-                                  transition: "all 0.3s",
-                                  cursor: "pointer",
-                                  border:
-                                    weatherIndex === i
-                                      ? "2px solid white"
-                                      : "none",
-                                }}
-                              />
-                            ))}
-                          </div>
-                        </section>
-
-                        <section className="overview-section">
-                          <h2>
-                            <Calendar size={20} style={{ marginRight: 8 }} />{" "}
-                            여행 개요
-                          </h2>
-                          <div className="glass-card">
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
-                              <div>
-                                <h3
-                                  style={{
-                                    fontSize: 18,
-                                    color: "var(--text-primary)",
-                                  }}
-                                >
-                                  {trip.metadata?.period || "  짜    보 없음"}
-                                </h3>
-                                <p style={{ color: "var(--text-secondary)" }}>
-                                  {trip.metadata?.title || "   목 없음"}
-                                </p>
-                              </div>
-                              <div style={{ textAlign: "right" }}>
-                                <span
-                                  style={{
-                                    fontSize: 24,
-                                    fontWeight: "bold",
-                                    color: "var(--primary)",
-                                  }}
-                                >
-                                  {calculateProgress()}%
-                                </span>
-                                <div
-                                  style={{
-                                    fontSize: 10,
-                                    color: "var(--text-dim)",
-                                  }}
-                                >
-                                  진행 {" "}
-                                </div>
-                              </div>
-                            </div>
-                            <div
-                              style={{
-                                marginTop: 10,
-                                background: "var(--glass-border)",
-                                height: 4,
-                                borderRadius: 2,
-                                overflow: "hidden",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  width: `${calculateProgress()}%`,
-                                  background: "var(--primary)",
-                                  height: "100%",
-                                  transition: "width 0.3s",
-                                }}
-                              />
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setIsPlanning(true);
-                              setPlannerStep(0);
-                            }}
-                            className="glass-card"
-                            style={{
-                              width: "100%",
-                              marginTop: 12,
-                              padding: "16px",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 10,
-                              background: "var(--primary)",
-                              color: "black",
-                              border: "none",
-                              fontWeight: "bold",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <Sparkles size={18} /> 새로운 여행 가이드 생성하기
-                          </button>
-                        </section>
-
-                        {/* Accommodation Management */}
-                        <section className="overview-section">
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              marginBottom: 15,
-                            }}
-                          >
-                            <h3
-                              style={{
-                                fontSize: 16,
-                                fontWeight: 700,
-                                color: "var(--text-primary)",
-                                margin: 0,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                              }}
-                            >
-                              <Hotel size={18} color="var(--primary)" /> 숙소
-                              관리
-                            </h3>
-                            <button
-                              onClick={addAccommodation}
-                              style={{
-                                padding: "6px 12px",
-                                borderRadius: "10px",
-                                background: "var(--primary)",
-                                border: "none",
-                                color: "black",
-                                fontWeight: 800,
-                                fontSize: "11px",
-                                cursor: "pointer",
-                              }}
-                            >
-                              숙소 추가
-                            </button>
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 10,
-                            }}
-                          >
-                            {!trip.metadata.accommodations ||
-                              trip.metadata.accommodations.length === 0 ? (
-                              <div
-                                className="glass-card"
-                                style={{
-                                  padding: "24px",
-                                  textAlign: "center",
-                                  opacity: 0.6,
-                                  fontSize: "13px",
-                                  background: "rgba(255,255,255,0.02)",
-                                }}
-                              >
-                                등록된 숙소가 없습니다. 상단의 '추가' 버튼으로
-                                등록하세요.
-                              </div>
-                            ) : (
-                              trip.metadata.accommodations.map((acc, idx) => (
-                                <div
-                                  key={idx}
-                                  className="glass-card"
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    padding: "16px",
-                                    background: "rgba(255,255,255,0.03)",
-                                  }}
-                                >
-                                  <div>
-                                    <div
-                                      style={{
-                                        fontWeight: 800,
-                                        color: "var(--text-primary)",
-                                        fontSize: "15px",
-                                      }}
-                                    >
-                                      {acc.name}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: "12px",
-                                        opacity: 0.6,
-                                        marginTop: 4,
-                                      }}
-                                    >
-                                      {acc.startDate} ~ {acc.endDate}
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => deleteAccommodation(idx)}
-                                    style={{
-                                      background: "rgba(255,78,80,0.1)",
-                                      border: "none",
-                                      color: "#ff4e50",
-                                      padding: "8px",
-                                      borderRadius: "8px",
-                                      cursor: "pointer",
-                                      transition: "all 0.2s",
-                                    }}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </section>
-
-                        {/* Logistics/Key Info */}
-                        <section className="overview-section">
-                          <h3
-                            style={{
-                              fontSize: 16,
-                              fontWeight: 700,
-                              color: "var(--text-primary)",
-                              marginTop: 10,
-                              marginBottom: 15,
-                            }}
-                          >
-                            📋 주요    보 (교통)
-                          </h3>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 10,
-                            }}
-                          >
-                            {trip.points
-                              .filter((p) => ["logistics"].includes(p.category))
-                              .map((p) => (
-                                <div
-                                  key={p.id}
-                                  className="glass-card"
-                                  onClick={() => {
-                                    setSelectedPoint(p);
-                                    setSelectedWeatherLocation(p);
-                                  }}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    cursor: "pointer",
-                                    background: "rgba(255,255,255,0.03)",
-                                  }}
-                                >
-                                  <div style={{ flex: 1 }}>
-                                    <div
-                                      style={{
-                                        fontWeight: 700,
-                                        color: "var(--text-primary)",
-                                      }}
-                                    >
-                                      {p.name}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: 12,
-                                        color: "var(--primary)",
-                                      }}
-                                    >
-                                      {p.category.toUpperCase()}
-                                    </div>
-                                  </div>
-                                  {p.phone && (
-                                    <Phone
-                                      size={16}
-                                      style={{ color: "var(--text-secondary)" }}
-                                    />
-                                  )}
-                                </div>
-                              ))}
-                          </div>
-                        </section>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === "schedule" && (
-                  <div className="list-view">
-                    {/* View Mode Toggle */}
-                    <div
-                      style={{
-                        display: "flex",
-                        background:
-                          theme === "dark"
-                            ? "rgba(255,255,255,0.1)"
-                            : "rgba(0,0,0,0.08)",
-                        padding: 4,
-                        borderRadius: 24,
-                        marginBottom: 16,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <button
-                        onClick={() => setScheduleViewMode("map")}
-                        style={{
-                          flex: 1,
-                          padding: "8px",
-                          borderRadius: 20,
-                          border: "none",
-                          background:
-                            scheduleViewMode === "map"
-                              ? "var(--primary)"
-                              : "transparent",
-                          color:
-                            scheduleViewMode === "map"
-                              ? "var(--text-on-primary)"
-                              : "var(--text-secondary)",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        지도 보기
-                      </button>
-                      <button
-                        onClick={() => setScheduleViewMode("list")}
-                        style={{
-                          flex: 1,
-                          padding: "8px",
-                          borderRadius: 20,
-                          border: "none",
-                          background:
-                            scheduleViewMode === "list"
-                              ? "var(--primary)"
-                              : "transparent",
-                          color:
-                            scheduleViewMode === "list"
-                              ? "var(--text-on-primary)"
-                              : "var(--text-secondary)",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        목록 보기
-                      </button>
-                    </div>
-
-                    <section
-                      style={{
-                        marginBottom: 16,
-                        display: scheduleViewMode === "list" ? "block" : "none",
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: "relative",
-                          width: "100%",
-                          height: "72px",
-                        }}
-                      >
-                        <motion.div
-                          key={`schedule-weather-${weatherIndex}`}
-                          className="glass-card"
-                          drag="x"
-                          dragConstraints={{ left: 0, right: 0 }}
-                          dragElastic={0.2}
-                          whileTap={{ cursor: "grabbing" }}
-                          whileDrag={{ scale: 0.98, cursor: "grabbing" }}
-                          onDragEnd={(_, info) => {
-                            const threshold = 40;
-                            if (info.offset.x > threshold) {
-                              setWeatherIndex((prev) => (prev - 1 + 3) % 3);
-                            } else if (info.offset.x < -threshold) {
-                              setWeatherIndex((prev) => (prev + 1) % 3);
-                            }
-                          }}
-                          animate={{ x: 0, scale: 1 }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 300,
-                            damping: 30,
-                          }}
-                          style={{
-                            background:
-                              weatherIndex === 0
-                                ? "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-                                : weatherIndex === 1
-                                  ? "linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%)"
-                                  : "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
-                            border: "none",
-                            position: "absolute",
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            height: "100%",
-                            padding: "0 16px",
-                            display: "flex",
-                            alignItems: "center",
-                            cursor: "grab",
-                            touchAction: "pan-y",
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: "relative",
-                              zIndex: 2,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              width: "100%",
-                              color: "white",
-                              gap: 12,
-                            }}
-                          >
-                            {/*   짜 */}
-                            <div
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                minWidth: "60px",
-                              }}
-                            >
-                              {getFormattedDate(weatherIndex).split(" ")[1]}{" "}
-                              {getFormattedDate(weatherIndex).split(" ")[2]}
-                            </div>
-
-                            {/* 구분   */}
-                            <div
-                              style={{
-                                width: 1,
-                                height: 24,
-                                background: "rgba(255,255,255,0.4)",
-                              }}
-                            ></div>
-
-                            {/* 지역 */}
-                            <div
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 500,
-                                flex: 1,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {getWeatherForDay(weatherIndex).location}
-                            </div>
-
-                            {/*   씨 아이콘 및 온도 */}
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                              }}
-                            >
-                              <CloudSun size={24} color="white" />
-                              <div style={{ fontSize: 20, fontWeight: 700 }}>
-                                {getWeatherForDay(weatherIndex).temp}
-                              </div>
-                            </div>
-
-                            {/* 습도 */}
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 4,
-                                fontSize: 11,
-                                opacity: 0.9,
-                                background: "rgba(0,0,0,0.1)",
-                                padding: "4px 8px",
-                                borderRadius: "12px",
-                              }}
-                            >
-                              <Droplets size={12} />
-                              <span>
-                                {getWeatherForDay(weatherIndex).humidity}
-                              </span>
-                            </div>
-                          </div>
-                        </motion.div>
-                      </div>
-                      {/* Pagination Dots */}
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "center",
-                          gap: 8,
-                          marginTop: 12,
-                          padding: "8px 0",
-                        }}
-                      >
-                        {[0, 1, 2].map((i) => (
-                          <div
-                            key={i}
-                            onClick={() => {
-                              console.log("Schedule dot clicked:", i);
-                              setWeatherIndex(i);
-                            }}
-                            style={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              background:
-                                weatherIndex === i
-                                  ? "var(--primary)"
-                                  : "rgba(255,255,255,0.3)",
-                              transition: "all 0.3s",
-                              cursor: "pointer",
-                              border:
-                                weatherIndex === i ? "2px solid white" : "none",
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </section>
-
-                    <div
-                      className="day-tabs"
-                      ref={(el) => {
-                        if (!el) return;
-                        // Draggable Scroll Logic
-                        let isDown = false;
-                        let startX: number;
-                        let scrollLeft: number;
-
-                        el.onmousedown = (e) => {
-                          isDown = true;
-                          el.style.cursor = "grabbing";
-                          startX = e.pageX - el.offsetLeft;
-                          scrollLeft = el.scrollLeft;
-                        };
-                        el.onmouseleave = () => {
-                          isDown = false;
-                          el.style.cursor = "grab";
-                        };
-                        el.onmouseup = () => {
-                          isDown = false;
-                          el.style.cursor = "grab";
-                        };
-                        el.onmousemove = (e) => {
-                          if (!isDown) return;
-                          e.preventDefault();
-                          const x = e.pageX - el.offsetLeft;
-                          const walk = (x - startX) * 2; // Scroll-fast
-                          el.scrollLeft = scrollLeft - walk;
-                        };
-                      }}
-                      style={{
-                        display: "flex",
-                        gap: "8px",
-                        marginBottom: "16px",
-                        overflowX: "auto",
-                        paddingBottom: "8px",
-                        paddingRight: "40px" /* Ensure last tab is visible */,
-                        whiteSpace: "nowrap",
-                        cursor: "grab",
-                        userSelect: "none",
-                      }}
-                    >
-                      {(() => {
-                        // Dynamic Tab Generation: Priority to Actual Data
-                        let dayCount = 0;
-
-                        if (trip.days && trip.days.length > 0) {
-                          // Trust generated days but trim trailing empty days
-                          let maxDay = trip.days.length;
-                          for (let i = trip.days.length - 1; i >= 0; i--) {
-                            const d = trip.days[i];
-                            if (!d.points || d.points.length === 0) maxDay--;
-                            else break;
-                          }
-                          dayCount = Math.max(maxDay, 1);
-                        } else if (trip.points && trip.points.length > 0) {
-                          // Fallback 1: Calculate from flat points array
-                          const maxPointDay = trip.points.reduce(
-                            (max, p) => (p.day > max ? p.day : max),
-                            0,
-                          );
-                          dayCount = Math.max(maxPointDay, 1);
-                        } else {
-                          // Fallback 2: Pure Date Calculation
-                          const start = new Date(
-                            trip.metadata?.startDate || plannerData.startDate,
-                          );
-                          const end = new Date(
-                            trip.metadata?.endDate || plannerData.endDate,
-                          );
-                          if (
-                            !isNaN(start.getTime()) &&
-                            !isNaN(end.getTime())
-                          ) {
-                            const diffTime = end.getTime() - start.getTime();
-                            // Accurate day count
-                            dayCount =
-                              Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                          }
-                        }
-
-                        // Safety clamp: Minimum 1 day
-                        if (dayCount < 1) dayCount = 1;
-
-                        return Array.from(
-                          { length: dayCount },
-                          (_, i) => i + 1,
-                        ).map((d) => (
-                          <button
-                            key={d}
-                            onClick={() => {
-                              // 1. Close details immediately to prevent state conflict
-                              setSelectedPoint(null);
-                              setActivePlannerDetail(null); // Close guide detail as well
-                              setWeatherIndex(0);
-
-                              // 2. Defer day change to ensure UI is clean before re-rendering map
-                              setTimeout(() => {
-                                setScheduleDay(d);
-                              }, 0);
-                            }}
-                            style={{
-                              minWidth: "60px" /* Ensure clickable area */,
-                              flex: "0 0 auto" /* Prevent shrinking */,
-                              padding: "10px 20px",
-                              borderRadius: "24px",
-                              border: "1px solid var(--glass-border)",
-                              background:
-                                scheduleDay === d
-                                  ? "var(--primary)"
-                                  : "rgba(255,255,255,0.05)",
-                              color:
-                                scheduleDay === d
-                                  ? "black"
-                                  : "var(--text-secondary)",
-                              fontWeight: 700,
-                              cursor: "pointer",
-                              transition: "all 0.2s",
-                            }}
-                          >
-                            {d}일차
-                          </button>
-                        ));
-                      })()}
-                    </div>
-
-                    {/* 숙소 정보 섹션 */}
-                    <div
-                      className="glass-card"
-                      style={{
-                        marginBottom: "24px",
-                        padding: "16px",
-                        border: "1px solid rgba(0,212,255,0.2)",
-                        background: "rgba(0,212,255,0.02)",
-                        textAlign: "left",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          marginBottom: "8px",
-                        }}
-                      >
-                        <Hotel size={18} color="var(--primary)" />
-                        <span
-                          style={{
-                            fontWeight: 800,
-                            fontSize: "14px",
-                            color: "var(--primary)",
-                          }}
-                        >
-                          오늘의 숙소
-                        </span>
-                      </div>
-                      {(() => {
-                        const baseDateStr =
-                          trip.metadata?.startDate || plannerData.startDate;
-                        if (!baseDateStr)
-                          return (
-                            <div style={{ fontSize: "13px", opacity: 0.6 }}>
-                              짜    보가 없습니다.
-                            </div>
-                          );
-
-                        const todayDate = new Date(baseDateStr);
-                        if (isNaN(todayDate.getTime()))
-                          return (
-                            <div style={{ fontSize: "13px", opacity: 0.6 }}>
-                              짜    보가 올바르지 않습니다.
-                            </div>
-                          );
-
-                        todayDate.setDate(
-                          todayDate.getDate() + (scheduleDay - 1),
-                        );
-                        const todayStr = todayDate.toISOString().split("T")[0];
-                        const accommodations =
-                          trip.metadata?.accommodations ||
-                          plannerData.accommodations ||
-                          [];
-                        const foundAcc = accommodations.find(
-                          (a: any) =>
-                            todayStr >= a.startDate && todayStr <= a.endDate,
-                        );
-
-                        if (foundAcc) {
-                          return (
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
-                              <div
-                                style={{ fontWeight: 700, fontSize: "16px" }}
-                              >
-                                {foundAcc.name}
-                              </div>
-                              <button
-                                onClick={() =>
-                                  window.open(
-                                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(foundAcc.name)}`,
-                                    "_blank",
-                                  )
-                                }
-                                style={{
-                                  padding: "6px 12px",
-                                  borderRadius: "10px",
-                                  background: "var(--primary)",
-                                  color: "black",
-                                  border: "none",
-                                  fontWeight: 700,
-                                  fontSize: "12px",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                길찾기
-                              </button>
-                            </div>
-                          );
-                        }
-                        return (
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <div style={{ fontSize: "13px", opacity: 0.6 }}>
-                              등록된 숙소가 없습니다.
-                            </div>
-                            <button
-                              onClick={() => {
-                                const currentArea =
-                                  trip.metadata?.destination ||
-                                  plannerData.destination;
-                                window.open(
-                                  `https://www.google.com/maps/search/${currentArea}+호텔`,
-                                  "_blank",
-                                );
-                              }}
-                              style={{
-                                padding: "6px 12px",
-                                borderRadius: "10px",
-                                background: "rgba(255,255,255,0.1)",
-                                color: "white",
-                                border: "1px solid rgba(255,255,255,0.2)",
-                                fontWeight: 700,
-                                fontSize: "12px",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 4,
-                              }}
-                            >
-                              <Compass size={14} /> 주변 검색
-                            </button>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Map - 지도 보기일 때만    더링 */}
-                    {scheduleViewMode === "map" && (
-                      <div
-                        style={{
-                          height: "350px",
-                          width: "100%",
-                          flexShrink: 0,
-                          borderRadius: "16px",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {/*   짜 변경 시 지도를 완   히 새로 그리기 위해 key prop 사용 - ErrorBoundary 추가 */}
-                        <ErrorBoundary>
-                          <MapComponent
-                            // key prop REMOVED to prevent unmounting and crashing Google Maps
-                            points={getPoints()}
-                            selectedPoint={selectedPoint}
-                            onPointClick={(p) => {
-                              setSelectedPoint(p);
-                              setSelectedWeatherLocation(p);
-                            }}
-                          />
-                        </ErrorBoundary>
-                      </div>
-                    )}
-
-                    {/* List - 목록 보기일 때만 표시 */}
-                    {scheduleViewMode === "list" && (
-                      <ErrorBoundary>
-                        <Reorder.Group
-                          axis="y"
-                          values={getPoints()}
-                          onReorder={handleReorder}
-                          style={{ padding: 0, margin: 0, listStyle: "none" }}
-                        >
-                          {getPoints().map((p) => {
-                            const isDone = !!completedItems[p.id];
-                            return (
-                              <Reorder.Item
-                                key={p.id}
-                                value={p}
-                                style={{ marginBottom: 12 }}
-                                onDragStart={() => {
-                                  isDraggingRef.current = true;
-                                }}
-                                onDragEnd={() => {
-                                  setTimeout(() => {
-                                    isDraggingRef.current = false;
-                                  }, 100);
-                                }}
-                              >
-                                <div
-                                  className="glass-card"
-                                  onClick={() => {
-                                    if (isDraggingRef.current) return;
-                                    setSelectedPoint(p);
-                                    setSelectedWeatherLocation(p);
-                                  }}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    opacity: isDone ? 0.6 : 1,
-                                    transition: "opacity 0.2s",
-                                    cursor: "grab",
-                                    userSelect: "none",
-                                  }}
-                                >
-                                  <div style={{ flex: 1 }}>
-                                    <div
-                                      style={{
-                                        fontWeight: 700,
-                                        color: "var(--text-primary)",
-                                        textDecoration: isDone
-                                          ? "line-through"
-                                          : "none",
-                                      }}
-                                    >
-                                      {p.name}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: 12,
-                                        color: "var(--text-secondary)",
-                                      }}
-                                    >
-                                      {p.category.toUpperCase()}
-                                    </div>
-                                  </div>
-
-                                  <div style={{ display: "flex", gap: 4 }}>
-                                    <button
-                                      onClick={(e) => deletePoint(p.id, e)}
-                                      style={{
-                                        background: "transparent",
-                                        border: "none",
-                                        color: "rgba(255,255,255,0.2)",
-                                        cursor: "pointer",
-                                        padding: 5,
-                                      }}
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                    <button
-                                      onClick={(e) => toggleComplete(p.id, e)}
-                                      style={{
-                                        background: "transparent",
-                                        border: "none",
-                                        color: isDone
-                                          ? "var(--primary)"
-                                          : "var(--text-secondary)",
-                                        cursor: "pointer",
-                                        padding: 5,
-                                      }}
-                                    >
-                                      {isDone ? (
-                                        <CheckCircle size={24} />
-                                      ) : (
-                                        <Circle size={24} />
-                                      )}
-                                    </button>
-                                  </div>
-                                </div>
-                              </Reorder.Item>
-                            );
-                          })}
-                        </Reorder.Group>
-                        <div
-                          style={{ display: "flex", gap: 10, marginTop: 20 }}
-                        >
-                          <button
-                            onClick={() => addPoint("sightseeing")}
-                            style={{
-                              flex: 1,
-                              padding: "12px",
-                              borderRadius: "12px",
-                              background: "rgba(255,255,255,0.05)",
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              color: "white",
-                              fontSize: "13px",
-                              fontWeight: 600,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 6,
-                              cursor: "pointer",
-                            }}
-                          >
-                            <MapPin size={14} /> 장소 추가
-                          </button>
-                          <button
-                            onClick={() => addPoint("food")}
-                            style={{
-                              flex: 1,
-                              padding: "12px",
-                              borderRadius: "12px",
-                              background: "rgba(255,255,255,0.05)",
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              color: "white",
-                              fontSize: "13px",
-                              fontWeight: 600,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 6,
-                              cursor: "pointer",
-                            }}
-                          >
-                            <Utensils size={14} /> 맛집 추가
-                          </button>
-                        </div>
-                      </ErrorBoundary>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === "files" && (
-                  <div className="file-grid" style={{ paddingBottom: 80 }}>
-                    {/* Upload Button */}
-                    <div
-                      className="file-card"
-                      style={{
-                        border: "2px dashed var(--glass-border)",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        background: "rgba(255,255,255,0.05)",
-                      }}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*,.html,.htm"
-                        onChange={(e) => handleFileUpload(e)}
-                        style={{
-                          position: "absolute",
-                          opacity: 0,
-                          width: "100%",
-                          height: "100%",
-                          cursor: "pointer",
-                        }}
-                      />
-                      <Upload
-                        size={24}
-                        style={{ color: "var(--primary)", marginBottom: 8 }}
-                      />
-                      <div
-                        style={{ fontSize: 12, color: "var(--text-secondary)" }}
-                      >
-                        새 파일 업로드
-                      </div>
-                    </div>
-
-                    {/* Custom Files */}
-                    {customFiles.map((f) => (
-                      <div key={f.id} className="file-card">
-                        <img src={f.data} alt={f.name} className="file-img" />
-                        <div
-                          className="file-info"
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span
-                            style={{
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              maxWidth: "80%",
-                            }}
-                          >
-                            {f.name}
-                          </span>
-                          <button
-                            onClick={(e) => deleteFile(f.id, e)}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              color: "white",
-                              padding: 0,
-                              cursor: "pointer",
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                        {f.linkedTo && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              top: 8,
-                              right: 8,
-                              background: "var(--primary)",
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                              fontSize: 10,
-                              color: "black",
-                              fontWeight: "bold",
-                            }}
-                          >
-                            연결됨
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    {/* Default Files */}
-                    {trip.defaultFiles.map((f) => (
-                      <div key={f.name} className="file-card">
-                        <img src={f.path} alt={f.name} className="file-img" />
-                        <div className="file-info">{f.name}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {activeTab === "exchange" && (
-                  <div
-                    style={{
-                      padding: "20px",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      height: "100%",
-                    }}
-                  >
-                    <div
-                      className="converter-card"
-                      style={{
-                        padding: 20,
-                        borderRadius: 16,
-                        width: "100%",
-                        maxWidth: 320,
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <h3
-                        style={{
-                          color: "var(--text-primary)",
-                          marginBottom: 20,
-                        }}
-                      >
-                        💱 환율 계산기
-                      </h3>
-
-                      <div style={{ marginBottom: 15 }}>
-                        <label
-                          style={{
-                            color: "var(--text-secondary)",
-                            fontSize: 12,
-                          }}
-                        >
-                          JPY
-                        </label>
-                        <input
-                          type="number"
-                          value={jpyAmount}
-                          onChange={(e) => convert(e.target.value, "jpy")}
-                          style={{
-                            width: "100%",
-                            padding: 10,
-                            borderRadius: 8,
-                            border: "1px solid var(--glass-border)",
-                            background: "var(--input-bg)",
-                            color: "var(--text-primary)",
-                            marginTop: 5,
-                          }}
-                        />
-                      </div>
-
-                      <div style={{ marginBottom: 20 }}>
-                        <label
-                          style={{
-                            color: "var(--text-secondary)",
-                            fontSize: 12,
-                          }}
-                        >
-                          KRW
-                        </label>
-                        <input
-                          type="text"
-                          value={krwAmount}
-                          onChange={(e) => convert(e.target.value, "krw")}
-                          style={{
-                            width: "100%",
-                            padding: 10,
-                            borderRadius: 8,
-                            border: "1px solid var(--glass-border)",
-                            background: "var(--input-bg)",
-                            color: "var(--text-primary)",
-                            marginTop: 5,
-                          }}
-                        />
-                      </div>
-
-                      <p
-                        style={{
-                          textAlign: "center",
-                          color: "var(--text-dim)",
-                          fontSize: 12,
-                          marginBottom: 20,
-                        }}
-                      >
-                        100 JPY ≈ {Math.round(rate * 100).toLocaleString()} KRW
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {activeTab === "speech" && (
-                  <div className="speech-view" style={{ padding: "16px" }}>
-                    <h2
-                      style={{
-                        marginBottom: 16,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        fontSize: "18px",
-                      }}
-                    >
-                      <MessageCircle size={20} color="var(--primary)" />
-                      일본어 필수 회화
-                    </h2>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
-                      }}
-                    >
-                      {trip.speechData
-                        .filter((item) => item.category === "basic")
-                        .map((item) => (
-                          <div
-                            key={item.id}
-                            className="glass-card"
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              padding: "10px 14px",
-                            }}
-                          >
-                            <div style={{ flex: 1 }}>
-                              <div
-                                style={{
-                                  fontSize: "11px",
-                                  color: "var(--text-secondary)",
-                                  opacity: 0.8,
-                                }}
-                              >
-                                {item.kor}
-                              </div>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "baseline",
-                                  gap: 8,
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    fontSize: "16px",
-                                    fontWeight: 700,
-                                    color: "var(--text-primary)",
-                                  }}
-                                >
-                                  {item.jp}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "12px",
-                                    color: "var(--primary)",
-                                    opacity: 0.9,
-                                  }}
-                                >
-                                  {item.pron}
-                                </div>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => speak(item.jp)}
-                              style={{
-                                background: "var(--primary)",
-                                border: "none",
-                                borderRadius: "50%",
-                                width: 32,
-                                height: 32,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                cursor: "pointer",
-                                color: "black",
-                              }}
-                            >
-                              <Volume2 size={14} />
-                            </button>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
+                {(() => {
+                  return (
+                    <>
+                      <SummaryTab {...tabProps.SummaryTab} />
+                      <ScheduleTab {...tabProps.ScheduleTab} />
+                      <DocumentsTab {...tabProps.DocumentsTab} />
+                      <ExchangeTab {...tabProps.ExchangeTab} />
+                      <PhrasebookTab {...tabProps.PhrasebookTab} />
+                      <Ocr_labTab {...tabProps.Ocr_labTab} />
+                    </>
+                  );
+                })()}
               </main>
 
               {/* Currency Logic Moved to Tab */}
@@ -6292,7 +2567,7 @@ const App: React.FC = () => {
                             }}
                           >
                             <textarea
-                              placeholder="개인   인 메모나 기록을 남기세요..."
+                              placeholder="개인적인 메모나 기록을 남기세요..."
                               value={userLogs[selectedPoint.id] || ""}
                               onChange={(e) =>
                                 updateLog(selectedPoint.id, e.target.value)
@@ -6416,7 +2691,7 @@ const App: React.FC = () => {
                             fontSize: "19px",
                           }}
                         >
-                          당  의 취향을 분석하여 최적의 경로를 제안합니다.
+                          당신의 취향을 분석하여 최적의 경로를 제안합니다.
                         </p>
                         <button
                           onClick={() => setPlannerStep(1)}
@@ -7273,7 +3548,7 @@ const App: React.FC = () => {
                               opacity: 0.8,
                             }}
                           >
-                            여행 속도는 어    가요?
+                            여행 속도는 어떤가요?
                           </label>
                           <div
                             style={{
@@ -7285,12 +3560,12 @@ const App: React.FC = () => {
                             {[
                               {
                                 id: "slow",
-                                label: "여  롭게 (하루 2-3곳)",
+                                label: "여유롭게 (하루 2-3곳)",
                                 icon: <Clock size={20} />,
                               },
                               {
                                 id: "normal",
-                                label: "   당히 (하루 4-5곳)",
+                                label: "적당히 (하루 4-5곳)",
                                 icon: <Clock size={20} />,
                               },
                               {
@@ -7347,7 +3622,7 @@ const App: React.FC = () => {
                               fontWeight: 800,
                             }}
                           >
-                            이
+                            이전
                           </button>
                           <button
                             onClick={() => setPlannerStep(3)}
@@ -7433,7 +3708,7 @@ const App: React.FC = () => {
                             marginBottom: "20px",
                           }}
                         >
-                          교통편을 입   하면 일   에 자동으로 추가해 드립니다.
+                          교통편을 입력하면 일정에 자동으로 추가해 드립니다.
                         </p>
 
                         <div
@@ -7480,7 +3755,7 @@ const App: React.FC = () => {
                             },
                             {
                               id: "car",
-                              label: "자차",
+                              label: "자동차",
                               icon: <Car size={24} />,
                             },
                             {
@@ -7646,7 +3921,7 @@ const App: React.FC = () => {
                                           marginTop: 4,
                                         }}
                                       >
-                                        이미지나 PDF를 올리면 자동 입   됩니다
+                                        이미지나 PDF를 올리면 자동 입력됩니다
                                       </div>
                                     </div>
                                   </>
@@ -7726,8 +4001,8 @@ const App: React.FC = () => {
                                           e.stopPropagation();
                                           setDeleteConfirmModal({
                                             isOpen: true,
-                                            title: "파일 삭   ",
-                                            message: `${file.name} 파일을 삭제하시겠습니까까?`,
+                                            title: "파일 삭제",
+                                            message: `${file.name} 파일을 삭제하시겠습니까?`,
                                             onConfirm: () => {
                                               setAnalyzedFiles((prev) =>
                                                 prev.filter(
@@ -7754,7 +4029,7 @@ const App: React.FC = () => {
                                           alignItems: "center",
                                           justifyContent: "center",
                                         }}
-                                        title="파일 삭   "
+                                        title="파일 삭제"
                                       >
                                         <Trash2 size={14} />
                                       </button>
@@ -8207,7 +4482,7 @@ const App: React.FC = () => {
                                   </label>
                                   <input
                                     type="text"
-                                    placeholder="예: 출발지 입   "
+                                    placeholder="예: 출발지 입력"
                                     value={plannerData.departurePoint}
                                     onChange={(e) =>
                                       setPlannerData({
@@ -8419,7 +4694,7 @@ const App: React.FC = () => {
                               fontWeight: 800,
                             }}
                           >
-                            이
+                            이전
                           </button>
                           <button
                             onClick={() => {
@@ -8450,7 +4725,7 @@ const App: React.FC = () => {
                             }}
                           >
                             <Save size={20} />
-                            <span style={{ fontSize: "14px" }}>   장</span>
+                            <span style={{ fontSize: "14px" }}>저장</span>
                           </button>
                           <button
                             onClick={() => {
@@ -8470,7 +4745,7 @@ const App: React.FC = () => {
                               fontWeight: 800,
                             }}
                           >
-                            다음 단계로 (장소   택)
+                            다음 단계로 (장소 선택)
                           </button>
                         </div>
                       </motion.div>
@@ -8517,7 +4792,7 @@ const App: React.FC = () => {
                             textAlign: "center",
                           }}
                         >
-                          {plannerData.destination}의 어디를 가  싶으  가요?
+                          {plannerData.destination}의 어디를 가고 싶으신가요?
                         </h2>
 
                         {isSearchingAttractions ? (
@@ -8572,7 +4847,7 @@ const App: React.FC = () => {
                               }}
                             >
                               {[
-                                { id: "all", label: "   체", icon: null },
+                                { id: "all", label: "전체", icon: null },
                                 {
                                   id: "sightseeing",
                                   label: "관광명소",
@@ -8698,7 +4973,7 @@ const App: React.FC = () => {
                                                 : item.category === "cafe"
                                                   ? "카페"
                                                   : item.category === "custom"
-                                                    ? "직   입   "
+                                                    ? "직접 입력"
                                                     : "관광"}
                                             </span>
                                             {item.priceLevel && (
@@ -8853,7 +5128,7 @@ const App: React.FC = () => {
                                   placeholder={
                                     isValidatingPlace
                                       ? "AI가장소 정보를 확인 중입니다..."
-                                      : "원하는 장소가 없다면 직접 입력하여 추가하세요 (예:   머니 댁, 스타벅스 나하점)"
+                                      : "원하는 장소가 없다면 직접 입력하여 추가하세요 (예: 할머니 댁, 스타벅스 나하점)"
                                   }
                                   style={{
                                     flex: 1,
@@ -8960,7 +5235,7 @@ const App: React.FC = () => {
                               fontWeight: 800,
                             }}
                           >
-                            이    (교통편)
+                            이전 (교통편)
                           </button>
                           <button
                             onClick={() => {
@@ -8994,7 +5269,7 @@ const App: React.FC = () => {
                               gap: 6,
                             }}
                           >
-                            <Save size={18} />    장
+                            <Save size={18} /> 저장
                           </button>
                           <button
                             onClick={() => {
@@ -9082,7 +5357,7 @@ const App: React.FC = () => {
                             marginBottom: "32px",
                             textAlign: "center",
                           }}
-                        >선택한 장소들을      하여 숙소를    해보세요.
+                        >선택한 장소들을 참고하여 숙소를 선택해보세요.
                         </p>
 
                         <div
@@ -9147,7 +5422,7 @@ const App: React.FC = () => {
                                       marginTop: 4,
                                     }}
                                   >
-                                    최적의 숙소를 찾  있습니다
+                                    최적의 숙소를 찾고 있습니다
                                   </div>
                                 </div>
                               </>
@@ -9475,12 +5750,12 @@ const App: React.FC = () => {
 
                               if (!name)
                                 return showToast(
-                                  "숙소 이름을 입   해 주세요.",
+                                  "숙소 이름을 입력해 주세요.",
                                   "error",
                                 );
                               if (!start)
                                 return showToast(
-                                  "체크인   짜를   택해 주세요.",
+                                  "체크인 날짜를 선택해 주세요.",
                                   "error",
                                 );
 
@@ -9587,7 +5862,7 @@ const App: React.FC = () => {
                                     ) as HTMLInputElement;
                                     if (nameInput) nameInput.value = h.name;
                                     showToast(
-                                      `${h.name}를   택했습니다.   짜를 확인하   추가하세요.`,
+                                      `${h.name}를 선택했습니다. 날짜를 확인하고 추가하세요.`,
                                     );
                                   }}
                                   className="glass-card"
@@ -9726,8 +6001,8 @@ const App: React.FC = () => {
                                       onClick={() => {
                                         setDeleteConfirmModal({
                                           isOpen: true,
-                                          title: "숙소 삭   ",
-                                          message: `${acc.name} 숙소를 목록에서 삭제하시겠습니까까?`,
+                                          title: "숙소 삭제",
+                                          message: `${acc.name} 숙소를 목록에서 삭제하시겠습니까?`,
                                           onConfirm: () => {
                                             setPlannerData({
                                               ...plannerData,
@@ -9821,7 +6096,7 @@ const App: React.FC = () => {
                               gap: 6,
                             }}
                           >
-                            <Save size={18} />    장
+                            <Save size={18} /> 저장
                           </button>
                           <button
                             onClick={() => {
@@ -10216,7 +6491,7 @@ const App: React.FC = () => {
                       >
                         <Clock size={20} />
                         <h4 style={{ fontSize: "20px", fontWeight: 800 }}>
-                          역사와   래
+                          역사와 유래
                         </h4>
                       </div>
                       <p
@@ -10424,7 +6699,7 @@ const App: React.FC = () => {
             <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
               <button
                 onClick={() => {
-                  if (window.confirm("초기화하시  습니까?")) {
+                  if (window.confirm("초기화하시겠습니까?")) {
                     localStorage.clear();
                     window.location.reload();
                   }
@@ -10438,7 +6713,7 @@ const App: React.FC = () => {
                   border: "none",
                 }}
               >
-                체 초기화
+                전체 초기화
               </button>
               <button
                 onClick={() => window.location.reload()}

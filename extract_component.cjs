@@ -30,10 +30,13 @@ const lines = appContent.split('\n');
 const componentLines = lines.slice(component.startLine - 1, component.endLine);
 let componentCode = componentLines.join('\n');
 
-// 들여쓰기 제거 (첫 줄 기준)
-const firstLineIndent = componentLines[0].match(/^\s*/)[0].length;
+// 들여쓰기 제거 (모든 라인의 최소 들여쓰기 기준)
+const nonEmptyLines = componentLines.filter(l => l.trim().length > 0);
+const minIndent = Math.min(...nonEmptyLines.map(line => line.match(/^\s*/)[0].length));
+
 componentCode = componentLines.map(line => {
-    return line.substring(Math.min(firstLineIndent, line.search(/\S/)));
+    if (line.trim().length === 0) return '';
+    return line.substring(minIndent);
 }).join('\n');
 
 // 필요한 imports 감지

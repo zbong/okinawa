@@ -1,0 +1,25 @@
+﻿
+src\App.tsx:2181:  const bottomSheetTop = activeTab === "s
+ummary" ? "380px" : "280px";
+src\App.tsx:3825:                  className={`tab ${activ
+eTab === "summary" ? "active" : ""}`}
+src\App.tsx:3836:                  className={`tab ${activ
+eTab === "schedule" ? "active" : ""}`}
+src\App.tsx:3847:                  className={`tab ${activ
+eTab === "files" ? "active" : ""}`}
+src\App.tsx:3858:                  className={`tab ${activ
+eTab === "exchange" ? "active" : ""}`}
+src\App.tsx:3869:                  className={`tab ${activ
+eTab === "speech" ? "active" : ""}`}
+src\App.tsx:3901:                {activeTab === "summary" 
+&& (
+src\App.tsx:4515:                {activeTab === "schedule"
+ && (
+src\App.tsx:5191:                {activeTab === "files" &&
+ (
+src\App.tsx:5294:                {activeTab === "exchange"
+ && (
+src\App.tsx:5387:                {activeTab === "speech" &
+& (
+
+

@@ -7,19 +7,25 @@ console.log('🚀 자동 리팩토링 시작!\n');
 console.log('📊 1단계: App.tsx 구조 분석...');
 execSync('node analyze_structure.cjs', { stdio: 'inherit' });
 
-// 2. 분석 결과 로드
-const analysis = JSON.parse(fs.readFileSync('refactor_analysis.json', 'utf8'));
-
-// 3. 난이도 순으로 정렬 (작은 것부터)
-const sortedComponents = analysis.components.sort((a, b) => a.lineCount - b.lineCount);
-
-console.log(`\n🎯 ${sortedComponents.length}개 컴포넌트를 순서대로 추출합니다...\n`);
-
+// 2. 루프 시작
+let processed = new Set();
 let totalReduction = 0;
 
-sortedComponents.forEach((comp, index) => {
+while (true) {
+    // 매번 새로 분석 (라인 변화에 대응)
+    execSync('node analyze_structure.cjs', { stdio: 'pipe' });
+    const analysis = JSON.parse(fs.readFileSync('refactor_analysis.json', 'utf8'));
+
+    // 아직 처리하지 않은 컴포넌트 찾기
+    const comp = analysis.components.find(c => !processed.has(c.name));
+
+    if (!comp) break;
+
+    const index = processed.size;
+    const totalCount = analysis.components.length + processed.size;
+
     console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`📦 ${index + 1}/${sortedComponents.length}: ${comp.name} (${comp.lineCount}줄)`);
+    console.log(`📦 ${index + 1}: ${comp.name} (${comp.lineCount}줄)`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
     try {
@@ -31,9 +37,10 @@ sortedComponents.forEach((comp, index) => {
         console.log('   📝 App.tsx 업데이트 중...');
         execSync(`node update_app.cjs ${comp.name}`, { stdio: 'inherit' });
 
-        totalReduction += (comp.lineCount - 2); // import 1줄 + 호출 1줄
+        totalReduction += (comp.lineCount - 2);
+        processed.add(comp.name);
 
-        // 컴파일 확인
+        // 컴파일 확인 (선택사항 - 한 번에 하려면 주석 처리 혹은 유지)
         console.log('   ✅ 컴파일 확인 중...');
         try {
             execSync('npx tsc --noEmit', { stdio: 'pipe' });
@@ -45,9 +52,9 @@ sortedComponents.forEach((comp, index) => {
 
     } catch (error) {
         console.error(`   ❌ 오류 발생: ${error.message}`);
-        console.log('   다음 컴포넌트로 계속...');
+        processed.add(comp.name); // 오류나도 다음으로 넘어가기 위해 추가
     }
-});
+}
 
 console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 console.log(`🎉 자동 리팩토링 완료!`);

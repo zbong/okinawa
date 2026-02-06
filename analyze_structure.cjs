@@ -9,11 +9,12 @@ console.log('🔍 App.tsx 구조 분석 중...\n');
 
 // Tab/View 마커 찾기
 const markers = [
-    { name: 'phrasebook', pattern: /activeTab === ["']phrasebook["']/, type: 'tab' },
-    { name: 'ocr_lab', pattern: /view === ["']ocr_lab["']/, type: 'view' },
-    { name: 'schedule', pattern: /activeTab === ["']schedule["']/, type: 'tab' },
-    { name: 'map', pattern: /activeTab === ["']map["']/, type: 'tab' },
-    { name: 'documents', pattern: /activeTab === ["']documents["']/, type: 'tab' },
+    { name: 'summary', pattern: /\{activeTab === ["']summary["'] && \(/, type: 'tab' },
+    { name: 'schedule', pattern: /\{activeTab === ["']schedule["'] && \(/, type: 'tab' },
+    { name: 'documents', pattern: /\{activeTab === ["']files["'] && \(/, type: 'tab' },
+    { name: 'exchange', pattern: /\{activeTab === ["']exchange["'] && \(/, type: 'tab' },
+    { name: 'phrasebook', pattern: /\{activeTab === ["']speech["'] && \(/, type: 'tab' },
+    { name: 'ocr_lab', pattern: /\{view === ["']ocr_lab["'] && \(/, type: 'view' },
 ];
 
 const components = [];

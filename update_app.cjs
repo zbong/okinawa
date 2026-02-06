@@ -49,19 +49,41 @@ if (importInsertIndex === -1) {
 
 lines.splice(importInsertIndex, 0, importLine);
 
-// 라인 번호 조정 (import 추가로 인해)
-const adjustedStart = component.startLine;
-const adjustedEnd = component.endLine + 1; // import 1줄 추가됨
-
 // 2. 기존 컴포넌트 코드 제거하고 새 컴포넌트 호출로 교체
-const indentation = lines[adjustedStart - 1].match(/^\s*/)[0];
+// 분석 결과의 패턴을 사용하여 정확한 위치를 다시 찾음 (import 추가 등으로 라인이 밀릴 수 있음)
+const patternStr = component.pattern;
+const pattern = new RegExp(patternStr.substring(1, patternStr.length - 1));
+
+const actualStartIdx = lines.findIndex(line => pattern.test(line));
+
+if (actualStartIdx === -1) {
+    console.error(`❌ App.tsx에서 ${componentName} 패턴을 찾을 수 없습니다.`);
+    process.exit(1);
+}
+
+// 끝 라인 찾기 (brace counting 다시 실행)
+let actualEndIdx = actualStartIdx;
+let braceCount = 0;
+let started = false;
+
+for (let i = actualStartIdx; i < lines.length; i++) {
+    const line = lines[i];
+    for (const char of line) {
+        if (char === '{') { braceCount++; started = true; }
+        else if (char === '}') { braceCount--; }
+    }
+    if (started && braceCount === 0) {
+        actualEndIdx = i;
+        break;
+    }
+}
+
+const indentation = lines[actualStartIdx].match(/^\s*/)[0];
 const replacement = `${indentation}<${componentFileName} {...props} />`;
 
-// 제거할 라인 수
-const linesToRemove = adjustedEnd - adjustedStart + 1;
-
 // 교체
-lines.splice(adjustedStart - 1, linesToRemove, replacement);
+const linesToRemove = actualEndIdx - actualStartIdx + 1;
+lines.splice(actualStartIdx, linesToRemove, replacement);
 
 // 3. 파일 저장
 fs.writeFileSync(appPath, lines.join('\n'));
