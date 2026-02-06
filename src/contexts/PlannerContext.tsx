@@ -1,7 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { TripPlan, LocationPoint, PlannerData } from '../types';
 import { okinawaTrip } from '../data';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+    extractTextFromFile,
+    parseUniversalDocument,
+    fileToBase64
+} from '../utils/ocr';
+import { parseWithAI } from '../utils/ai-parser';
+import { usePlannerAI } from '../hooks/usePlannerAI';
+import { useGoogleTTS } from '../hooks/useGoogleTTS';
+import { useCurrency } from '../hooks/useCurrency';
+import { useWeather } from '../hooks/useWeather';
 
 export interface CustomFile {
     id: string;
@@ -166,6 +175,11 @@ interface PlannerContextType {
     validateAndAddPlace: (name: string) => Promise<boolean>;
     validateHotel: (name: string) => Promise<void>;
     generatePlanWithAI: (customPrompt?: string) => Promise<void>;
+    handleFileAnalysis: (files: File[]) => Promise<void>;
+    handleTicketOcr: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+    handleMultipleOcr: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>, linkedTo?: string) => Promise<void>;
+    deleteFile: (id: string, e?: React.MouseEvent) => void;
 }
 
 const PlannerContext = createContext<PlannerContextType | undefined>(undefined);
@@ -216,8 +230,6 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Selection
     const [selectedPoint, setSelectedPoint] = useState<LocationPoint | null>(null);
-    const [weatherIndex, setWeatherIndex] = useState(0);
-    const [selectedWeatherLocation, setSelectedWeatherLocation] = useState<LocationPoint | null>(null);
     const [activePlannerDetail, setActivePlannerDetail] = useState<any | null>(null);
 
     // Planning
@@ -269,15 +281,60 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return defaultData;
     });
 
-    const [dynamicAttractions, setDynamicAttractions] = useState<any[]>([]);
-    const [isSearchingAttractions, setIsSearchingAttractions] = useState(false);
-    const [isSearchingHotels, setIsSearchingHotels] = useState(false);
-    const [recommendedHotels, setRecommendedHotels] = useState<any[]>([]);
-    const [hotelAddStatus, setHotelAddStatus] = useState<"IDLE" | "VALIDATING" | "SUCCESS" | "ERROR">("IDLE");
-    const [validatedHotel, setValidatedHotel] = useState<any | null>(null);
-    const [isValidatingPlace, setIsValidatingPlace] = useState(false);
-    const [isPlaceAddedSuccess, setIsPlaceAddedSuccess] = useState(false);
-    const [isPlaceAddedError, setIsPlaceAddedError] = useState(false);
+    // Global UI States
+    const [toasts, setToasts] = useState<any[]>([]);
+    const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+        const id = Date.now().toString();
+        setToasts((prev) => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setToasts((prev) => prev.filter((t) => t.id !== id));
+        }, 3000);
+    };
+
+    const closeToast = (id: string) => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+    };
+
+    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+    const [isReEditModalOpen, setIsReEditModalOpen] = useState(false);
+    const [tripToEdit, setTripToEdit] = useState<any>(null);
+    const [deleteConfirmModal, setDeleteConfirmModal] = useState<any>({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => { }
+    });
+
+    // Auth
+    const [isLoggedIn, setIsLoggedIn] = useState(true);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+    // Calendar
+    const [calendarDate, setCalendarDate] = useState(new Date());
+
+    // AI Logic (Extracted to usePlannerAI)
+    const {
+        dynamicAttractions, setDynamicAttractions,
+        isSearchingAttractions, setIsSearchingAttractions,
+        isSearchingHotels, setIsSearchingHotels,
+        recommendedHotels, setRecommendedHotels,
+        hotelAddStatus, setHotelAddStatus,
+        validatedHotel, setValidatedHotel,
+        isValidatingPlace, setIsValidatingPlace,
+        isPlaceAddedSuccess, setIsPlaceAddedSuccess,
+        isPlaceAddedError, setIsPlaceAddedError,
+        fetchAttractionsWithAI,
+        fetchHotelsWithAI,
+        validateAndAddPlace,
+        validateHotel,
+        generatePlanWithAI: generatePlan
+    } = usePlannerAI({
+        plannerData,
+        selectedPlaceIds,
+        setSelectedPlaceIds,
+        setPlannerStep,
+        showToast
+    });
 
     useEffect(() => {
         const saved = localStorage.getItem("trip_draft_v1");
@@ -407,122 +464,37 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     }, [customFiles, trip?.metadata?.destination]);
 
-    // Weather Logic
-    const [weatherData, setWeatherData] = useState<any>(null);
-    const [isLoadingWeather, setIsLoadingWeather] = useState(false);
-    const [weatherError, setWeatherError] = useState<string | null>(null);
 
-    const fetchWeatherData = async (location: string, coordinates?: { lat: number; lng: number }) => {
-        const apiKey = import.meta.env.VITE_WEATHER_API_KEY;
-        if (!apiKey || apiKey === "YOUR_WEATHERAPI_KEY_HERE") return null;
+    // Weather Logic (Extracted to useWeather)
+    const {
+        weatherData,
+        isLoadingWeather,
+        weatherError,
+        fetchWeatherData,
+        getWeatherForDay: getLocationWeather,
+        getFormattedDate,
+        weatherIndex,
+        setWeatherIndex,
+        selectedWeatherLocation,
+        setSelectedWeatherLocation
+    } = useWeather();
 
-        const cacheKey = `weather_${location}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-            try {
-                const { timestamp, data } = JSON.parse(cached);
-                if (Date.now() - timestamp < 3600000) {
-                    setWeatherData(data);
-                    return data;
-                }
-            } catch (e) { }
-        }
-
-        setIsLoadingWeather(true);
-        setWeatherError(null);
-
-        try {
-            const query = coordinates ? `${coordinates.lat},${coordinates.lng}` : location;
-            const response = await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(query)}&days=3&lang=ko`);
-            if (!response.ok) throw new Error(`Weather API error: ${response.status}`);
-            const data = await response.json();
-            localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
-            setWeatherData(data);
-            return data;
-        } catch (error) {
-            setWeatherError("날씨 정보를 불러올 수 없습니다.");
-            return null;
-        } finally {
-            setIsLoadingWeather(false);
-        }
-    };
-
-    const getKoreanLocationName = (apiName: string, originalName?: string) => {
-        if (originalName) return originalName;
-        const names: Record<string, string> = {
-            'Naha': '나하', 'Okinawa': '오키나와', 'Kunigami': '쿠니가미',
-            'Nago': '나고', 'Itoman': '이토만', 'Tomigusuku': '토미구스쿠'
-        };
-        return names[apiName] || apiName;
-    };
-
+    // specific wrapper to match Context Type signature
     const getWeatherForDay = (dayIndex: number) => {
-        const originalLocationName = selectedWeatherLocation?.name || trip?.metadata?.destination;
-        const location = originalLocationName || "오키나와 (나하)";
-
-        if (weatherData?.forecast?.forecastday?.[dayIndex]) {
-            const dayData = weatherData.forecast.forecastday[dayIndex];
-            const current = dayIndex === 0 ? weatherData.current : dayData.day;
-            const koreanLocationName = getKoreanLocationName(weatherData.location?.name || "", originalLocationName);
-
-            return {
-                location: koreanLocationName,
-                temp: `${Math.round(current.temp_c || current.avgtemp_c)}°`,
-                condition: current.condition?.text || "정보 없음",
-                wind: `${Math.round((current.wind_kph || current.maxwind_kph) / 3.6)} m/s`,
-                humidity: `${current.humidity || current.avghumidity}%`,
-            };
-        }
-        return {
-            location,
-            temp: "22°", condition: "맑음", wind: "3 m/s", humidity: "60%"
-        };
+        return getLocationWeather(dayIndex, trip?.metadata?.destination || "오키나와 (나하)");
     };
 
-    const getFormattedDate = (daysOffset: number = 0) => {
-        const now = new Date();
-        now.setDate(now.getDate() + daysOffset);
-        const month = now.getMonth() + 1;
-        const date = now.getDate();
-        const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
-        return `${month}월 ${date}일 ${days[now.getDay()]}`;
-    };
+    // Currency (Extracted to useCurrency)
+    const {
+        jpyAmount, setJpyAmount,
+        krwAmount, setKrwAmount,
+        rate, setRate,
+        convert
+    } = useCurrency();
+
 
     // Currency
-    const [jpyAmount, setJpyAmount] = useState("1000");
-    const [krwAmount, setKrwAmount] = useState("9000");
-    const [rate, setRate] = useState(9.0);
 
-    // Global UI States
-    const [toasts, setToasts] = useState<any[]>([]);
-    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-    const [isReEditModalOpen, setIsReEditModalOpen] = useState(false);
-    const [tripToEdit, setTripToEdit] = useState<any>(null);
-    const [deleteConfirmModal, setDeleteConfirmModal] = useState({
-        isOpen: false,
-        title: "",
-        message: "",
-        onConfirm: () => { }
-    });
-
-    const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
-        const id = Date.now().toString();
-        setToasts((prev) => [...prev, { id, message, type }]);
-        setTimeout(() => {
-            setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, 3000);
-    };
-
-    const closeToast = (id: string) => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-    };
-
-    // Auth States
-    const [isLoggedIn, setIsLoggedIn] = useState(true); // Default to true for demo
-    const [currentUser, setCurrentUser] = useState({ name: "사용자", homeAddress: "서울" });
-
-    // Calendar States
-    const [calendarDate, setCalendarDate] = useState(new Date());
 
     const prevMonth = () => {
         setCalendarDate((prev) => {
@@ -573,33 +545,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }));
     };
 
-    const speak = (text: string) => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "ja-JP";
-        utterance.rate = 0.9;
-        window.speechSynthesis.speak(utterance);
-    };
-
-    const convert = (val: string, type: "jpy" | "krw") => {
-        const num = parseFloat(val.replace(/,/g, ""));
-        if (isNaN(num)) {
-            if (type === "jpy") {
-                setJpyAmount(val);
-                setKrwAmount("0");
-            } else {
-                setKrwAmount(val);
-                setJpyAmount("0");
-            }
-            return;
-        }
-        if (type === "jpy") {
-            setJpyAmount(val);
-            setKrwAmount(Math.round(num * rate).toLocaleString());
-        } else {
-            setKrwAmount(val);
-            setJpyAmount(Math.round(num / rate).toString());
-        }
-    };
+    const { speak } = useGoogleTTS();
 
     const handleReorder = (newOrder: LocationPoint[]) => {
         const otherPoints = allPoints.filter((p) => p.day !== scheduleDay);
@@ -651,172 +597,240 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         showToast("숙소가 삭제되었습니다.");
     };
 
-    const fetchAttractionsWithAI = async (destination: string) => {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey || !destination) return;
-
-        const CACHE_KEY = "attraction_recommendation_cache";
-        const cachedStr = localStorage.getItem(CACHE_KEY);
-        const cache = cachedStr ? JSON.parse(cachedStr) : {};
-        const destinationKey = destination.toLowerCase().trim();
-
-        if (cache[destinationKey]) {
-            const { timestamp, data } = cache[destinationKey];
-            const now = Date.now();
-            const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-            if (now - timestamp < sevenDaysInMs) {
-                setDynamicAttractions(data);
-                return;
-            }
-        }
-
-        setIsSearchingAttractions(true);
-        try {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const prompt = `Search attractions in "${destination}" for ${plannerData.companion}. Return JSON array of objects with id, name, category, desc, longDesc, rating, reviewCount, priceLevel, attractions, tips, coordinates, link. Korean language.`;
-            const result = await model.generateContent(prompt);
-            const text = result.response.text().trim();
-            const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-            const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-                const attractions = JSON.parse(jsonMatch[0]);
-                setDynamicAttractions(attractions);
-                cache[destinationKey] = { timestamp: Date.now(), data: attractions };
-                localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-            }
-        } catch (error) {
-            console.error("Fetch Attractions Error:", error);
-        } finally {
-            setIsSearchingAttractions(false);
-        }
-    };
-
-    const fetchHotelsWithAI = async (destination: string) => {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) return;
-        setIsSearchingHotels(true);
-        try {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const prompt = `Search 5 popular hotels in "${destination}" for "${plannerData.companion}". JSON: [{"name": "string", "desc": "string"}]`;
-            const result = await model.generateContent(prompt);
-            const text = result.response.text().trim();
-            const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-            const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
-            if (jsonMatch) setRecommendedHotels(JSON.parse(jsonMatch[0]));
-        } catch (e) {
-            console.error("Hotel search failed:", e);
-        } finally {
-            setIsSearchingHotels(false);
-        }
-    };
-
-    const validateAndAddPlace = async (name: string) => {
-        if (!name) return false;
-        setIsValidatingPlace(true);
-        try {
-            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const prompt = `Check if "${name}" exists in "${plannerData.destination}". Return JSON: {"isValid": boolean, "name": "Official Name", "category": "string", "desc": "string", "coordinates": {"lat": number, "lng": number}}`;
-            const result = await model.generateContent(prompt);
-            const text = result.response.text().trim();
-            const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-            const data = JSON.parse(cleaned);
-            if (data?.isValid) {
-                const newPlace = {
-                    id: `manual-${Date.now()}`,
-                    name: data.name,
-                    category: data.category,
-                    desc: data.desc,
-                    longDesc: data.desc,
-                    rating: 0,
-                    reviewCount: 0,
-                    priceLevel: "",
-                    coordinates: data.coordinates,
-                };
-                setDynamicAttractions((prev) => [newPlace, ...prev]);
-                setSelectedPlaceIds((prev) => [...prev, newPlace.id]);
-                showToast(`${data.name}이(가) 추가되었습니다.`, "success");
-                return true;
-            }
-        } catch (e) {
-            console.error("Place validation failed:", e);
-        } finally {
-            setIsValidatingPlace(false);
-        }
-        return false;
-    };
-
-    const validateHotel = async (name: string) => {
-        if (!name) return;
-        setHotelAddStatus("VALIDATING");
-        try {
-            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const prompt = `Hotel "${name}" in "${plannerData.destination}". JSON: {"isValid": boolean, "name": "string", "area": "string", "desc": "string"}`;
-            const result = await model.generateContent(prompt);
-            const text = result.response.text().trim();
-            const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-            const data = JSON.parse(cleaned);
-            if (data?.isValid) {
-                setValidatedHotel({ name: data.name, area: data.area, desc: data.desc });
-                setHotelAddStatus("SUCCESS");
-                showToast("숙소 확인 성공");
-            } else {
-                setHotelAddStatus("IDLE");
-            }
-        } catch (e) {
-            setHotelAddStatus("IDLE");
-        }
-    };
-
     const generatePlanWithAI = async (customPrompt?: string) => {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) return;
-        setPlannerStep(6);
+        const planData = await generatePlan(customPrompt);
+        if (planData) {
+            const finalPlan: TripPlan = {
+                metadata: {
+                    title: plannerData.title || `${plannerData.destination} 여행`,
+                    destination: plannerData.destination,
+                    period: `${plannerData.startDate} ~ ${plannerData.endDate}`,
+                    startDate: plannerData.startDate,
+                    endDate: plannerData.endDate,
+                    useRentalCar: plannerData.useRentalCar,
+                },
+                id: `trip-${Date.now()}`,
+                speechData: [],
+                defaultFiles: [],
+                points: (planData.points || []).map((p: any) => ({
+                    ...p,
+                    id: p.id || `gen-${Math.random().toString(36).substr(2, 9)}`,
+                    isCompleted: false,
+                    images: p.images || []
+                }))
+            };
+            setTrip(finalPlan);
+            setAllPoints(finalPlan.points);
+            setPlannerStep(7);
+        }
+    };
+
+
+    const handleFileAnalysis = async (files: File[]) => {
+        if (files.length === 0) return;
+        setIsOcrLoading(true);
         try {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const selectedPlaces = dynamicAttractions.filter(a => selectedPlaceIds.includes(a.id));
-            const prompt = `Create itinerary for ${plannerData.destination} (${plannerData.startDate}~${plannerData.endDate}). Places: ${selectedPlaces.map(p => p.name).join(", ")}. Request: ${customPrompt || "none"}. Return JSON matching TripPlan structure.`;
-            const result = await model.generateContent(prompt);
-            const text = result.response.text().trim();
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                const planData = JSON.parse(jsonMatch[0]);
-                const flattenedPoints: LocationPoint[] = [];
-                planData.days?.forEach((dayObj: any) => {
-                    dayObj.points?.forEach((p: any) => {
-                        flattenedPoints.push({
-                            ...p,
-                            id: p.id || `gen-${Math.random().toString(36).substr(2, 9)}`,
-                            day: dayObj.day || 1,
-                            coordinates: { lat: Number(p.coordinates?.lat), lng: Number(p.coordinates?.lng) }
-                        });
-                    });
-                });
-                const finalPlan: TripPlan = {
-                    ...okinawaTrip,
-                    id: `trip-${Date.now()}`,
-                    metadata: {
-                        ...okinawaTrip.metadata,
-                        destination: plannerData.destination,
-                        title: plannerData.title || `${plannerData.destination} 여행`,
-                        startDate: plannerData.startDate,
-                        endDate: plannerData.endDate,
-                        accommodations: plannerData.accommodations,
-                    },
-                    points: flattenedPoints,
+            const updates: Partial<PlannerData> = {};
+            const newAnalyzedFiles = [...analyzedFiles];
+
+            const resolveAirportName = (code: string | undefined) => {
+                if (!code) return "";
+                const map: Record<string, string> = {
+                    ICN: "인천국제공항 (ICN)",
+                    GMP: "김포국제공항 (GMP)",
+                    KIX: "간사이국제공항 (KIX)",
+                    NRT: "나리타국제공항 (NRT)",
+                    HND: "하네다공항 (HND)",
+                    FUK: "후쿠오카공항 (FUK)",
+                    CTS: "신치토세공항 (CTS)",
+                    OKA: "나하공항 (OKA)",
+                    CJU: "제주국제공항 (CJU)",
+                    PUS: "김해국제공항 (PUS)",
+                    TAE: "대구국제공항 (TAE)",
+                    CJJ: "청주국제공항 (CJJ)",
+                    MWX: "무안국제공항 (MWX)",
+                    YNY: "양양국제공항 (YNY)",
                 };
-                setTrip(finalPlan);
-                setPlannerStep(7);
+                if (code.length === 3 && code === code.toUpperCase())
+                    return map[code] || code;
+                return code;
+            };
+
+            const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                if (newAnalyzedFiles.some((f) => f.name === file.name)) {
+                    showToast(`이미 추가된 파일입니다: ${file.name}`);
+                    continue;
+                }
+
+                const fileIdx = newAnalyzedFiles.length;
+                newAnalyzedFiles.push({ name: file.name, text: "", status: "loading" });
+                setAnalyzedFiles([...newAnalyzedFiles]);
+
+                const mimeType = file.type || "image/jpeg";
+                const isSupportedMultimodal =
+                    mimeType.startsWith("image/") || mimeType === "application/pdf";
+
+                let text = "";
+                let base64 = "";
+
+                if (!isSupportedMultimodal) {
+                    text = await extractTextFromFile(file);
+                } else {
+                    base64 = await fileToBase64(file);
+                }
+
+                let parsed;
+                try {
+                    const fileData = isSupportedMultimodal
+                        ? { base64, mimeType }
+                        : undefined;
+                    parsed = await parseWithAI(text, fileData);
+                } catch (err) {
+                    console.error(`AI Parsing failure for ${file.name}:`, err);
+                    if (!isSupportedMultimodal && text) {
+                        parsed = parseUniversalDocument(text);
+                    } else {
+                        newAnalyzedFiles[fileIdx] = {
+                            name: file.name,
+                            text: text || "(Analysis Failed)",
+                            status: "error",
+                        };
+                        setAnalyzedFiles([...newAnalyzedFiles]);
+                        continue;
+                    }
+                }
+
+                if (i > 0) {
+                    await sleep(1000);
+                }
+
+                newAnalyzedFiles[fileIdx] = {
+                    name: file.name,
+                    text: text || "(Vision Mode)",
+                    parsedData: parsed,
+                    status: "done",
+                };
+                setAnalyzedFiles([...newAnalyzedFiles]);
+
+                if (parsed.type === "flight") {
+                    const arrival = parsed.flight?.arrivalAirport || parsed.arrival;
+                    if (arrival && arrival !== "도착지 미확인")
+                        updates.destination = arrival;
+
+                    if (parsed.flight?.departureAirport)
+                        updates.departurePoint = resolveAirportName(
+                            parsed.flight.departureAirport,
+                        );
+                    if (parsed.flight?.arrivalAirport)
+                        updates.entryPoint = resolveAirportName(
+                            parsed.flight.arrivalAirport,
+                        );
+                    if (parsed.flight?.departureCoordinates)
+                        updates.departureCoordinates = parsed.flight.departureCoordinates;
+                    if (parsed.flight?.arrivalCoordinates)
+                        updates.entryCoordinates = parsed.flight.arrivalCoordinates;
+
+                    updates.travelMode = "plane";
+
+                    if (parsed.flight?.departureDate) {
+                        updates.startDate = parsed.flight.departureDate;
+                    } else if (parsed.startDate && parsed.startDate !== "미확인") {
+                        updates.startDate = parsed.startDate;
+                    }
+
+                    if (parsed.flight?.arrivalDate) {
+                        updates.arrivalDate = parsed.flight.arrivalDate;
+                    }
+
+                    const overallEnd = parsed.endDate || parsed.flight?.arrivalDate;
+                    if (overallEnd && overallEnd !== "미확인")
+                        updates.endDate = overallEnd;
+
+                    if (parsed.flight?.departureTime)
+                        updates.departureTime = parsed.flight.departureTime;
+                    if (parsed.flight?.arrivalTime)
+                        updates.arrivalTime = parsed.flight.arrivalTime;
+                    if (parsed.flight?.returnDepartureTime)
+                        updates.returnDepartureTime = parsed.flight.returnDepartureTime;
+                    if (parsed.flight?.returnArrivalTime)
+                        updates.returnArrivalTime = parsed.flight.returnArrivalTime;
+
+                    if (parsed.flight?.airline) updates.airline = parsed.flight.airline;
+                    if (parsed.flight?.flightNumber)
+                        updates.flightNumber = parsed.flight.flightNumber;
+                    if (parsed.flight?.returnAirline)
+                        updates.returnAirline = parsed.flight.returnAirline;
+                    if (parsed.flight?.returnFlightNumber)
+                        updates.returnFlightNumber = parsed.flight.returnFlightNumber;
+                } else if (parsed.type === "hotel" || parsed.type === "accommodation") {
+                    const hotelName = parsed.hotelName || parsed.name;
+                    if (hotelName && hotelName !== "미확인") {
+                        const newAcc = {
+                            name: hotelName,
+                            address: parsed.address || "",
+                            startDate: parsed.checkInDate || parsed.startDate || "",
+                            endDate: parsed.checkOutDate || parsed.endDate || "",
+                            coordinates: parsed.coordinates,
+                        };
+                        const existing = plannerData.accommodations || [];
+                        if (!existing.some((a: any) => a.name === hotelName)) {
+                            updates.accommodations = [...existing, newAcc];
+                        }
+                    }
+                }
+            }
+
+            if (Object.keys(updates).length > 0) {
+                setPlannerData((prev) => ({ ...prev, ...updates }));
+                showToast("티켓에서 정보를 추출하여 반영했습니다.", "success");
             }
         } catch (error) {
-            setPlannerStep(5);
+            console.error("OCR Analysis failed:", error);
+            showToast("문서 분석 중 오류가 발생했습니다.", "error");
+        } finally {
+            setIsOcrLoading(false);
         }
+    };
+
+    const handleTicketOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        await handleFileAnalysis([file]);
+    };
+
+    const handleMultipleOcr = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        handleFileAnalysis(files);
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, linkedTo?: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const base64 = await fileToBase64(file);
+            const newFile: any = {
+                id: `file-${Date.now()}`,
+                name: file.name,
+                type: file.type.includes("pdf") ? "pdf" : "image",
+                data: base64,
+                linkedTo,
+                date: new Date().toISOString(),
+            };
+            setCustomFiles((prev: any) => [...prev, newFile]);
+            showToast("서류가 업로드되었습니다.", "success");
+        } catch (err) {
+            showToast("파일 업로드 실패", "error");
+        }
+    };
+
+    const deleteFile = (id: string, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setCustomFiles((prev: any) => prev.filter((f: any) => f.id !== id));
     };
 
     const value = {
@@ -851,10 +865,11 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isDraggingRef, calculateProgress, getPoints,
         toggleComplete, updateReview, updateLog, speak, convert,
         handleReorder, deletePoint, addPoint, addAccommodation, deleteAccommodation,
-        fetchAttractionsWithAI, fetchHotelsWithAI, validateAndAddPlace, validateHotel, generatePlanWithAI, closeToast
+        fetchAttractionsWithAI, fetchHotelsWithAI, validateAndAddPlace, validateHotel, generatePlanWithAI, closeToast,
+        handleFileAnalysis, handleTicketOcr, handleMultipleOcr, handleFileUpload, deleteFile
     };
 
-    return <PlannerContext.Provider value={value}>{children}</PlannerContext.Provider>;
+    return <PlannerContext.Provider value={value} > {children}</PlannerContext.Provider >;
 };
 
 export const usePlanner = () => {
