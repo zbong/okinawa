@@ -12,12 +12,15 @@
   - Restored Critical UI States (Toasts, Modals, Auth, Calendar) to ensure app stability.
   - Fixed `TripPlan` metadata structure to strictly follow TypeScript interfaces.
   - Improved `generatePlanWithAI` integration to properly update global state.
+- **Context Cleanup**: Removed large chunks of OCR logic (~200 lines) from `PlannerContext.tsx`.
+- **OCR Logic**: Successfully extracted `handleFileAnalysis` and related OCR state into `useDocumentAnalysis` hook.
+- **Trip Management**: Successfully extracted core CRUD operations (`trips`, `points` management) into `useTripManager` hook.
+- **Context Cleanup**: Removed large chunks of logic (~400 lines total) from `PlannerContext.tsx` and restored missing functionalities.
+- **Stability Check**: Verified App structure and resolved reference errors.
 
 ## Next Steps
-- **Map & Location Logic**: Consider extracting map-related logic (markers, routes) into `useMapManager` or similar.
-- **OCR Logic**: Extract the large OCR and File Analysis blocks from `PlannerContext` into `useOCR` or `useDocumentAnalysis`.
-- **Trip Management**: Extract core CRUD operations for trips/points into `useTripManager`.
-- **Testing**: Verify all flows (AI generation, manual addition, editing) manually.
+- **Map & Location Logic**: (Optional) Extract map-related logic in future if needed.
+- **Testing**: Ongoing user verification.
 
 ## Known Issues
 - `window.google` type errors persist (standard for this project setup, safe to ignore if functionality works).

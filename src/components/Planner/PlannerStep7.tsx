@@ -156,6 +156,9 @@ export const PlannerStep7: React.FC = () => {
                         color: "black",
                         fontWeight: 900,
                         fontSize: "18px",
+                        cursor: "pointer",
+                        zIndex: 10,
+                        position: "relative",
                     }}
                 >
                     가이드 발행하기

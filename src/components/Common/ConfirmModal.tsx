@@ -37,7 +37,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                             right: 0,
                             bottom: 0,
                             background: 'rgba(0,0,0,0.5)',
-                            zIndex: 9998,
+                            zIndex: 99999998,
                         }}
                     />
                     <motion.div
@@ -54,7 +54,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                             padding: '30px',
                             maxWidth: '400px',
                             width: '90%',
-                            zIndex: 9999,
+                            zIndex: 99999999,
                             boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
                         }}
                     >

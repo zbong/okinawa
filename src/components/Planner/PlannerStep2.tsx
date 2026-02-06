@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-    User, Heart, Users, Minus, Plus, Clock
+    User, Heart, Users, Minus, Plus, Clock, Save
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -9,7 +9,9 @@ export const PlannerStep2: React.FC = () => {
     const {
         plannerData,
         setPlannerData,
-        setPlannerStep
+        setPlannerStep,
+        setIsPlanning,
+        showToast
     } = usePlanner();
 
     return (
@@ -45,6 +47,7 @@ export const PlannerStep2: React.FC = () => {
                     />
                 ))}
             </div>
+
             <h2
                 style={{
                     fontSize: "32px",
@@ -309,6 +312,31 @@ export const PlannerStep2: React.FC = () => {
                     }}
                 >
                     이전
+                </button>
+                <button
+                    onClick={() => {
+                        localStorage.setItem('trip_draft_v1', JSON.stringify({
+                            step: 2,
+                            data: plannerData
+                        }));
+                        showToast('여행이 임시 저장되었습니다', 'success');
+                        setTimeout(() => setIsPlanning(false), 500);
+                    }}
+                    style={{
+                        flex: 1,
+                        padding: "20px",
+                        borderRadius: "20px",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        background: "rgba(255,255,255,0.15)",
+                        color: "white",
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                    }}
+                >
+                    <Save size={18} /> 저장
                 </button>
                 <button
                     onClick={() => setPlannerStep(3)}

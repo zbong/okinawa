@@ -28,7 +28,7 @@ export const PlannerReviewModal: React.FC = () => {
                 bottom: 0,
                 background: "rgba(20, 20, 25, 0.95)",
                 backdropFilter: "blur(20px)",
-                zIndex: 100,
+                zIndex: 6000000,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

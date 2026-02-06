@@ -18,6 +18,15 @@ export interface TravelFile {
     path: string;
 }
 
+export interface CustomFile {
+    id: string;
+    name: string;
+    type: "image" | "pdf";
+    data: string; // Base64
+    linkedTo?: string; // Point ID
+    date: string;
+}
+
 export interface SpeechItem {
     id: string;
     kor: string;

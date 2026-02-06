@@ -24,7 +24,8 @@ export const PlannerStep5: React.FC = () => {
         setPlannerStep,
         tripToEdit,
         setIsReviewModalOpen,
-        selectedPlaceIds
+        selectedPlaceIds,
+        setIsPlanning
     } = usePlanner();
 
     const isValidatingHotel = hotelAddStatus === "VALIDATING";
@@ -806,6 +807,7 @@ export const PlannerStep5: React.FC = () => {
                             JSON.stringify(draft),
                         );
                         showToast("숙소 설정이 임시 저장되었습니다.");
+                        setTimeout(() => setIsPlanning(false), 500);
                     }}
                     style={{
                         flex: 1,

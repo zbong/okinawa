@@ -17,6 +17,10 @@ export const usePlannerAI = ({
     setPlannerStep,
     showToast
 }: UsePlannerAIProps) => {
+    const [isValidatingDestination, setIsValidatingDestination] = useState(false);
+    const [isDestinationValidated, setIsDestinationValidated] = useState(() => {
+        return !!(plannerData && plannerData.destination && plannerData.destination.trim().length > 0);
+    });
     const [dynamicAttractions, setDynamicAttractions] = useState<any[]>([]);
     const [isSearchingAttractions, setIsSearchingAttractions] = useState(false);
     const [isSearchingHotels, setIsSearchingHotels] = useState(false);
@@ -171,6 +175,39 @@ export const usePlannerAI = ({
         }
     };
 
+    const validateDestination = async (destination: string): Promise<boolean> => {
+        if (!apiKey || !destination) return false;
+        setIsValidatingDestination(true);
+        try {
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+            const prompt = `Check if "${destination}" is a valid travel destination. Return JSON: {"isValid": boolean, "correctedName": "Official Name (Korean)", "country": "Country Name", "description": "Short description about 50 chars"}`;
+            const result = await model.generateContent(prompt);
+            const text = result.response.text();
+            const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const data = JSON.parse(jsonMatch[0]);
+                if (data.isValid) {
+                    showToast(`${data.correctedName} (${data.country}) 확인 완료!`, "success");
+                    setIsDestinationValidated(true);
+                    return true;
+                } else {
+                    showToast("유효한 여행지가 아닌 것 같습니다. 다시 확인해 주세요.", "error");
+                    setIsDestinationValidated(false);
+                    return false;
+                }
+            }
+        } catch (e) {
+            console.error("Destination validation failed:", e);
+            showToast("여행지 확인 중 오류가 발생했습니다.", "error");
+            setIsDestinationValidated(false);
+        } finally {
+            setIsValidatingDestination(false);
+        }
+        return false;
+    };
+
     return {
         dynamicAttractions,
         setDynamicAttractions,
@@ -194,6 +231,10 @@ export const usePlannerAI = ({
         fetchHotelsWithAI,
         validateAndAddPlace,
         validateHotel,
-        generatePlanWithAI
+        generatePlanWithAI,
+        validateDestination,
+        isValidatingDestination,
+        isDestinationValidated,
+        setIsDestinationValidated
     };
 };

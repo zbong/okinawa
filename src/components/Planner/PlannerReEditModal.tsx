@@ -133,8 +133,8 @@ export const PlannerReEditModal: React.FC = () => {
                                     id: p.id,
                                     name: p.name,
                                     category: p.category || "custom", // Simplification
-                                    lat: p.location.lat,
-                                    lng: p.location.lng,
+                                    lat: p.coordinates?.lat || p.location?.lat || 0,
+                                    lng: p.coordinates?.lng || p.location?.lng || 0,
                                     desc: p.memo || "",
                                     priceLevel: "Moderate",
                                     rating: 0,

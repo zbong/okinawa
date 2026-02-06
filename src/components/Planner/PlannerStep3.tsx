@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-    Compass, Wind, Car, Bus, Trash2, Loader2, Plane, ArrowRight
+    Compass, Wind, Car, Bus, Trash2, Loader2, Plane, ArrowRight, Save
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -13,8 +13,35 @@ export const PlannerStep3: React.FC = () => {
         analyzedFiles,
         setAnalyzedFiles,
         setDeleteConfirmModal,
-        currentUser
+        currentUser,
+        setIsPlanning,
+
+        showToast,
+        handleMultipleOcr,
+        isOcrLoading,
+        handleFileAnalysis
     } = usePlanner();
+
+    const [isDragOver, setIsDragOver] = React.useState(false);
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+            handleFileAnalysis(files);
+        }
+    };
 
     return (
         <motion.div
@@ -189,29 +216,60 @@ export const PlannerStep3: React.FC = () => {
                             상세 정보 입력
                         </h3>
 
-                        {/* Search Quick Buttons */}
-                        <div style={{ display: "flex", gap: "10px" }}>
-                            {/* Naver Maps */}
-                            <a
-                                href={`https://map.naver.com/v5/search/${encodeURIComponent(plannerData.destination || "오키나와")}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                    padding: "8px 12px",
-                                    borderRadius: "10px",
-                                    background: "#03C75A",
-                                    color: "white",
-                                    textDecoration: "none",
-                                    fontSize: "12px",
-                                    fontWeight: 700,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 5,
-                                }}
-                            >
-                                <Compass size={14} /> 네이버 지도
-                            </a>
-                        </div>
+                    </div>
+
+                    {/* Ticket Upload Area */}
+                    <div
+                        style={{ marginBottom: "20px" }}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                    >
+                        <input
+                            type="file"
+                            multiple
+                            accept="image/*,.pdf"
+                            id="ticket-upload-step3"
+                            style={{ display: "none" }}
+                            onChange={handleMultipleOcr}
+                        />
+                        <button
+                            onClick={() => document.getElementById("ticket-upload-step3")?.click()}
+                            disabled={isOcrLoading}
+                            style={{
+                                width: "100%",
+                                padding: "30px",
+                                borderRadius: "12px",
+                                border: isDragOver ? "2px dashed var(--primary)" : "1px dashed rgba(255,255,255,0.3)",
+                                background: isDragOver ? "rgba(0,212,255,0.1)" : "rgba(255,255,255,0.05)",
+                                color: isDragOver ? "var(--primary)" : "white",
+                                fontWeight: 700,
+                                cursor: isOcrLoading ? "wait" : "pointer",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 10,
+                                transition: "all 0.2s"
+                            }}
+                        >
+                            {isOcrLoading ? (
+                                <>
+                                    <Loader2 size={24} className="animate-spin" />
+                                    <span>티켓 분석 중... 잠시만 기다려 주세요.</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Plane size={24} color={isDragOver ? "var(--primary)" : "white"} />
+                                    <span style={{ fontSize: "15px" }}>
+                                        {isDragOver ? "여기에 파일을 놓으세요!" : "비행기 티켓 / E-티켓 업로드"}
+                                    </span>
+                                    <span style={{ fontSize: "12px", opacity: 0.6, fontWeight: 400 }}>
+                                        클릭하거나 파일을 여기로 드래그하세요
+                                    </span>
+                                </>
+                            )}
+                        </button>
                     </div>
 
                     {/* File List for Transportation */}
@@ -930,6 +988,31 @@ export const PlannerStep3: React.FC = () => {
                     }}
                 >
                     이전
+                </button>
+                <button
+                    onClick={() => {
+                        localStorage.setItem('trip_draft_v1', JSON.stringify({
+                            step: 3,
+                            data: plannerData
+                        }));
+                        showToast('여행이 임시 저장되었습니다', 'success');
+                        setTimeout(() => setIsPlanning(false), 500);
+                    }}
+                    style={{
+                        flex: 1,
+                        padding: "20px",
+                        borderRadius: "20px",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        background: "rgba(255,255,255,0.15)",
+                        color: "white",
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                    }}
+                >
+                    <Save size={18} /> 저장
                 </button>
                 <button
                     onClick={() => setPlannerStep(4)}

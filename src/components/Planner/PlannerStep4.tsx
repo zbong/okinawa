@@ -22,7 +22,8 @@ export const PlannerStep4: React.FC = () => {
         isPlaceAddedSuccess,
         showToast,
         setPlannerStep,
-        tripToEdit
+        tripToEdit,
+        setIsPlanning
     } = usePlanner();
 
     return (
@@ -525,9 +526,8 @@ export const PlannerStep4: React.FC = () => {
                             "trip_draft_v1",
                             JSON.stringify(draft),
                         );
-                        showToast(
-                            "현재선택한 장소들이 임시 저장되었습니다.",
-                        );
+                        showToast('여행이 임시 저장되었습니다', 'success');
+                        setTimeout(() => setIsPlanning(false), 500);
                     }}
                     style={{
                         flex: 1,

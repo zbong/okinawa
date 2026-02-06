@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
 
 export interface ToastMessage {
     id: string;
@@ -14,67 +14,143 @@ interface ToastProps {
 }
 
 export const Toast: React.FC<ToastProps> = ({ toasts, onClose }) => {
+
+    const getToastConfig = (type: 'success' | 'error' | 'info') => {
+        switch (type) {
+            case 'success':
+                return {
+                    title: '완료',
+                    icon: <CheckCircle2 size={24} />,
+                    gradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(5, 150, 105, 0.95))', // Vibrant Emerald Gradient
+                    shadow: '0 10px 40px -10px rgba(16, 185, 129, 0.5)',
+                    borderColor: 'rgba(52, 211, 153, 0.4)'
+                };
+            case 'error':
+                return {
+                    title: '오류',
+                    icon: <AlertTriangle size={24} />,
+                    gradient: 'linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(185, 28, 28, 0.95))', // Vibrant Red Gradient
+                    shadow: '0 10px 40px -10px rgba(239, 68, 68, 0.5)',
+                    borderColor: 'rgba(248, 113, 113, 0.4)'
+                };
+            case 'info':
+            default:
+                return {
+                    title: '알림',
+                    icon: <Info size={24} />,
+                    gradient: 'linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(37, 99, 235, 0.95))', // Vibrant Blue Gradient
+                    shadow: '0 10px 40px -10px rgba(59, 130, 246, 0.5)',
+                    borderColor: 'rgba(96, 165, 250, 0.4)'
+                };
+        }
+    };
+
     return (
         <div
             style={{
                 position: 'fixed',
-                bottom: 20,
-                right: 20,
-                zIndex: 10000,
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 6000000,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 10,
+                alignItems: 'center',
+                gap: 20,
+                pointerEvents: 'none',
+                width: '100%',
+                padding: '0 24px',
             }}
         >
             <AnimatePresence>
-                {toasts.map((toast) => (
-                    <motion.div
-                        key={toast.id}
-                        initial={{ opacity: 0, y: 50, scale: 0.8 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: 100, scale: 0.8 }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                        style={{
-                            background:
-                                toast.type === 'success'
-                                    ? '#10b981'
-                                    : toast.type === 'error'
-                                        ? '#ef4444'
-                                        : '#3b82f6',
-                            color: 'white',
-                            padding: '16px 20px',
-                            borderRadius: '12px',
-                            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 12,
-                            minWidth: 300,
-                            maxWidth: 400,
-                        }}
-                    >
-                        {toast.type === 'success' && <CheckCircle size={20} />}
-                        {toast.type === 'error' && <AlertCircle size={20} />}
-                        {toast.type === 'info' && <Info size={20} />}
-                        <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
-                            {toast.message}
-                        </span>
-                        <button
-                            onClick={() => onClose(toast.id)}
+                {toasts.map((toast) => {
+                    const config = getToastConfig(toast.type);
+                    return (
+                        <motion.div
+                            key={toast.id}
+                            initial={{ opacity: 0, scale: 0.8, y: 50 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                             style={{
-                                background: 'rgba(255,255,255,0.2)',
-                                border: 'none',
-                                borderRadius: '6px',
-                                padding: '4px',
-                                cursor: 'pointer',
+                                background: config.gradient,
+                                border: `1px solid ${config.borderColor}`,
+                                borderRadius: '24px',
+                                boxShadow: config.shadow,
+                                padding: '24px',
+                                width: '100%',
+                                maxWidth: '400px',
                                 display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
+                                flexDirection: 'column',
+                                gap: '16px',
+                                position: 'relative',
+                                pointerEvents: 'auto',
+                                backdropFilter: 'blur(10px)',
                             }}
                         >
-                            <X size={16} color="white" />
-                        </button>
-                    </motion.div>
-                ))}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{
+                                        background: 'rgba(255, 255, 255, 0.2)',
+                                        borderRadius: '50%',
+                                        padding: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                    }}>
+                                        {config.icon}
+                                    </div>
+                                    <span style={{
+                                        fontSize: '20px',
+                                        fontWeight: 800,
+                                        color: 'white',
+                                        letterSpacing: '-0.5px',
+                                        textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                    }}>
+                                        {config.title}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => onClose(toast.id)}
+                                    style={{
+                                        background: 'rgba(0,0,0,0.1)',
+                                        border: 'none',
+                                        borderRadius: '50%',
+                                        width: '32px',
+                                        height: '32px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        color: 'rgba(255,255,255,0.8)',
+                                        transition: 'all 0.2s',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'rgba(0,0,0,0.2)';
+                                        e.currentTarget.style.color = 'white';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'rgba(0,0,0,0.1)';
+                                        e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+                                    }}
+                                >
+                                    <X size={18} strokeWidth={3} />
+                                </button>
+                            </div>
+
+                            <div style={{
+                                fontSize: '16px',
+                                color: 'rgba(255,255,255,0.95)',
+                                lineHeight: '1.6',
+                                fontWeight: 600,
+                                paddingLeft: '4px'
+                            }}>
+                                {toast.message}
+                            </div>
+                        </motion.div>
+                    );
+                })}
             </AnimatePresence>
         </div>
     );

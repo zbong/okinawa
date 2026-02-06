@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-    MapPin, ChevronLeft, ChevronRight
+    MapPin, ChevronLeft, ChevronRight, CheckCircle, Loader2
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -16,8 +16,23 @@ export const PlannerStep1: React.FC = () => {
         setView,
         calendarDate,
         prevMonth,
-        nextMonth
+        nextMonth,
+        validateDestination,
+        isValidatingDestination,
+        isDestinationValidated,
+        setIsDestinationValidated,
+        setCalendarDate
     } = usePlanner();
+
+    // Auto-switch calendar to start date if exists
+    React.useEffect(() => {
+        if (plannerData.startDate) {
+            const date = new Date(plannerData.startDate);
+            if (!isNaN(date.getTime())) {
+                setCalendarDate(date);
+            }
+        }
+    }, []);
 
     return (
         <motion.div
@@ -140,10 +155,7 @@ export const PlannerStep1: React.FC = () => {
                             <button
                                 onClick={() => {
                                     if (plannerData.destination) {
-                                        window.open(
-                                            `https://www.google.com/maps/search/${encodeURIComponent(plannerData.destination)}`,
-                                            "_blank",
-                                        );
+                                        validateDestination(plannerData.destination);
                                     } else {
                                         alert("목적지를 먼저 입력해 주세요.");
                                     }
@@ -153,41 +165,66 @@ export const PlannerStep1: React.FC = () => {
                                     left: 10,
                                     top: "50%",
                                     transform: "translateY(-50%)",
-                                    background: "rgba(0,212,255,0.1)",
+                                    background: isDestinationValidated
+                                        ? "#4ade80" // Green when validated
+                                        : "rgba(0,212,255,0.1)",
                                     border: "none",
                                     borderRadius: "8px",
                                     padding: "6px",
-                                    color: "var(--primary)",
+                                    color: isDestinationValidated
+                                        ? "black"
+                                        : "var(--primary)",
                                     cursor: "pointer",
                                     zIndex: 2,
                                     display: "flex",
                                     alignItems: "center",
                                 }}
-                                title="주소 검색"
+                                title={isDestinationValidated ? "검증 완료" : "목적지 검증 필요"}
+                                disabled={isValidatingDestination}
                             >
-                                <MapPin size={18} />
+                                {isValidatingDestination ? (
+                                    <Loader2 className="spin" size={18} />
+                                ) : (
+                                    <CheckCircle size={18} />
+                                )}
                             </button>
                             <input
                                 type="text"
                                 placeholder="예: 일본 오사카, 제주도 등"
                                 value={plannerData.destination}
-                                onChange={(e) =>
+                                onChange={(e) => {
                                     setPlannerData({
                                         ...plannerData,
                                         destination: e.target.value,
-                                    })
-                                }
+                                    });
+                                    setIsDestinationValidated(false); // Reset validation on edit
+                                }}
                                 style={{
                                     width: "100%",
                                     padding: "14px 14px 14px 50px",
                                     borderRadius: "12px",
                                     background: "rgba(255,255,255,0.05)",
-                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    border: isDestinationValidated
+                                        ? "1px solid #4ade80"
+                                        : "1px solid rgba(255,255,255,0.1)",
                                     color: "white",
                                     fontSize: "16px",
                                 }}
                             />
                         </div>
+                        {!isDestinationValidated && plannerData.destination && (
+                            <div
+                                style={{
+                                    fontSize: "12px",
+                                    color: "var(--primary)",
+                                    marginTop: "8px",
+                                    paddingLeft: "4px",
+                                    opacity: 0.8,
+                                }}
+                            >
+                                * 체크 아이콘을 눌러 목적지를 확인해 주세요.
+                            </div>
+                        )}
                     </div>
 
                     <div
@@ -551,7 +588,8 @@ export const PlannerStep1: React.FC = () => {
                 disabled={
                     !plannerData.destination ||
                     !plannerData.startDate ||
-                    !plannerData.endDate
+                    !plannerData.endDate ||
+                    !isDestinationValidated
                 }
                 style={{
                     width: "100%",
@@ -562,13 +600,15 @@ export const PlannerStep1: React.FC = () => {
                     background:
                         plannerData.destination &&
                             plannerData.startDate &&
-                            plannerData.endDate
+                            plannerData.endDate &&
+                            isDestinationValidated
                             ? "var(--primary)"
                             : "rgba(255,255,255,0.1)",
                     color:
                         plannerData.destination &&
                             plannerData.startDate &&
-                            plannerData.endDate
+                            plannerData.endDate &&
+                            isDestinationValidated
                             ? "black"
                             : "rgba(255,255,255,0.3)",
                     fontWeight: 900,
@@ -576,18 +616,20 @@ export const PlannerStep1: React.FC = () => {
                     cursor:
                         plannerData.destination &&
                             plannerData.startDate &&
-                            plannerData.endDate
+                            plannerData.endDate &&
+                            isDestinationValidated
                             ? "pointer"
                             : "not-allowed",
                     boxShadow:
                         plannerData.destination &&
                             plannerData.startDate &&
-                            plannerData.endDate
+                            plannerData.endDate &&
+                            isDestinationValidated
                             ? "0 10px 30px rgba(0,212,255,0.3)"
                             : "none",
                 }}
             >
-                다음 단계로 (여행 스타일)
+                {isDestinationValidated ? "다음 단계로 (여행 스타일)" : "목적지 검증이 필요합니다"}
             </button>
 
             <button
