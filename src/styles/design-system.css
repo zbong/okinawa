@@ -17,21 +17,19 @@
 }
 
 [data-theme="light"] {
-  --primary: #0077b6;
-  /* 가독성을 위해 조금 더 진한 파란색 */
-  --secondary: #d90429;
-  --bg-dark: #f0f2f5;
-  /* 이름은 유지하되 밝은 배경색 할당 */
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --text-primary: #1a1a1c;
-  --text-secondary: #5e5e65;
-  --text-dim: #8e8e93;
-  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  --nav-bg: rgba(240, 242, 245, 0.95);
-  --tab-inactive: rgba(0, 0, 0, 0.05);
-  --sheet-bg: rgba(255, 255, 255, 0.98);
-  --input-bg: #e4e6eb;
+  --primary: #0ea5e9;
+  --secondary: #f43f5e;
+  --bg-dark: #f1f5f9;
+  --glass-bg: #ffffff;
+  --glass-border: #e2e8f0;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-dim: #94a3b8;
+  --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --nav-bg: rgba(255, 255, 255, 0.85);
+  --tab-inactive: #f8fafc;
+  --sheet-bg: #ffffff;
+  --input-bg: #f1f5f9;
   --text-on-primary: #ffffff;
 }
 
@@ -65,10 +63,12 @@ body {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--card-shadow);
   border-radius: 16px;
   padding: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Base App Layout */

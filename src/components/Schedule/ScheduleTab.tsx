@@ -312,15 +312,30 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
         {(() => {
           let dayCount = 0;
           if (trip.days && trip.days.length > 0) {
-            let maxDay = trip.days.length;
-            for (let i = trip.days.length - 1; i >= 0; i--) {
-              const d = trip.days[i];
-              if (!d.points || d.points.length === 0) maxDay--;
-              else break;
+            let maxDayWithPoints = 0;
+            for (let i = 0; i < trip.days.length; i++) {
+              if (trip.days[i].points && trip.days[i].points.length > 0) {
+                maxDayWithPoints = i + 1;
+              }
             }
-            dayCount = maxDay;
+            // If there's a day with points far later than the array length (shouldn't happen but safe)
+            // Or if all days are empty, use the full list length
+            dayCount = Math.max(maxDayWithPoints, trip.days.length);
           } else {
-            dayCount = 3;
+            // Calculate from date range
+            if (trip.metadata?.startDate && trip.metadata?.endDate) {
+              const start = new Date(trip.metadata.startDate);
+              const end = new Date(trip.metadata.endDate);
+              if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                dayCount = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+              }
+            }
+
+            // If still not determined, look at the points themselves
+            if (dayCount <= 0) {
+              const maxPointDay = trip.points?.reduce((max, p) => Math.max(max, p.day), 0) || 0;
+              dayCount = Math.max(3, maxPointDay);
+            }
           }
 
           return Array.from({ length: dayCount }).map((_, i) => (
@@ -334,7 +349,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
                 background:
                   scheduleDay === i + 1
                     ? "var(--primary)"
-                    : "rgba(255,255,255,0.05)",
+                    : "var(--tab-inactive)",
                 color:
                   scheduleDay === i + 1
                     ? "var(--text-on-primary)"
@@ -357,6 +372,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
           <MapComponent
             points={getPoints()}
             selectedPoint={null}
+            theme={theme}
             onPointClick={(p) => {
               setActivePlannerDetail(p);
               setSelectedPoint(p);
@@ -447,7 +463,8 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
                         style={{
                           background: "transparent",
                           border: "none",
-                          color: "rgba(255,255,255,0.2)",
+                          color: "var(--text-dim)",
+                          opacity: 0.4,
                           cursor: "pointer",
                           padding: 5,
                         }}
@@ -492,9 +509,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
                 flex: 1,
                 padding: "12px",
                 borderRadius: "12px",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "white",
+                background: "var(--tab-inactive)",
+                border: "1px solid var(--glass-border)",
+                color: "var(--text-primary)",
                 fontSize: "13px",
                 fontWeight: 600,
                 display: "flex",
@@ -517,9 +534,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
                 flex: 1,
                 padding: "12px",
                 borderRadius: "12px",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "white",
+                background: "var(--tab-inactive)",
+                border: "1px solid var(--glass-border)",
+                color: "var(--text-primary)",
                 fontSize: "13px",
                 fontWeight: 600,
                 display: "flex",

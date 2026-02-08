@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-    Loader2, Camera, Utensils, Compass, MapPin, CheckCircle, Star, Plus, AlertCircle, Save
+    Loader2, Camera, Utensils, Compass, MapPin, CheckCircle, Star, Plus, AlertCircle, Save, Trash2
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -10,6 +10,7 @@ export const PlannerStep4: React.FC = () => {
         plannerData,
         isSearchingAttractions,
         dynamicAttractions,
+        setDynamicAttractions,
         fetchAttractionsWithAI,
         setAttractionCategoryFilter,
         attractionCategoryFilter,
@@ -22,9 +23,16 @@ export const PlannerStep4: React.FC = () => {
         isPlaceAddedSuccess,
         showToast,
         setPlannerStep,
-        tripToEdit,
-        setIsPlanning
+        setDeleteConfirmModal,
+        setIsPlanning,
+        saveDraft
     } = usePlanner();
+
+    React.useEffect(() => {
+        if (dynamicAttractions.length === 0 && plannerData.destination) {
+            fetchAttractionsWithAI(plannerData.destination);
+        }
+    }, []);
 
     return (
         <motion.div
@@ -91,23 +99,26 @@ export const PlannerStep4: React.FC = () => {
                 <div
                     style={{ padding: "60px 0", textAlign: "center" }}
                 >
-                    <p style={{ opacity: 0.6, marginBottom: "20px" }}>
-                        명소를 불러오지 못했습니다.
+                    <p style={{ opacity: 0.6, marginBottom: "24px", fontSize: "16px" }}>
+                        {plannerData.destination}의 AI 추천 명소를 확인해보시겠어요?
                     </p>
                     <button
                         onClick={() =>
                             fetchAttractionsWithAI(plannerData.destination)
                         }
                         style={{
-                            padding: "12px 24px",
-                            borderRadius: "12px",
-                            border: "1px solid var(--primary)",
-                            background: "transparent",
-                            color: "var(--primary)",
-                            fontWeight: 700,
+                            padding: "16px 32px",
+                            borderRadius: "16px",
+                            border: "none",
+                            background: "var(--primary)",
+                            color: "black",
+                            fontWeight: 800,
+                            fontSize: "16px",
+                            cursor: "pointer",
+                            boxShadow: "0 4px 15px rgba(0, 212, 255, 0.2)"
                         }}
                     >
-                        다시 검색하기
+                        AI 명소 추천받기
                     </button>
                 </div>
             ) : (
@@ -280,41 +291,79 @@ export const PlannerStep4: React.FC = () => {
                                                     {item.name}
                                                 </div>
                                             </div>
-                                            <div
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setSelectedPlaceIds(
-                                                        isSelected
-                                                            ? selectedPlaceIds.filter(
-                                                                (id) => id !== item.id,
-                                                            )
-                                                            : [
-                                                                ...selectedPlaceIds,
-                                                                item.id,
-                                                            ],
-                                                    );
-                                                }}
-                                                style={{
-                                                    width: "24px",
-                                                    height: "24px",
-                                                    borderRadius: "50%",
-                                                    background: isSelected
-                                                        ? "var(--primary)"
-                                                        : "rgba(255,255,255,0.1)",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    color: isSelected
-                                                        ? "black"
-                                                        : "transparent",
-                                                    border: isSelected
-                                                        ? "none"
-                                                        : "2px solid rgba(255,255,255,0.3)",
-                                                    flexShrink: 0,
-                                                    cursor: "pointer",
-                                                }}
-                                            >
-                                                <CheckCircle size={16} />
+                                            <div style={{ display: "flex", gap: "8px" }}>
+                                                <div
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDeleteConfirmModal({
+                                                            isOpen: true,
+                                                            title: "장소 삭제",
+                                                            message: `${item.name}을(를) 목록에서 삭제하시겠습니까?`,
+                                                            onConfirm: () => {
+                                                                setDynamicAttractions((prev) => prev.filter((p) => p.id !== item.id));
+                                                                setSelectedPlaceIds((prev) => prev.filter((id) => id !== item.id));
+                                                                setDeleteConfirmModal({
+                                                                    isOpen: false,
+                                                                    title: "",
+                                                                    message: "",
+                                                                    onConfirm: () => { },
+                                                                });
+                                                            },
+                                                        });
+                                                    }}
+                                                    style={{
+                                                        width: "24px",
+                                                        height: "24px",
+                                                        borderRadius: "50%",
+                                                        background: "rgba(255,0,0,0.1)",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        color: "#ff6b6b",
+                                                        cursor: "pointer",
+                                                        border: "1px solid rgba(255,0,0,0.2)",
+                                                        flexShrink: 0
+                                                    }}
+                                                    title="목록에서 삭제"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </div>
+                                                <div
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedPlaceIds(
+                                                            isSelected
+                                                                ? selectedPlaceIds.filter(
+                                                                    (id) => id !== item.id,
+                                                                )
+                                                                : [
+                                                                    ...selectedPlaceIds,
+                                                                    item.id,
+                                                                ],
+                                                        );
+                                                    }}
+                                                    style={{
+                                                        width: "24px",
+                                                        height: "24px",
+                                                        borderRadius: "50%",
+                                                        background: isSelected
+                                                            ? "var(--primary)"
+                                                            : "rgba(255,255,255,0.1)",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        color: isSelected
+                                                            ? "black"
+                                                            : "transparent",
+                                                        border: isSelected
+                                                            ? "none"
+                                                            : "2px solid rgba(255,255,255,0.3)",
+                                                        flexShrink: 0,
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <CheckCircle size={16} />
+                                                </div>
                                             </div>
                                         </div>
 
@@ -514,20 +563,10 @@ export const PlannerStep4: React.FC = () => {
                 </button>
                 <button
                     onClick={() => {
-                        const draft = {
-                            step: 4,
-                            data: plannerData,
-                            selectedIds: selectedPlaceIds,
-                            updated: Date.now(),
-                            isEdit: tripToEdit ? true : false,
-                            originalTripId: tripToEdit?.id,
-                        };
-                        localStorage.setItem(
-                            "trip_draft_v1",
-                            JSON.stringify(draft),
-                        );
-                        showToast('여행이 임시 저장되었습니다', 'success');
-                        setTimeout(() => setIsPlanning(false), 500);
+                        if (saveDraft(4)) {
+                            showToast('여행이 임시 저장되었습니다', 'success');
+                            setTimeout(() => setIsPlanning(false), 500);
+                        }
                     }}
                     style={{
                         flex: 1,
@@ -546,33 +585,25 @@ export const PlannerStep4: React.FC = () => {
                     <Save size={18} /> 저장
                 </button>
                 <button
+                    disabled={selectedPlaceIds.length === 0}
                     onClick={() => {
-                        const draft = {
-                            step: 4,
-                            data: plannerData,
-                            selectedIds: selectedPlaceIds,
-                            updated: Date.now(),
-                            isEdit: tripToEdit ? true : false,
-                            originalTripId: tripToEdit?.id,
-                        };
-                        localStorage.setItem(
-                            "trip_draft_v1",
-                            JSON.stringify(draft),
-                        );
-
-                        setPlannerStep(5);
+                        if (saveDraft(4)) {
+                            setPlannerStep(5);
+                        }
                     }}
                     style={{
                         flex: 2,
                         padding: "20px",
                         borderRadius: "20px",
                         border: "none",
-                        background: "var(--primary)",
-                        color: "black",
+                        background: selectedPlaceIds.length > 0 ? "var(--primary)" : "rgba(255,255,255,0.05)",
+                        color: selectedPlaceIds.length > 0 ? "black" : "rgba(255,255,255,0.2)",
                         fontWeight: 800,
+                        cursor: selectedPlaceIds.length > 0 ? "pointer" : "not-allowed",
+                        transition: "all 0.3s ease"
                     }}
                 >
-                    다음 단계로 (숙소)
+                    {selectedPlaceIds.length === 0 ? "장소를 선택해주세요" : "다음 단계로 (숙소)"}
                 </button>
             </div>
         </motion.div>

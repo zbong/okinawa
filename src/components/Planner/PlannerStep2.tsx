@@ -11,7 +11,8 @@ export const PlannerStep2: React.FC = () => {
         setPlannerData,
         setPlannerStep,
         setIsPlanning,
-        showToast
+        showToast,
+        saveDraft
     } = usePlanner();
 
     return (
@@ -315,12 +316,10 @@ export const PlannerStep2: React.FC = () => {
                 </button>
                 <button
                     onClick={() => {
-                        localStorage.setItem('trip_draft_v1', JSON.stringify({
-                            step: 2,
-                            data: plannerData
-                        }));
-                        showToast('여행이 임시 저장되었습니다', 'success');
-                        setTimeout(() => setIsPlanning(false), 500);
+                        if (saveDraft(2)) {
+                            showToast('여행이 임시 저장되었습니다', 'success');
+                            setTimeout(() => setIsPlanning(false), 500);
+                        }
                     }}
                     style={{
                         flex: 1,

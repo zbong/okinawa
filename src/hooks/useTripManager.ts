@@ -26,7 +26,11 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
 
     useEffect(() => {
         if (typeof window !== "undefined") {
-            localStorage.setItem("user_trips_v2", JSON.stringify(trips));
+            try {
+                localStorage.setItem("user_trips_v2", JSON.stringify(trips));
+            } catch (e) {
+                console.error("Critical: Failed to save trips to localStorage (QuotaExceeded)", e);
+            }
         }
     }, [trips]);
 
@@ -93,31 +97,54 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
         setUserLogs(savedLogs ? JSON.parse(savedLogs) : {});
 
         const savedFiles = localStorage.getItem(`files_${dest}`);
-        setCustomFiles(savedFiles ? JSON.parse(savedFiles) : []);
-    }, [trip?.metadata?.destination]);
+        if (savedFiles) {
+            setCustomFiles(JSON.parse(savedFiles));
+        } else if (trip.customFiles && trip.customFiles.length > 0) {
+            setCustomFiles(trip.customFiles);
+        } else if (customFiles.length === 0) {
+            // Only clear if we don't already have unsaved files (like from earlier planning steps)
+            setCustomFiles([]);
+        }
+    }, [trip?.metadata?.destination, trip.customFiles]);
 
     // Save sub-data
     useEffect(() => {
         if (trip?.metadata?.destination) {
-            localStorage.setItem(`checklist_${trip.metadata.destination}`, JSON.stringify(completedItems));
+            try {
+                localStorage.setItem(`checklist_${trip.metadata.destination}`, JSON.stringify(completedItems));
+            } catch (e) {
+                console.warn("Storage quota exceeded for checklist", e);
+            }
         }
     }, [completedItems, trip?.metadata?.destination]);
 
     useEffect(() => {
         if (trip?.metadata?.destination) {
-            localStorage.setItem(`reviews_${trip.metadata.destination}`, JSON.stringify(userReviews));
+            try {
+                localStorage.setItem(`reviews_${trip.metadata.destination}`, JSON.stringify(userReviews));
+            } catch (e) {
+                console.warn("Storage quota exceeded for reviews", e);
+            }
         }
     }, [userReviews, trip?.metadata?.destination]);
 
     useEffect(() => {
         if (trip?.metadata?.destination) {
-            localStorage.setItem(`logs_${trip.metadata.destination}`, JSON.stringify(userLogs));
+            try {
+                localStorage.setItem(`logs_${trip.metadata.destination}`, JSON.stringify(userLogs));
+            } catch (e) {
+                console.warn("Storage quota exceeded for logs", e);
+            }
         }
     }, [userLogs, trip?.metadata?.destination]);
 
     useEffect(() => {
         if (trip?.metadata?.destination) {
-            localStorage.setItem(`files_${trip.metadata.destination}`, JSON.stringify(customFiles));
+            try {
+                localStorage.setItem(`files_${trip.metadata.destination}`, JSON.stringify(customFiles));
+            } catch (e) {
+                console.warn("Storage quota exceeded for files", e);
+            }
         }
     }, [customFiles, trip?.metadata?.destination]);
 

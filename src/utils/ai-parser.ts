@@ -64,70 +64,59 @@ export const parseWithAI = async (text: string, fileData?: { base64: string, mim
       const model = genAI.getGenerativeModel({ model: modelName });
 
       const prompt = `
-당신은 여행 서류 분석 전문가입니다. 주어진 텍스트나 이미지를 분석하여 항공권, 숙소 예약, 배 티켓, 또는 투어 정보를 추출하세요.
-문서의 모든 맥락(항공사, 편명, 호텔 이름, 주소, 일자 등)을 이해하고 데이터를 절대 누락하지 마세요.
+당신은 전 세계 항공권 및 여행 서류를 수만 건 분석해본 **데이터 추출 전문가**입니다. 
+당신의 임무는 이미지/텍스트에서 정보를 뽑아 정확한 JSON을 만드는 것입니다. 
 
-반드시 다음 구조의 JSON 형식으로만 응답하세요.
+**[가장 중요한 임무: 시간(TIME) 추출]**
+사용자는 현재 "요약은 잘 되는데 데이터 칸이 비어있다"는 점에 매우 실망하고 있습니다. 
+당신이 'summary'에 시간을 적을 수 있다면, 그 시간은 반드시 'flight.departureTime'과 'flight.arrivalTime'에도 존재해야 합니다. 
 
+**[시간 추출 가이드라인]**
+1. **모든 숫자 스캔**: 문서 내의 모든 4자리 숫자(1430), 콜론 포함 숫자(10:45), AM/PM 포함 숫자(02:30 PM)를 검색하세요.
+2. **키워드 기반 매핑**:
+   - 출발 관련: DEP, Departure, Boarding, From, ST(Scheduled Time), 出発, 🛫
+   - 도착 관련: ARR, Arrival, To, Landing, AT(Actual Time), 到着, 🛬
+3. **포맷 변환**: 발견된 모든 시간은 반드시 'HH:mm' (24시간제)로 변환하세요. (예: 2:15 PM -> 14:15, 0900 -> 09:00)
+4. **절대 규칙**: 요약문(summary)에 시간이 언급되었다면, 데이터 필드(departureTime 등)는 **절대로** null이나 빈 문자열이어서는 안 됩니다. 확신이 없다면 가장 유력한 시간 후보를 넣으세요.
+
+**[응답 형식: JSON]**
 {
-  "type": "flight" | "accommodation" | "ship" | "tour" | "unknown",
-  "summary": "추출된 전체 정보를 한국어로 요약 (예: '제주항공 7C1402편으로 3월 5일 오키나와로 가는 여정입니다.')",
-  "title": "문서의 짧은 제목",
+  "type": "flight" | "accommodation" | "unknown",
+  "summary": "전체 여정 요약 (반드시 항공사, 편명, 출발/도착 시간을 포함하세요)",
+  "title": "요약 제목",
   "startDate": "YYYY-MM-DD",
   "endDate": "YYYY-MM-DD",
-  "departure": "출발지",
-  "arrival": "도착지",
   "flight": {
-    "airline": "항공사이름",
+    "airline": "항공사",
     "flightNumber": "편명",
-    "departureAirport": "출발 공항",
-    "arrivalAirport": "도착 공항",
+    "departureAirport": "출발공항",
+    "arrivalAirport": "도착공항",
     "departureDate": "YYYY-MM-DD",
     "arrivalDate": "YYYY-MM-DD",
     "departureTime": "HH:mm",
-    "arrivalTime": "HH:mm",
-    "departureCoordinates": { "lat": number, "lng": number },
-    "arrivalCoordinates": { "lat": number, "lng": number }
-  },
-  "ship": {
-    "shipName": "선박명",
-    "departurePort": "출발항",
-    "arrivalPort": "도착항",
-    "departureDate": "YYYY-MM-DD",
-    "arrivalDate": "YYYY-MM-DD",
-    "departureTime": "HH:mm",
-    "arrivalTime": "HH:mm",
-    "departureCoordinates": { "lat": number, "lng": number },
-    "arrivalCoordinates": { "lat": number, "lng": number }
+    "arrivalTime": "HH:mm"
   },
   "accommodation": {
-    "hotelName": "숙소 이름",
-    "address": "전체 주소",
+    "hotelName": "숙소명",
+    "address": "주소",
     "checkInDate": "YYYY-MM-DD",
     "checkOutDate": "YYYY-MM-DD",
-    "checkInTime": "HH:mm",
-    "coordinates": { "lat": number, "lng": number }
+    "checkInTime": "HH:mm"
   }
 }
 
-[규칙]
-1. 날짜/시간 논리 필독:
-   - 문서에 나오는 **가장 빠른 날짜와 시간**이 무조건 '출발(departure)'입니다.
-   - **가장 늦은 날짜와 시간**이 무조건 '도착(arrival)'입니다.
-   - 절대 출발 날짜에 도착 날짜를 적지 마세요.
-2. 시간 포맷:
-   - 오후/오전(PM/AM) 표현은 반드시 24시간제 'HH:mm'으로 변환하세요. (예: 2:30 PM -> 14:30)
-   - 만약 도착 시간이 문서에 '25:00'이나 '+1일'로 표기되어 있다면, 날짜를 다음 날로 조정하고 시간을 01:00으로 변환하세요.
-3. 데이터 필수: 도착 시간(arrivalTime)이 명시되어 있지 않다면 비행 시간을 고려해 추정해서라도 넣으세요.
-4. 좌표: 공항/호텔 이름을 기반으로 정확한 위경도를 포함하세요.
-5. 출력: 오직 순수 JSON만 출력하세요.
+**[데이터 무결성 규칙]**
+- 날짜와 시간이 분리되어 표기된 경우(예: 15JAN 14:30), 이를 결합하여 분석하세요.
+- 도착 시간이 다음 날인 경우(+1) arrivalDate를 하루 뒤로 설정하세요.
+- 오직 순수 JSON만 출력하세요. 텍스트 설명은 불필요합니다.
 `;
 
       const result = await retryWithBackoff(async () => {
         if (fileData) {
+          const rawBase64 = fileData.base64.includes(',') ? fileData.base64.split(',')[1] : fileData.base64;
           return await model.generateContent([
             prompt,
-            { inlineData: { data: fileData.base64, mimeType: fileData.mimeType } }
+            { inlineData: { data: rawBase64, mimeType: fileData.mimeType } }
           ]);
         } else {
           return await model.generateContent(prompt + "\n\n[DOCUMENT CONTENT]\n" + text.slice(0, 15000));

@@ -62,8 +62,50 @@ export const PlannerReviewModal: React.FC = () => {
                 {(() => {
                     const start = new Date(plannerData.startDate);
                     const end = new Date(plannerData.endDate);
-                    const days =
-                        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1;
+                    const days = !isNaN(start.getTime()) && !isNaN(end.getTime())
+                        ? (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1
+                        : 0;
+
+                    const missingItems = [];
+                    if (!plannerData.destination) missingItems.push("여행지");
+                    if (!plannerData.startDate || !plannerData.endDate) missingItems.push("여행 일정(날짜)");
+                    if (selectedPlaceIds.length === 0) missingItems.push("방문할 장소(최소 1곳)");
+
+                    if (missingItems.length > 0) {
+                        return (
+                            <div
+                                style={{
+                                    marginBottom: "32px",
+                                    padding: "20px",
+                                    borderRadius: "16px",
+                                    background: "rgba(248, 113, 113, 0.1)",
+                                    border: "1px solid rgba(248, 113, 113, 0.3)",
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        fontWeight: 800,
+                                        fontSize: "18px",
+                                        color: "#f87171",
+                                        marginBottom: "8px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8
+                                    }}
+                                >
+                                    데이터가 부족합니다
+                                </div>
+                                <div style={{ fontSize: "14px", opacity: 0.8, color: "#f87171", lineHeight: 1.6 }}>
+                                    가이드를 발행하려면 다음 정보가 추가로 필요합니다:<br />
+                                    <span style={{ fontWeight: 700 }}>• {missingItems.join(", ")}</span>
+                                    <div style={{ marginTop: "8px", fontSize: "12px" }}>
+                                        각 단계로 돌아가 누락된 정보를 채워주세요.
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+
                     const placeCount = selectedPlaceIds.length;
                     let minPerDay = 3;
                     let maxPerDay = 6;
@@ -130,12 +172,14 @@ export const PlannerReviewModal: React.FC = () => {
                         fontWeight: 700,
                         marginBottom: "12px",
                         fontSize: "16px",
+                        opacity: (plannerData.destination && plannerData.startDate && plannerData.endDate && selectedPlaceIds.length > 0) ? 1 : 0.5
                     }}
                 >
                     AI에게 특별히 요청할 사항이 있나요?
                 </label>
                 <textarea
                     placeholder="예: 맛집 위주로 짜줘 등..."
+                    disabled={!(plannerData.destination && plannerData.startDate && plannerData.endDate && selectedPlaceIds.length > 0)}
                     value={customAiPrompt}
                     onChange={(e) => setCustomAiPrompt(e.target.value)}
                     style={{
@@ -149,6 +193,7 @@ export const PlannerReviewModal: React.FC = () => {
                         fontSize: "15px",
                         resize: "none",
                         marginBottom: "32px",
+                        opacity: (plannerData.destination && plannerData.startDate && plannerData.endDate && selectedPlaceIds.length > 0) ? 1 : 0.5
                     }}
                 />
 
@@ -169,6 +214,7 @@ export const PlannerReviewModal: React.FC = () => {
                         취소
                     </button>
                     <button
+                        disabled={!(plannerData.destination && plannerData.startDate && plannerData.endDate && selectedPlaceIds.length > 0)}
                         onClick={() => {
                             setIsReviewModalOpen(false);
                             generatePlanWithAI();
@@ -177,12 +223,18 @@ export const PlannerReviewModal: React.FC = () => {
                             flex: 2,
                             padding: "18px",
                             borderRadius: "16px",
-                            background: "var(--primary)",
+                            background: (plannerData.destination && plannerData.startDate && plannerData.endDate && selectedPlaceIds.length > 0)
+                                ? "var(--primary)"
+                                : "rgba(255,255,255,0.05)",
                             border: "none",
-                            color: "black",
+                            color: (plannerData.destination && plannerData.startDate && plannerData.endDate && selectedPlaceIds.length > 0)
+                                ? "black"
+                                : "rgba(255,255,255,0.3)",
                             fontWeight: 800,
                             fontSize: "16px",
-                            cursor: "pointer",
+                            cursor: (plannerData.destination && plannerData.startDate && plannerData.endDate && selectedPlaceIds.length > 0)
+                                ? "pointer"
+                                : "not-allowed",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",

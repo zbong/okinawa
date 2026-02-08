@@ -13,13 +13,7 @@ export const fileToBase64 = (file: File): Promise<string> => {
                 reject(new Error('파일 읽기 결과가 없습니다.'));
                 return;
             }
-            // data:image/jpeg;base64,/9j/4AAQSkZJRg... -> /9j/4AAQSkZJRg...
-            const base64Data = result.split(',')[1];
-            if (!base64Data) {
-                reject(new Error('Base64 데이터를 추출할 수 없습니다.'));
-                return;
-            }
-            resolve(base64Data);
+            resolve(result); // Return the full data URL (e.g. data:image/jpeg;base64,...)
         };
         reader.onerror = (error) => reject(error);
         reader.readAsDataURL(file);

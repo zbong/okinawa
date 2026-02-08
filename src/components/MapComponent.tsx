@@ -5,33 +5,45 @@ interface MapComponentProps {
     points: LocationPoint[];
     selectedPoint: LocationPoint | null;
     onPointClick: (point: LocationPoint) => void;
+    theme?: string;
 }
 
-const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPointClick }) => {
+const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPointClick, theme = 'dark' }) => {
     const mapRef = useRef<HTMLDivElement>(null);
     const googleMapRef = useRef<any>(null);
     const markersRef = useRef<any[]>([]);
     const directionsRendererRef = useRef<any>(null);
+    const polylineRef = useRef<any>(null);
 
     const [isMapLoaded, setIsMapLoaded] = useState(false);
     const [mapError, setMapError] = useState<string | null>(null);
 
     useEffect(() => {
-        const interval = setInterval(() => {
+        const checkGoogle = () => {
             if (window.google && window.google.maps) {
                 setIsMapLoaded(true);
-                clearInterval(interval);
+                return true;
             }
-        }, 100);
+            return false;
+        };
 
-        setTimeout(() => {
+        if (checkGoogle()) return;
+
+        const interval = setInterval(() => {
+            if (checkGoogle()) clearInterval(interval);
+        }, 200);
+
+        const timeout = setTimeout(() => {
             clearInterval(interval);
             if (!window.google) {
-                setMapError("Google Maps API 로드 실패 (Timeout)");
+                setMapError("Google Maps API 로딩 타임아웃");
             }
         }, 10000);
 
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            clearTimeout(timeout);
+        };
     }, []);
 
     const [isMapInstanceReady, setIsMapInstanceReady] = useState(false);
@@ -45,42 +57,22 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
                     const { Map } = await window.google.maps.importLibrary("maps") as any;
                     const { DirectionsRenderer } = await window.google.maps.importLibrary("routes") as any;
 
-                    const initialCenter = (points && points.length > 0 && points[0].coordinates)
-                        ? { lat: Number(points[0].coordinates.lat), lng: Number(points[0].coordinates.lng) }
+                    const validInitialPoint = points.find(p => {
+                        const lat = Number(p.coordinates?.lat);
+                        const lng = Number(p.coordinates?.lng);
+                        return !isNaN(lat) && !isNaN(lng) && lat !== 0;
+                    });
+
+                    const initialCenter = validInitialPoint
+                        ? { lat: Number(validInitialPoint.coordinates.lat), lng: Number(validInitialPoint.coordinates.lng) }
                         : { lat: 26.2124, lng: 127.6809 };
 
                     googleMapRef.current = new Map(mapRef.current, {
                         center: initialCenter,
-                        zoom: 11,
+                        zoom: 12,
                         disableDefaultUI: true,
                         zoomControl: true,
-                        styles: [
-                            {
-                                "featureType": "all",
-                                "elementType": "labels.text.fill",
-                                "stylers": [{ "color": "#ffffff" }]
-                            },
-                            {
-                                "featureType": "all",
-                                "elementType": "labels.text.stroke",
-                                "stylers": [{ "color": "#000000" }, { "lightness": 13 }]
-                            },
-                            {
-                                "featureType": "administrative",
-                                "elementType": "geometry.fill",
-                                "stylers": [{ "color": "#000000" }, { "lightness": 20 }]
-                            },
-                            {
-                                "featureType": "landscape",
-                                "elementType": "geometry",
-                                "stylers": [{ "color": "#000000" }, { "lightness": 20 }]
-                            },
-                            {
-                                "featureType": "water",
-                                "elementType": "geometry",
-                                "stylers": [{ "color": "#0f172a" }, { "lightness": 17 }]
-                            }
-                        ]
+                        styles: []
                     });
 
                     directionsRendererRef.current = new DirectionsRenderer({
@@ -97,12 +89,12 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
                 }
             } catch (e) {
                 console.error("Map Initialization Error:", e);
-                setMapError("지도 초기화 중 오류가 발생했습니다.");
+                setMapError("지도 초기화 오류");
             }
         };
 
         initMap();
-    }, [isMapLoaded]);
+    }, [isMapLoaded, theme]);
 
     useEffect(() => {
         if (!isMapInstanceReady || !googleMapRef.current || !window.google) return;
@@ -124,11 +116,10 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
             try {
                 if (!isMounted) return;
 
-                const { Marker } = await window.google.maps.importLibrary("marker") as any;
-                const { LatLngBounds } = await window.google.maps.importLibrary("core") as any;
-                const bounds = new LatLngBounds();
+                const bounds = new window.google.maps.LatLngBounds();
+                const Marker = window.google.maps.Marker;
 
-                validPoints.forEach((p, i) => {
+                validPoints.forEach((p) => {
                     const position = { lat: Number(p.coordinates.lat), lng: Number(p.coordinates.lng) };
                     const isSelected = p.id === selectedPoint?.id;
 
@@ -139,9 +130,9 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
                         icon: {
                             path: window.google.maps.SymbolPath.CIRCLE,
                             scale: isSelected ? 12 : 8,
-                            fillColor: isSelected ? '#ffffff' : '#3b82f6',
+                            fillColor: isSelected ? '#ffffff' : '#4facfe',
                             fillOpacity: 1,
-                            strokeColor: isSelected ? '#3b82f6' : '#ffffff',
+                            strokeColor: isSelected ? '#4facfe' : '#ffffff',
                             strokeWeight: 3,
                         }
                     });
@@ -153,6 +144,23 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
 
                 if (validPoints.length > 0) {
                     googleMapRef.current.fitBounds(bounds);
+
+                    // Draw Polyline
+                    if (polylineRef.current) polylineRef.current.setMap(null);
+
+                    const path = validPoints.map(p => ({
+                        lat: Number(p.coordinates.lat),
+                        lng: Number(p.coordinates.lng)
+                    }));
+
+                    polylineRef.current = new window.google.maps.Polyline({
+                        path: path,
+                        geodesic: true,
+                        strokeColor: '#4facfe',
+                        strokeOpacity: 0.8,
+                        strokeWeight: 4,
+                        map: googleMapRef.current
+                    });
                 }
             } catch (e) {
                 console.error("Error updating map:", e);
@@ -165,7 +173,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
     }, [points, selectedPoint, onPointClick, isMapInstanceReady]);
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+        <div style={{ position: 'relative', width: '100%', height: '100%', background: '#1a1a1a' }}>
             <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
             {(!isMapLoaded || mapError) && (
                 <div style={{

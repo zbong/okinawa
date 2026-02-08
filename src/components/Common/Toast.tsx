@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 
 export interface ToastMessage {
     id: string;
@@ -13,7 +13,7 @@ interface ToastProps {
     onClose: (id: string) => void;
 }
 
-export const Toast: React.FC<ToastProps> = ({ toasts, onClose }) => {
+export const Toast: React.FC<ToastProps> = ({ toasts }) => {
 
     const getToastConfig = (type: 'success' | 'error' | 'info') => {
         switch (type) {
@@ -111,32 +111,6 @@ export const Toast: React.FC<ToastProps> = ({ toasts, onClose }) => {
                                         {config.title}
                                     </span>
                                 </div>
-                                <button
-                                    onClick={() => onClose(toast.id)}
-                                    style={{
-                                        background: 'rgba(0,0,0,0.1)',
-                                        border: 'none',
-                                        borderRadius: '50%',
-                                        width: '32px',
-                                        height: '32px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        cursor: 'pointer',
-                                        color: 'rgba(255,255,255,0.8)',
-                                        transition: 'all 0.2s',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = 'rgba(0,0,0,0.2)';
-                                        e.currentTarget.style.color = 'white';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = 'rgba(0,0,0,0.1)';
-                                        e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
-                                    }}
-                                >
-                                    <X size={18} strokeWidth={3} />
-                                </button>
                             </div>
 
                             <div style={{

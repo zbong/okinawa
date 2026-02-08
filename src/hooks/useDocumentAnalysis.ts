@@ -1,44 +1,24 @@
 import { useState, useRef, useCallback } from 'react';
-import { PlannerData } from '../types';
+import { PlannerData, FlightLeg } from '../types';
 import { extractTextFromFile, parseUniversalDocument, fileToBase64 } from '../utils/ocr';
 import { parseWithAI } from '../utils/ai-parser';
 
 interface UseDocumentAnalysisProps {
     plannerData: PlannerData;
     setPlannerData: React.Dispatch<React.SetStateAction<PlannerData>>;
+    setCustomFiles: React.Dispatch<React.SetStateAction<any[]>>;
     showToast: (message: string, type?: "success" | "error" | "info") => void;
 }
 
-export const useDocumentAnalysis = ({ plannerData, setPlannerData, showToast }: UseDocumentAnalysisProps) => {
+export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFiles, showToast }: UseDocumentAnalysisProps) => {
     const [isOcrLoading, setIsOcrLoading] = useState(false);
     const [analyzedFiles, setAnalyzedFiles] = useState<any[]>([]);
     const ticketFileInputRef = useRef<HTMLInputElement>(null);
     const [customAiPrompt, setCustomAiPrompt] = useState("");
 
-    const resolveAirportName = (code: string | undefined) => {
-        if (!code) return "";
-        const map: Record<string, string> = {
-            ICN: "인천국제공항 (ICN)",
-            GMP: "김포국제공항 (GMP)",
-            KIX: "간사이국제공항 (KIX)",
-            NRT: "나리타국제공항 (NRT)",
-            HND: "하네다공항 (HND)",
-            FUK: "후쿠오카공항 (FUK)",
-            CTS: "신치토세공항 (CTS)",
-            OKA: "나하공항 (OKA)",
-            CJU: "제주국제공항 (CJU)",
-            PUS: "김해국제공항 (PUS)",
-            TAE: "대구국제공항 (TAE)",
-            CJJ: "청주국제공항 (CJJ)",
-            MWX: "무안국제공항 (MWX)",
-            YNY: "양양국제공항 (YNY)",
-        };
-        if (code.length === 3 && code === code.toUpperCase())
-            return map[code] || code;
-        return code;
-    };
 
-    const handleFileAnalysis = useCallback(async (files: File[]) => {
+
+    const handleFileAnalysis = useCallback(async (files: File[], linkedTo?: string) => {
         if (files.length === 0) return;
         setIsOcrLoading(true);
         try {
@@ -117,56 +97,180 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, showToast }: 
                 };
                 setAnalyzedFiles([...currentAnalyzedFiles]);
 
+                // Also Add to Custom Files for persistence and display in Document Tab / Step 6
+                const newCustomFile: any = {
+                    id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                    name: file.name,
+                    type: file.type.includes("pdf") ? "pdf" : "image",
+                    data: base64 || "", // If it was text-only, base64 might be empty, but usually multimodal files have it
+                    linkedTo: linkedTo || (parsed.type === "flight" ? "flight" : (parsed.type === "accommodation" || parsed.type === "hotel") ? "accommodation" : "other"),
+                    date: new Date().toISOString(),
+                    parsedData: parsed
+                };
+                setCustomFiles((prev) => [...prev, newCustomFile]);
+
                 if (parsed.type === "flight") {
-                    const arrival = parsed.flight?.arrivalAirport || parsed.arrival;
-                    if (arrival && arrival !== "도착지 미확인")
-                        updates.destination = arrival;
+                    // User Requested: Do not auto-fill metadata fields like start date/point which are bound to input fields. Only append to list.
+                    // (Logic Removed: Destination, Coordinates, TravelMode, StartDate, EndDate, ArrivalDate updates)
 
-                    if (parsed.flight?.departureAirport)
-                        updates.departurePoint = resolveAirportName(
-                            parsed.flight.departureAirport,
-                        );
-                    if (parsed.flight?.arrivalAirport)
-                        updates.entryPoint = resolveAirportName(
-                            parsed.flight.arrivalAirport,
-                        );
-                    if (parsed.flight?.departureCoordinates)
-                        updates.departureCoordinates = parsed.flight.departureCoordinates;
-                    if (parsed.flight?.arrivalCoordinates)
-                        updates.entryCoordinates = parsed.flight.arrivalCoordinates;
+                    // Explicitly reset manual input fields to ensure they are empty after file processing
+                    updates.airline = "";
+                    updates.flightNumber = "";
+                    updates.departureTime = "";
+                    updates.arrivalTime = "";
+                    updates.returnAirline = "";
+                    updates.returnFlightNumber = "";
+                    updates.returnDepartureTime = "";
+                    updates.returnArrivalTime = "";
 
-                    updates.travelMode = "plane";
+                    // Multi-leg Support
+                    const newOutbound: FlightLeg[] = updates.outboundFlights || [...(plannerData.outboundFlights || [])];
+                    const newInbound: FlightLeg[] = updates.inboundFlights || [...(plannerData.inboundFlights || [])];
 
-                    if (parsed.flight?.departureDate) {
-                        updates.startDate = parsed.flight.departureDate;
-                    } else if (parsed.startDate && parsed.startDate !== "미확인") {
-                        updates.startDate = parsed.startDate;
+                    // Helper to fuzzy check airport equality
+                    const isSameAirport = (a: string, b: string) => {
+                        if (!a || !b) return false;
+                        const normalize = (s: string) => s.replace(/\s|\(.*\)/g, '').toLowerCase();
+                        return normalize(a).includes(normalize(b)) || normalize(b).includes(normalize(a)) || a.includes(b) || b.includes(a);
+                    };
+
+                    // Helper to ensure HH:mm format
+                    const normalizeTime = (t: any, fallback: string = "") => {
+                        if (!t) return fallback;
+                        const str = String(t).trim();
+                        if (/^\d{4}$/.test(str)) return `${str.slice(0, 2)}:${str.slice(2)}`;
+                        if (/^\d{1,2}[:.]\d{2}$/.test(str)) {
+                            const cleaned = str.replace('.', ':');
+                            return cleaned.length === 4 ? `0${cleaned}` : cleaned;
+                        }
+                        return str || fallback;
+                    };
+
+                    // 1. Primary Leg Processing (Extremely Robust Mapping)
+                    if (parsed.flight || parsed.departureTime || parsed.startDate) {
+                        const flightObj = parsed.flight || {};
+                        const rawDepTime = flightObj.departureTime || parsed.departureTime || "";
+                        const rawArrTime = flightObj.arrivalTime || parsed.arrivalTime || "";
+
+                        // Last resort: Regex search in summary (handles 10:30 or 10.30)
+                        const timeRegex = /\b([012]?\d[:.][0-5]\d)\b/g;
+                        const timesFound = (parsed.summary || "").match(timeRegex) || [];
+                        const cleanedTimes = timesFound.map((t: string) => t.replace('.', ':').padStart(5, '0').slice(-5));
+
+                        const finalDepTime = normalizeTime(rawDepTime) || (cleanedTimes.length > 0 ? cleanedTimes[0] : "");
+                        const finalArrTime = normalizeTime(rawArrTime) || (cleanedTimes.length > 1 ? cleanedTimes[1] : "");
+
+                        const leg: FlightLeg = {
+                            id: `leg-${Date.now()}-primary`,
+                            airline: flightObj.airline || parsed.airline || "미확인 항공사",
+                            flightNumber: flightObj.flightNumber || parsed.flightNumber || "",
+                            departureContext: {
+                                airport: flightObj.departureAirport || parsed.departure || "출발지",
+                                date: flightObj.departureDate || parsed.flightDate || parsed.startDate || "",
+                                time: finalDepTime
+                            },
+                            arrivalContext: {
+                                airport: flightObj.arrivalAirport || parsed.arrival || "도착지",
+                                date: flightObj.arrivalDate || flightObj.departureDate || parsed.flightDate || parsed.endDate || parsed.startDate || "",
+                                time: finalArrTime
+                            },
+                            linkedFileId: file.name
+                        };
+                        console.log("✈️ Flight Analysis Success:", leg);
+
+                        // Smart Chaining: Track trip progress
+                        const currentDep = updates.departurePoint || plannerData.departurePoint || "";
+                        const currentEntry = updates.entryPoint || plannerData.entryPoint || "";
+
+                        let isOutbound = true;
+
+                        const KOREA_AIRPORTS = ["ICN", "GMP", "PUS", "CJU", "TAE", "CJJ", "MWX", "YNY", "인천", "김포", "김해", "부산", "제주", "대구", "청주", "무안", "양양", "SEOUL", "BUSAN", "JEJU", "RKSI", "RKSS", "RKPK", "RKPC"];
+
+                        // 0. Absolute Priority: Check against Korea Airports (Assuming Korea-based trip)
+                        // If Arrival is Korea -> Inbound (Returning Home)
+                        if (KOREA_AIRPORTS.some(code => isSameAirport(leg.arrivalContext.airport, code))) {
+                            isOutbound = false;
+                        }
+                        // If Departure is Korea -> Outbound (Leaving Home)
+                        else if (KOREA_AIRPORTS.some(code => isSameAirport(leg.departureContext.airport, code))) {
+                            isOutbound = true;
+                        }
+                        // 1. Context-based Logic (Fallback if airports are foreign/unknown)
+                        else if (isSameAirport(leg.departureContext.airport, currentEntry)) {
+                            // Leg starts at current Destination -> Continuing or Returning?
+                            if (isSameAirport(leg.arrivalContext.airport, currentDep)) {
+                                isOutbound = false;
+                            } else {
+                                isOutbound = true;
+                            }
+                        } else if (isSameAirport(leg.arrivalContext.airport, currentDep)) {
+                            isOutbound = false;
+                        } else {
+                            // Default / Start / Ambiguous
+                            isOutbound = true;
+                        }
+
+                        if (isOutbound) {
+                            if (!newOutbound.some(l => l.flightNumber === leg.flightNumber)) {
+                                newOutbound.push({ ...leg, id: `leg-${Date.now()}-out-auto` });
+                            }
+                        } else {
+                            if (!newInbound.some(l => l.flightNumber === leg.flightNumber)) {
+                                newInbound.push({ ...leg, id: `leg-${Date.now()}-in-auto` });
+                            }
+                        }
+
+                        // Metadata update removed per user request (Only appending to lists)
                     }
 
-                    if (parsed.flight?.arrivalDate) {
-                        updates.arrivalDate = parsed.flight.arrivalDate;
+                    // 2. Explicit Return Leg Processing (For tickets showing both ways)
+                    if (parsed.flight?.returnDepartureTime || parsed.flight?.returnFlightNumber) {
+                        const leg: FlightLeg = {
+                            id: `leg-${Date.now()}-in-explicit`,
+                            airline: parsed.flight.returnAirline || parsed.flight.airline || "미확인 항공사",
+                            flightNumber: parsed.flight.returnFlightNumber || "",
+                            departureContext: {
+                                airport: parsed.flight.returnDeparturePoint || "오키나와",
+                                date: parsed.endDate || "",
+                                time: parsed.flight.returnDepartureTime || ""
+                            },
+                            arrivalContext: {
+                                airport: parsed.flight.returnArrivalPoint || "귀국지",
+                                date: parsed.endDate || "",
+                                time: parsed.flight.returnArrivalTime || ""
+                            },
+                            linkedFileId: file.name
+                        };
+                        if (!newInbound.some(l => l.flightNumber === leg.flightNumber)) {
+                            newInbound.push(leg);
+                        }
                     }
 
-                    const overallEnd = parsed.endDate || parsed.flight?.arrivalDate;
-                    if (overallEnd && overallEnd !== "미확인")
-                        updates.endDate = overallEnd;
+                    updates.outboundFlights = newOutbound;
+                    updates.inboundFlights = newInbound;
 
-                    if (parsed.flight?.departureTime)
-                        updates.departureTime = parsed.flight.departureTime;
-                    if (parsed.flight?.arrivalTime)
-                        updates.arrivalTime = parsed.flight.arrivalTime;
-                    if (parsed.flight?.returnDepartureTime)
-                        updates.returnDepartureTime = parsed.flight.returnDepartureTime;
-                    if (parsed.flight?.returnArrivalTime)
-                        updates.returnArrivalTime = parsed.flight.returnArrivalTime;
+                    // 3. Sync extracted data to manual input fields for visual feedback
+                    if (newOutbound.length > 0) {
+                        const firstLeg = newOutbound[0];
+                        updates.airline = firstLeg.airline;
+                        updates.flightNumber = firstLeg.flightNumber;
+                        updates.departurePoint = firstLeg.departureContext.airport;
+                        updates.entryPoint = firstLeg.arrivalContext.airport;
+                        updates.departureTime = firstLeg.departureContext.time;
+                        updates.arrivalTime = firstLeg.arrivalContext.time;
+                        updates.startDate = firstLeg.departureContext.date;
+                    }
 
-                    if (parsed.flight?.airline) updates.airline = parsed.flight.airline;
-                    if (parsed.flight?.flightNumber)
-                        updates.flightNumber = parsed.flight.flightNumber;
-                    if (parsed.flight?.returnAirline)
-                        updates.returnAirline = parsed.flight.returnAirline;
-                    if (parsed.flight?.returnFlightNumber)
-                        updates.returnFlightNumber = parsed.flight.returnFlightNumber;
+                    if (newInbound.length > 0) {
+                        const lastLeg = newInbound[newInbound.length - 1];
+                        updates.returnAirline = lastLeg.airline;
+                        updates.returnFlightNumber = lastLeg.flightNumber;
+                        updates.returnDeparturePoint = lastLeg.departureContext.airport;
+                        updates.returnArrivalPoint = lastLeg.arrivalContext.airport;
+                        updates.returnDepartureTime = lastLeg.departureContext.time;
+                        updates.returnArrivalTime = lastLeg.arrivalContext.time;
+                        updates.endDate = lastLeg.departureContext.date;
+                    }
                 } else if (parsed.type === "hotel" || parsed.type === "accommodation") {
                     const hotelName = parsed.hotelName || parsed.name;
                     if (hotelName && hotelName !== "미확인") {
@@ -176,6 +280,7 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, showToast }: 
                             startDate: parsed.checkInDate || parsed.startDate || "",
                             endDate: parsed.checkOutDate || parsed.endDate || "",
                             coordinates: parsed.coordinates,
+                            isConfirmed: true,
                         };
                         const existing = plannerData.accommodations || [];
                         // Note: plannerData here is from closure, might be stale if multiple updates happen quickly?

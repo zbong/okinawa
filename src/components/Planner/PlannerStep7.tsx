@@ -1,169 +1,94 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
+import { Loader2 } from "lucide-react";
 import { usePlanner } from "../../contexts/PlannerContext";
 
 export const PlannerStep7: React.FC = () => {
-    const {
-        trip,
-        dynamicAttractions,
-        selectedPlaceIds,
-        setPlannerStep,
-        showToast,
-        setTrips,
-        setIsPlanning,
-        setView
-    } = usePlanner();
+    const { generatePlanWithAI, showToast, setPlannerStep } = usePlanner();
+
+    useEffect(() => {
+        let isMounted = true;
+        const startGeneration = async () => {
+            try {
+                // Actual call to start AI generation
+                await generatePlanWithAI();
+            } catch (err) {
+                if (isMounted) {
+                    showToast("경로 생성 중 오류가 발생했습니다.", "error");
+                    setPlannerStep(6); // Go back to summary
+                }
+            }
+        };
+
+        const timer = setTimeout(() => {
+            startGeneration();
+        }, 500); // Small delay for smooth transition
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timer);
+        };
+    }, []);
 
     return (
         <motion.div
             key="planner-step-7"
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{
-                width: "100%",
-                maxWidth: "600px",
-                textAlign: "left",
-            }}
         >
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    marginBottom: "40px",
+                    justifyContent: "center",
+                }}
+            >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                    <div
+                        key={i}
+                        style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: "50%",
+                            background:
+                                i === 7 // Current step index representation
+                                    ? "var(--primary)"
+                                    : "rgba(255,255,255,0.1)",
+                        }}
+                    />
+                ))}
+            </div>
+            <Loader2
+                size={100}
+                className="animate-spin"
+                style={{
+                    color: "var(--primary)",
+                    marginBottom: "32px",
+                    display: "block",
+                    margin: "0 auto",
+                }}
+            />
             <h2
                 style={{
                     fontSize: "32px",
                     fontWeight: 900,
-                    marginBottom: "10px",
                     textAlign: "center",
                 }}
             >
-                설계된 맞춤 코스 프리뷰
+                AI가 최적의 동선을 설계 중입니다...
             </h2>
             <p
                 style={{
                     opacity: 0.6,
-                    marginBottom: "32px",
+                    marginTop: "16px",
                     textAlign: "center",
                 }}
             >
-                발행 전 마지막으로 코스를 확인해 주세요.
+                사용자의 취향과 서류 정보를 분석하여 상세 일정을 구성하고 있습니다.
             </p>
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                    marginBottom: "40px",
-                }}
-            >
-                {dynamicAttractions
-                    .filter((a) => selectedPlaceIds.includes(a.id))
-                    .map((rec, i) => (
-                        <div
-                            key={rec.id}
-                            className="glass-card"
-                            style={{
-                                padding: "18px 20px",
-                                display: "flex",
-                                gap: "16px",
-                                alignItems: "center",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: 44,
-                                    height: 44,
-                                    borderRadius: "12px",
-                                    background: "var(--primary)",
-                                    color: "black",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontWeight: 900,
-                                }}
-                            >
-                                {i + 1}
-                            </div>
-                            <div style={{ textAlign: "left" }}>
-                                <div
-                                    style={{
-                                        fontWeight: 800,
-                                        fontSize: "18px",
-                                    }}
-                                >
-                                    {rec.name}
-                                </div>
-                                <div
-                                    style={{ fontSize: "14px", opacity: 0.6 }}
-                                >
-                                    {rec.desc}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-            </div>
-            <div style={{ display: "flex", gap: "15px" }}>
-                <button
-                    onClick={() => setPlannerStep(5)}
-                    style={{
-                        flex: 1,
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "transparent",
-                        color: "white",
-                        fontWeight: 800,
-                    }}
-                >
-                    장소 수정
-                </button>
-                <button
-                    onClick={() => {
-                        if (
-                            !trip ||
-                            !trip.points ||
-                            trip.points.length === 0
-                        ) {
-                            showToast(
-                                "여행 데이터가 충분히 생성되지 않았습니다. 다시 시도해 주세요.",
-                            );
-                            return;
-                        }
-                        const publishedTrip = {
-                            ...trip,
-                            title: trip.metadata?.title || "나의 멋진 여행",
-                            period: trip.metadata?.period || "기간 미정",
-                            destination: trip.metadata?.destination || "목적지 미정",
-                            color: trip.metadata?.primaryColor || "#00d4ff",
-                            id: `trip-${Date.now()}`,
-                            progress: 0,
-                        };
-                        setTrips((prevTrips) => [
-                            publishedTrip,
-                            ...prevTrips,
-                        ]);
-                        localStorage.removeItem("trip_draft_v1");
-                        setIsPlanning(false);
-                        setPlannerStep(0);
-                        setView("landing");
-                        showToast(
-                            "여행 가이드 발행이 완료되었습니다! 목록에서 확인해 보세요.",
-                        );
-                    }}
-                    style={{
-                        flex: 2,
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "none",
-                        background: "var(--primary)",
-                        color: "black",
-                        fontWeight: 900,
-                        fontSize: "18px",
-                        cursor: "pointer",
-                        zIndex: 10,
-                        position: "relative",
-                    }}
-                >
-                    가이드 발행하기
-                </button>
-            </div>
         </motion.div>
     );
 };

@@ -19,7 +19,8 @@ export const PlannerStep3: React.FC = () => {
         showToast,
         handleMultipleOcr,
         isOcrLoading,
-        handleFileAnalysis
+        handleFileAnalysis,
+        saveDraft
     } = usePlanner();
 
     const [isDragOver, setIsDragOver] = React.useState(false);
@@ -66,7 +67,7 @@ export const PlannerStep3: React.FC = () => {
                     marginBottom: "30px",
                 }}
             >
-                {[1, 2, 3, 4, 5].map((s, i) => (
+                {[1, 2, 3, 4, 5].map((_, i) => (
                     <div
                         key={i}
                         style={{
@@ -91,7 +92,7 @@ export const PlannerStep3: React.FC = () => {
                     color: "white",
                 }}
             >
-                어떻게 오시나요?
+                어떻게 가시나요?
             </h2>
             <p
                 style={{
@@ -231,7 +232,10 @@ export const PlannerStep3: React.FC = () => {
                             accept="image/*,.pdf"
                             id="ticket-upload-step3"
                             style={{ display: "none" }}
-                            onChange={handleMultipleOcr}
+                            onChange={(e) => {
+                                handleMultipleOcr(e);
+                                e.target.value = '';
+                            }}
                         />
                         <button
                             onClick={() => document.getElementById("ticket-upload-step3")?.click()}
@@ -379,7 +383,7 @@ export const PlannerStep3: React.FC = () => {
                             }}
                         >
                             {(() => {
-                                const count = plannerData.peopleCount || 1;
+                                const count = (plannerData.peopleCount || 1) + (plannerData.companionCount || 0);
                                 const sStart = plannerData.startDate
                                     ? plannerData.startDate
                                         .slice(2)
@@ -391,16 +395,41 @@ export const PlannerStep3: React.FC = () => {
                                         .replace(/-/g, "")
                                     : "";
 
+                                // Extract IATA codes from strings like "Incheon (ICN)" or just "ICN"
+                                const extractIata = (str: string) => {
+                                    if (!str) return null;
+                                    const match = str.match(/\(([A-Z]{3})\)/i);
+                                    if (match) return match[1].toLowerCase();
+                                    if (/^[A-Z]{3}$/i.test(str.trim())) return str.trim().toLowerCase();
+                                    return null;
+                                };
+
+                                let fromIata = extractIata(plannerData.departurePoint) || "icn";
+                                let toIata = extractIata(plannerData.entryPoint) || extractIata(plannerData.destination);
+
+                                // Mapping for common destinations if no IATA code found in input
+                                if (!toIata) {
+                                    const dest = (plannerData.destination || "").toLowerCase();
+                                    if (dest.includes("오키나와") || dest.includes("okinawa")) toIata = "oka";
+                                    else if (dest.includes("치앙마이") || dest.includes("chiang mai")) toIata = "cnx";
+                                    else if (dest.includes("방콕") || dest.includes("bangkok")) toIata = "bkk";
+                                    else if (dest.includes("다낭") || dest.includes("danang")) toIata = "dad";
+                                    else if (dest.includes("도쿄") || dest.includes("tokyo")) toIata = "nrt";
+                                    else if (dest.includes("오사카") || dest.includes("osaka")) toIata = "kix";
+                                    else if (dest.includes("후쿠오카") || dest.includes("fukuoka")) toIata = "fuk";
+                                    else if (dest.includes("제주") || dest.includes("jeju")) toIata = "cju";
+                                    else if (dest.includes("삿포로") || dest.includes("sapporo")) toIata = "cts";
+                                }
+
                                 let skyscannerUrl = "https://www.skyscanner.co.kr";
-                                if (
-                                    plannerData.destination &&
-                                    (plannerData.destination.includes("오키나와") ||
-                                        plannerData.destination.toLowerCase().includes("okinawa"))
-                                ) {
-                                    skyscannerUrl = "https://www.skyscanner.co.kr/transport/flights/icn/oka";
+                                if (toIata) {
+                                    skyscannerUrl = `https://www.skyscanner.co.kr/transport/flights/${fromIata}/${toIata}`;
                                     if (sStart) skyscannerUrl += `/${sStart}`;
                                     if (sEnd) skyscannerUrl += `/${sEnd}`;
                                     skyscannerUrl += `/?adultsv2=${count}&cabinclass=economy&childrenv2=&ref=home&rtn=${sEnd ? 1 : 0}&preferdirects=false&outboundaltsenabled=false&inboundaltsenabled=false`;
+                                } else if (plannerData.destination) {
+                                    // Fallback to keyword search if no IATA code found
+                                    skyscannerUrl = `https://www.skyscanner.co.kr/transport/flights-from/${fromIata}/?query=${encodeURIComponent(plannerData.destination)}`;
                                 }
 
                                 return (
@@ -409,7 +438,7 @@ export const PlannerStep3: React.FC = () => {
                                             display: "flex",
                                             flexDirection: "column",
                                             gap: "8px",
-                                            width: "40%",
+                                            width: "100%",
                                         }}
                                     >
                                         <a
@@ -421,17 +450,27 @@ export const PlannerStep3: React.FC = () => {
                                                 display: "flex",
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                gap: 8,
-                                                background: "rgba(255,255,255,0.05)",
-                                                borderRadius: "12px",
-                                                color: "white",
+                                                gap: 10,
+                                                background: "var(--primary)",
+                                                borderRadius: "14px",
+                                                color: "black",
                                                 textDecoration: "none",
-                                                fontSize: "13px",
-                                                fontWeight: 600,
-                                                padding: "12px",
+                                                fontSize: "14px",
+                                                fontWeight: 800,
+                                                padding: "16px",
+                                                boxShadow: "0 8px 20px rgba(0, 212, 255, 0.2)",
+                                                transition: "all 0.2s"
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.transform = "translateY(-2px)";
+                                                e.currentTarget.style.boxShadow = "0 12px 25px rgba(0, 212, 255, 0.3)";
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.transform = "translateY(0)";
+                                                e.currentTarget.style.boxShadow = "0 8px 20px rgba(0, 212, 255, 0.2)";
                                             }}
                                         >
-                                            <Plane size={16} /> 스카이스캐너 예매
+                                            <Plane size={18} /> {plannerData.destination || "목적지"} 항공권 스카이스캐너 검색
                                         </a>
                                     </div>
                                 );
@@ -442,13 +481,14 @@ export const PlannerStep3: React.FC = () => {
                     <div style={{ display: "grid", gap: "20px" }}>
                         {plannerData.travelMode === "plane" ? (
                             <>
-                                {/* Plane Mode: Round Trip UI */}
+                                {/* Outbound Section */}
                                 <div
                                     style={{
                                         background: "rgba(255,255,255,0.03)",
                                         padding: "20px",
                                         borderRadius: "16px",
                                         border: "1px solid rgba(255,255,255,0.05)",
+                                        marginBottom: "20px",
                                     }}
                                 >
                                     <h4
@@ -464,148 +504,119 @@ export const PlannerStep3: React.FC = () => {
                                     >
                                         🛫 가는 편 (출국)
                                     </h4>
-                                    <div
-                                        style={{
-                                            display: "grid",
-                                            gridTemplateColumns: "1fr 1fr",
-                                            gap: "10px",
-                                            marginBottom: "10px",
-                                        }}
-                                    >
+
+                                    {/* Outbound Flights List */}
+                                    {plannerData.outboundFlights && plannerData.outboundFlights.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                                            {plannerData.outboundFlights.map((leg, i) => (
+                                                <div key={leg.id || i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>{i + 1}</div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
+                                                        <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
+                                                            [{leg.departureContext.date}] {leg.departureContext.airport} ({leg.departureContext.time.slice(-5)}) <ArrowRight size={12} style={{ display: 'inline', margin: '0 4px' }} /> {leg.arrivalContext.airport} ({leg.arrivalContext.time.slice(-5)})
+                                                        </div>
+                                                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                                                            {leg.airline} | {leg.flightNumber}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setPlannerData(prev => ({
+                                                                ...prev,
+                                                                outboundFlights: (prev.outboundFlights || []).filter(l => l.id !== leg.id)
+                                                            }));
+                                                        }}
+                                                        style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Manual Input Grid */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                                         <input
                                             type="text"
                                             placeholder="항공사"
                                             value={plannerData.airline || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    airline: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                width: "100%",
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, airline: e.target.value })}
+                                            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                         <input
                                             type="text"
                                             placeholder="편명 (예: KE001)"
                                             value={plannerData.flightNumber || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    flightNumber: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                width: "100%",
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, flightNumber: e.target.value })}
+                                            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                     </div>
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            gap: "10px",
-                                            alignItems: "center",
-                                            marginBottom: "10px",
-                                        }}
-                                    >
+                                    <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
                                         <input
                                             type="text"
-                                            placeholder="출발 공항 (ICN)"
+                                            placeholder="출발지 (예: ICN)"
                                             value={plannerData.departurePoint}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    departurePoint: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                flex: 1,
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, departurePoint: e.target.value })}
+                                            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
-                                        <ArrowRight
-                                            size={14}
-                                            color="rgba(255,255,255,0.3)"
-                                        />
+                                        <ArrowRight size={14} color="rgba(255,255,255,0.3)" />
                                         <input
                                             type="text"
-                                            placeholder="도착 공항 (OKA)"
-                                            value={
-                                                plannerData.entryPoint === "Direct Driving"
-                                                    ? ""
-                                                    : plannerData.entryPoint
-                                            }
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    entryPoint: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                flex: 1,
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            placeholder={`도착지 (예: ${(plannerData.destination || "").toLowerCase().includes("chiang") || (plannerData.destination || "").includes("치앙마이") ? "CNX" : "OKA"})`}
+                                            value={plannerData.entryPoint === "Direct Driving" ? "" : plannerData.entryPoint}
+                                            onChange={(e) => setPlannerData({ ...plannerData, entryPoint: e.target.value })}
+                                            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                     </div>
                                     <div style={{ display: "flex", gap: "5px" }}>
                                         <input
                                             type="date"
                                             value={plannerData.startDate || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    startDate: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                flex: 3,
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, startDate: e.target.value })}
+                                            style={{ flex: 3, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                         <input
                                             type="time"
                                             value={plannerData.departureTime || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    departureTime: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                flex: 2,
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, departureTime: e.target.value })}
+                                            style={{ flex: 2, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                     </div>
+
+                                    {/* Add Button */}
+                                    <button
+                                        onClick={() => {
+                                            if (!plannerData.airline && !plannerData.flightNumber) return;
+                                            const newLeg: any = {
+                                                id: `manual-${Date.now()}`,
+                                                airline: plannerData.airline || "",
+                                                flightNumber: plannerData.flightNumber || "",
+                                                departureContext: {
+                                                    airport: plannerData.departurePoint || "",
+                                                    date: plannerData.startDate || "",
+                                                    time: plannerData.departureTime || ""
+                                                },
+                                                arrivalContext: {
+                                                    airport: plannerData.entryPoint || "",
+                                                    date: plannerData.startDate || "",
+                                                    time: plannerData.arrivalTime || ""
+                                                }
+                                            };
+                                            setPlannerData(prev => ({
+                                                ...prev,
+                                                outboundFlights: [...(prev.outboundFlights || []), newLeg],
+                                                // Clear inputs after add
+                                                airline: "", flightNumber: "", departurePoint: "", entryPoint: "", departureTime: "", arrivalTime: ""
+                                            }));
+                                        }}
+                                        style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 8, background: 'rgba(96, 165, 250, 0.1)', color: '#60a5fa', border: '1px dashed #60a5fa', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                                    >
+                                        + 현재 입력한 경로 추가
+                                    </button>
                                 </div>
 
+                                {/* Inbound Section */}
                                 <div
                                     style={{
                                         background: "rgba(255,255,255,0.03)",
@@ -627,142 +638,116 @@ export const PlannerStep3: React.FC = () => {
                                     >
                                         🛬 오는 편 (귀국)
                                     </h4>
-                                    <div
-                                        style={{
-                                            display: "grid",
-                                            gridTemplateColumns: "1fr 1fr",
-                                            gap: "10px",
-                                            marginBottom: "10px",
-                                        }}
-                                    >
+
+                                    {/* Inbound Flights List */}
+                                    {plannerData.inboundFlights && plannerData.inboundFlights.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                                            {plannerData.inboundFlights.map((leg, i) => (
+                                                <div key={leg.id || i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(251, 191, 36, 0.2)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>{i + 1}</div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
+                                                        <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
+                                                            [{leg.departureContext.date}] {leg.departureContext.airport} ({leg.departureContext.time.slice(-5)}) <ArrowRight size={12} style={{ display: 'inline', margin: '0 4px' }} /> {leg.arrivalContext.airport} ({leg.arrivalContext.time.slice(-5)})
+                                                        </div>
+                                                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                                                            {leg.airline} | {leg.flightNumber}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setPlannerData(prev => ({
+                                                                ...prev,
+                                                                inboundFlights: (prev.inboundFlights || []).filter(l => l.id !== leg.id)
+                                                            }));
+                                                        }}
+                                                        style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Manual Input Grid */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                                         <input
                                             type="text"
                                             placeholder="항공사"
                                             value={plannerData.returnAirline || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    returnAirline: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                width: "100%",
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, returnAirline: e.target.value })}
+                                            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                         <input
                                             type="text"
                                             placeholder="편명 (예: KE002)"
                                             value={plannerData.returnFlightNumber || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    returnFlightNumber: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                width: "100%",
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, returnFlightNumber: e.target.value })}
+                                            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                     </div>
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            gap: "10px",
-                                            alignItems: "center",
-                                            marginBottom: "10px",
-                                        }}
-                                    >
+                                    <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
                                         <input
                                             type="text"
-                                            placeholder="출발 공항 (OKA)"
+                                            placeholder={`출발지 (예: ${(plannerData.destination || "").toLowerCase().includes("chiang") || (plannerData.destination || "").includes("치앙마이") ? "CNX" : "OKA"})`}
                                             value={plannerData.returnDeparturePoint || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    returnDeparturePoint: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                flex: 1,
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, returnDeparturePoint: e.target.value })}
+                                            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
-                                        <ArrowRight
-                                            size={14}
-                                            color="rgba(255,255,255,0.3)"
-                                        />
+                                        <ArrowRight size={14} color="rgba(255,255,255,0.3)" />
                                         <input
                                             type="text"
-                                            placeholder="도착 공항 (ICN)"
+                                            placeholder="도착지 (예: ICN)"
                                             value={plannerData.returnArrivalPoint || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    returnArrivalPoint: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                flex: 1,
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, returnArrivalPoint: e.target.value })}
+                                            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                     </div>
                                     <div style={{ display: "flex", gap: "5px" }}>
                                         <input
                                             type="date"
                                             value={plannerData.endDate || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    endDate: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                flex: 3,
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, endDate: e.target.value })}
+                                            style={{ flex: 3, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                         <input
                                             type="time"
                                             value={plannerData.returnDepartureTime || ""}
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    returnDepartureTime: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                flex: 2,
-                                                padding: "12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
+                                            onChange={(e) => setPlannerData({ ...plannerData, returnDepartureTime: e.target.value })}
+                                            style={{ flex: 2, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
                                         />
                                     </div>
+
+                                    {/* Add Button */}
+                                    <button
+                                        onClick={() => {
+                                            if (!plannerData.returnAirline && !plannerData.returnFlightNumber) return;
+                                            const newLeg: any = {
+                                                id: `manual-${Date.now()}`,
+                                                airline: plannerData.returnAirline || "",
+                                                flightNumber: plannerData.returnFlightNumber || "",
+                                                departureContext: {
+                                                    airport: plannerData.returnDeparturePoint || "",
+                                                    date: plannerData.endDate || "",
+                                                    time: plannerData.returnDepartureTime || ""
+                                                },
+                                                arrivalContext: {
+                                                    airport: plannerData.returnArrivalPoint || "",
+                                                    date: plannerData.endDate || "",
+                                                    time: plannerData.returnArrivalTime || ""
+                                                }
+                                            };
+                                            setPlannerData(prev => ({
+                                                ...prev,
+                                                inboundFlights: [...(prev.inboundFlights || []), newLeg],
+                                                // Clear inputs
+                                                returnAirline: "", returnFlightNumber: "", returnDeparturePoint: "", returnArrivalPoint: "", returnDepartureTime: "", returnArrivalTime: ""
+                                            }));
+                                        }}
+                                        style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 8, background: 'rgba(251, 191, 36, 0.1)', color: '#fbbf24', border: '1px dashed #fbbf24', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                                    >
+                                        + 현재 입력한 경로 추가
+                                    </button>
                                 </div>
                             </>
                         ) : (
@@ -968,9 +953,10 @@ export const PlannerStep3: React.FC = () => {
                                     </div>
                                 </div>
                             </>
-                        )}
-                    </div>
-                </div>
+                        )
+                        }
+                    </div >
+                </div >
             )}
 
             <div style={{ display: "flex", gap: "15px" }}>
@@ -991,12 +977,10 @@ export const PlannerStep3: React.FC = () => {
                 </button>
                 <button
                     onClick={() => {
-                        localStorage.setItem('trip_draft_v1', JSON.stringify({
-                            step: 3,
-                            data: plannerData
-                        }));
-                        showToast('여행이 임시 저장되었습니다', 'success');
-                        setTimeout(() => setIsPlanning(false), 500);
+                        if (saveDraft(3)) {
+                            showToast('여행이 임시 저장되었습니다', 'success');
+                            setTimeout(() => setIsPlanning(false), 500);
+                        }
                     }}
                     style={{
                         flex: 1,
@@ -1015,7 +999,26 @@ export const PlannerStep3: React.FC = () => {
                     <Save size={18} /> 저장
                 </button>
                 <button
-                    onClick={() => setPlannerStep(4)}
+                    onClick={() => {
+                        const outboundMismatch = plannerData.outboundFlights?.some(leg => leg.departureContext.date !== plannerData.startDate);
+                        const inboundMismatch = plannerData.inboundFlights?.some(leg => leg.departureContext.date !== plannerData.endDate);
+
+                        if (plannerData.travelMode === 'plane' && (outboundMismatch || inboundMismatch)) {
+                            setDeleteConfirmModal({
+                                isOpen: true,
+                                title: "날짜 불일치 확인",
+                                message: "등록된 비행기 날짜와 여행 기간이 일치하지 않습니다. 그래도 진행하시겠습니까?",
+                                confirmText: "진행",
+                                cancelText: "취소",
+                                onConfirm: () => {
+                                    setDeleteConfirmModal({ isOpen: false, title: "", message: "", onConfirm: () => { } });
+                                    setPlannerStep(4);
+                                }
+                            });
+                        } else {
+                            setPlannerStep(4);
+                        }
+                    }}
                     disabled={!plannerData.travelMode}
                     style={{
                         flex: 2,
@@ -1032,9 +1035,9 @@ export const PlannerStep3: React.FC = () => {
                         cursor: plannerData.travelMode ? "pointer" : "not-allowed",
                     }}
                 >
-                    다음 단계로 (숙소 정보)
+                    다음 단계로 (명소 추천)
                 </button>
             </div>
-        </motion.div>
+        </motion.div >
     );
 };

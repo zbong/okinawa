@@ -19,6 +19,7 @@ import { PlannerStep4 } from "./components/Planner/PlannerStep4";
 import { PlannerStep5 } from "./components/Planner/PlannerStep5";
 import { PlannerStep6 } from "./components/Planner/PlannerStep6";
 import { PlannerStep7 } from "./components/Planner/PlannerStep7";
+import { PlannerStep8 } from "./components/Planner/PlannerStep8";
 import { PlannerReviewModal } from "./components/Planner/PlannerReviewModal";
 import { PlannerReEditModal } from "./components/Planner/PlannerReEditModal";
 import { AttractionDetailModal } from "./components/Planner/AttractionDetailModal";
@@ -84,7 +85,10 @@ const App: React.FC = () => {
     toasts, showToast, closeToast, deleteConfirmModal,
     setIsReEditModalOpen, setTripToEdit,
     convert, speak,
-    handleTicketOcr, handleMultipleOcr, handleFileUpload, deleteFile
+    handleTicketOcr, handleMultipleOcr, handleFileUpload, deleteFile,
+    startNewPlanning,
+    selectedFile,
+    setSelectedFile,
   } = usePlanner();
   // DEBUG: Global Error Handler & Render Log
   useEffect(() => {
@@ -94,6 +98,42 @@ const App: React.FC = () => {
       console.error("🔥🔥🔥 UNHANDLED PROMISE:", event.reason);
     window.addEventListener("error", errorHandler);
     window.addEventListener("unhandledrejection", promiseHandler);
+
+    // One-time cleanup of "typing trash" in localStorage
+    const cleanupStorage = () => {
+      try {
+        const publishedDestinations = trips.map((t: any) => t.metadata?.destination || t.destination).filter(Boolean);
+        const keysToRemove: string[] = [];
+
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key) continue;
+
+          const prefixes = ["files_", "logs_", "reviews_", "checklist_", "points_order_"];
+          const matchingPrefix = prefixes.find(p => key.startsWith(p));
+
+          if (matchingPrefix) {
+            const dest = key.replace(matchingPrefix, "");
+            // Only keep data for published trips
+            if (!publishedDestinations.includes(dest)) {
+              keysToRemove.push(key);
+            }
+          }
+        }
+
+        if (localStorage.getItem("trips_v1")) {
+          keysToRemove.push("trips_v1");
+        }
+
+        if (keysToRemove.length > 0) {
+          console.log(`🧹 Cleaning up ${keysToRemove.length} storage keys...`, keysToRemove);
+          keysToRemove.forEach(k => localStorage.removeItem(k));
+        }
+      } catch (e) {
+        console.error("Cleanup failed:", e);
+      }
+    };
+    cleanupStorage();
 
     // Prevent browser from opening dropped files globally
     const preventDefault = (e: DragEvent) => {
@@ -262,11 +302,12 @@ const App: React.FC = () => {
                 flex: 1,
                 display: "flex",
                 flexDirection: "column",
-                padding: "30px",
+                padding: "30px 20px",
                 background:
                   "radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)",
                 zIndex: 999999,
                 position: "relative",
+                overflowY: "auto",
               }}
             >
               <div
@@ -274,9 +315,10 @@ const App: React.FC = () => {
                   flex: 1,
                   display: "flex",
                   flexDirection: "column",
-                  justifyContent: "center",
+                  justifyContent: "flex-start",
                   alignItems: "center",
                   textAlign: "center",
+                  width: "100%",
                 }}
               >
                 <div
@@ -361,8 +403,7 @@ const App: React.FC = () => {
                       width: "100%",
                       display: "flex",
                       flexDirection: "column",
-                      height: "100%",
-                      overflow: "hidden",
+                      marginTop: "20px",
                     }}
                   >
                     {/* List Style Header */}
@@ -394,31 +435,78 @@ const App: React.FC = () => {
                       <div style={{ display: "flex", gap: 10 }}>
                         <button
                           onClick={() => {
-                            // Always start fresh new trip
-                            localStorage.removeItem("trip_draft_v1");
+                            // 1. Find in published trips (check root title and metadata title)
+                            let oki1: any = trips.find((t: any) =>
+                              t.title === "오키1" ||
+                              t.metadata?.title === "오키1"
+                            );
 
-                            setIsPlanning(true);
-                            setPlannerStep(0);
-                            setPlannerData({
-                              title: "",
-                              destination: "",
-                              startDate: "",
-                              endDate: "",
-                              arrivalTime: "10:00",
-                              departureTime: "18:00",
-                              departurePoint: currentUser?.homeAddress || "",
-                              entryPoint: "",
-                              travelMode: "plane",
-                              useRentalCar: false,
-                              companion: "",
-                              transport: "rental",
-                              accommodations: [],
-                              theme: "",
-                              pace: "normal",
+                            // 2. If not found, check localStorage drafts
+                            if (!oki1) {
+                              const draftKeys = Object.keys(localStorage).filter(k => k.startsWith("trip_draft_v1"));
+                              for (const key of draftKeys) {
+                                try {
+                                  const saved = localStorage.getItem(key);
+                                  if (!saved) continue;
+                                  const draft = JSON.parse(saved);
+                                  if (draft.data?.title === "오키1") {
+                                    oki1 = draft;
+                                    break;
+                                  }
+                                } catch (e) { }
+                              }
+                            }
+
+                            if (!oki1) {
+                              showToast("'오키1'이라는 제목의 여행이나 초안을 찾을 수 없습니다. (현재 목록의 제목을 확인해 주세요)", "error");
+                              return;
+                            }
+
+                            // Create 4 Drafts (not published trips)
+                            let successCount = 0;
+                            [2, 3, 4, 5].forEach(num => {
+                              try {
+                                const newDraft = {
+                                  step: oki1.step !== undefined ? oki1.step : 0,
+                                  data: oki1.data ? { ...oki1.data, title: `오키${num}` } : { ...(oki1.metadata || {}), title: `오키${num}` },
+                                  selectedIds: oki1.selectedIds || (oki1.points ? oki1.points.map((p: any) => p.id) : []),
+                                  attractions: oki1.attractions || [],
+                                  hotels: oki1.hotels || [],
+                                  updated: Date.now()
+                                };
+                                localStorage.setItem(`trip_draft_v1_copy_${num}`, JSON.stringify(newDraft));
+                                successCount++;
+                              } catch (e) {
+                                console.error(`Failed to copy draft ${num}:`, e);
+                              }
                             });
-                            setSelectedPlaceIds([]);
-                            setDynamicAttractions([]);
+
+                            if (successCount > 0) {
+                              showToast(`오키2~5 임시 저장본이 ${successCount}개 생성되었습니다.`, "success");
+                              // Trigger state update to refresh draft list in UI if needed
+                              window.location.reload();
+                            } else {
+                              showToast("용량 부족으로 복사본을 생성하지 못했습니다.", "error");
+                            }
                           }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.05)",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            borderRadius: "12px",
+                            padding: "10px 16px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            color: "var(--text-dim)",
+                            fontWeight: "bold",
+                            fontSize: "13px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <RefreshCw size={16} /> 데이터 복사
+                        </button>
+                        <button
+                          onClick={() => startNewPlanning()}
                           style={{
                             background: "var(--primary)",
                             border: "none",
@@ -497,158 +585,195 @@ const App: React.FC = () => {
                       }}
                     >
                       {/* Draft Section */}
-                      {localStorage.getItem("trip_draft_v1") &&
-                        (() => {
-                          const rawDraft = JSON.parse(
-                            localStorage.getItem("trip_draft_v1")!,
-                          );
-                          // Handle legacy format (where draft was just plannerData)
-                          const draft = rawDraft.data
-                            ? rawDraft
-                            : { data: rawDraft, step: 0 };
-                          const dest = draft.data.destination || "여행지 미정";
-                          const step = draft.step || 0;
-                          return (
-                            <div>
+                      {(() => {
+                        const allDraftKeys = Object.keys(localStorage).filter(
+                          (k) => k.startsWith("trip_draft_v1"),
+                        );
+                        if (allDraftKeys.length === 0) return null;
+
+                        const drafts = allDraftKeys
+                          .map((key) => {
+                            try {
+                              const rawDraft = JSON.parse(
+                                localStorage.getItem(key)!,
+                              );
+                              const draft = rawDraft.data
+                                ? rawDraft
+                                : { data: rawDraft, step: 0 };
+                              return { ...draft, _key: key };
+                            } catch (e) {
+                              return null;
+                            }
+                          })
+                          .filter(Boolean) as any[];
+
+                        // Deduplicate by title, letting the main trip_draft_v1 take priority
+                        const seenTitles = new Set();
+                        const uniqueDrafts = drafts.sort((a, b) => {
+                          if (a._key === "trip_draft_v1") return -1;
+                          if (b._key === "trip_draft_v1") return 1;
+                          return 0;
+                        }).filter(d => {
+                          const title = d.data?.title || `${d.data?.destination || "여행지"} 여행`;
+                          if (seenTitles.has(title)) return false;
+                          seenTitles.add(title);
+                          return true;
+                        });
+
+                        if (uniqueDrafts.length === 0) return null;
+
+                        return (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 16,
+                            }}
+                          >
+                            <div
+                              style={{
+                                padding: "0 8px 12px",
+                                fontSize: "12px",
+                                fontWeight: 900,
+                                color: "#f59e0b",
+                                letterSpacing: "2px",
+                                opacity: 0.8,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                              }}
+                            >
                               <div
                                 style={{
-                                  padding: "0 8px 12px",
-                                  fontSize: "12px",
-                                  fontWeight: 900,
-                                  color: "#f59e0b",
-                                  letterSpacing: "2px",
-                                  opacity: 0.8,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 10,
+                                  height: 1,
+                                  flex: 1,
+                                  background:
+                                    "linear-gradient(to right, rgba(245,158,11,0.5), transparent)",
                                 }}
-                              >
-                                <div
-                                  style={{
-                                    height: 1,
-                                    flex: 1,
-                                    background:
-                                      "linear-gradient(to right, rgba(245,158,11,0.5), transparent)",
-                                  }}
-                                />
-                                작성 중인 여행
-                                <div
-                                  style={{
-                                    height: 1,
-                                    flex: 1,
-                                    background:
-                                      "linear-gradient(to left, rgba(245,158,11,0.5), transparent)",
-                                  }}
-                                />
-                              </div>
-                              <motion.div
-                                whileTap={{ scale: 0.98 }}
-                                className="glass-card"
+                              />
+                              작성 중인 여행 ({uniqueDrafts.length})
+                              <div
                                 style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 16,
-                                  padding: "16px",
-                                  background: "rgba(245,158,11,0.1)",
-                                  border: "1px solid rgba(245,158,11,0.3)",
-                                  cursor: "pointer",
-                                  position: "relative",
+                                  height: 1,
+                                  flex: 1,
+                                  background:
+                                    "linear-gradient(to left, rgba(245,158,11,0.5), transparent)",
                                 }}
-                                onClick={() => {
-                                  // Resume Draft
-                                  setIsPlanning(true);
-                                  setPlannerStep(step);
-                                  setPlannerData(draft.data);
-                                  if (draft.selectedIds)
-                                    setSelectedPlaceIds(draft.selectedIds);
-                                  if (draft.attractions)
-                                    setDynamicAttractions(draft.attractions);
-                                }}
-                              >
-                                <div
+                              />
+                            </div>
+                            {uniqueDrafts.map((draft) => {
+                              const dest =
+                                draft.data.destination || "여행지 미정";
+                              const step = draft.step || 0;
+                              return (
+                                <motion.div
+                                  key={draft._key}
+                                  whileTap={{ scale: 0.98 }}
+                                  className="glass-card"
                                   style={{
-                                    width: 50,
-                                    height: 50,
-                                    borderRadius: "12px",
-                                    background: "rgba(245,158,11,0.2)",
-                                    border: "1px solid rgba(245,158,11,0.5)",
                                     display: "flex",
                                     alignItems: "center",
-                                    justifyContent: "center",
-                                    color: "#f59e0b",
+                                    gap: 16,
+                                    padding: "16px",
+                                    background: "rgba(245,158,11,0.1)",
+                                    border: "1px solid rgba(245,158,11,0.3)",
+                                    cursor: "pointer",
+                                    position: "relative",
+                                  }}
+                                  onClick={() => {
+                                    // Resume Draft
+                                    setIsPlanning(true);
+                                    setPlannerStep(step);
+                                    setPlannerData(draft.data);
+                                    if (draft.selectedIds)
+                                      setSelectedPlaceIds(draft.selectedIds);
+                                    if (draft.attractions)
+                                      setDynamicAttractions(draft.attractions);
                                   }}
                                 >
-                                  <Edit3 size={24} />
-                                </div>
-                                <div style={{ flex: 1, textAlign: "left" }}>
                                   <div
                                     style={{
-                                      fontWeight: 800,
-                                      fontSize: "16px",
-                                      color: "white",
+                                      width: 50,
+                                      height: 50,
+                                      borderRadius: "12px",
+                                      background: "rgba(245,158,11,0.2)",
+                                      border: "1px solid rgba(245,158,11,0.5)",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      color: "#f59e0b",
                                     }}
                                   >
-                                    {dest}{" "}
-                                    <span
+                                    <Edit3 size={24} />
+                                  </div>
+                                  <div style={{ flex: 1, textAlign: "left" }}>
+                                    <div
                                       style={{
-                                        fontSize: 12,
-                                        fontWeight: 400,
-                                        opacity: 0.7,
+                                        fontWeight: 800,
+                                        fontSize: "16px",
+                                        color: "white",
                                       }}
                                     >
-                                      작성 중...
-                                    </span>
+                                      {draft.data.title || `${dest} 여행`}{" "}
+                                      <span
+                                        style={{
+                                          fontSize: 12,
+                                          fontWeight: 400,
+                                          opacity: 0.7,
+                                        }}
+                                      >
+                                        작성 중...
+                                      </span>
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: 13,
+                                        color: "var(--text-dim)",
+                                        marginTop: 2,
+                                      }}
+                                    >
+                                      Step {step + 1} 진행 중
+                                    </div>
                                   </div>
-                                  <div
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteConfirmModal({
+                                        isOpen: true,
+                                        title: "작성 중인 여행 삭제",
+                                        message:
+                                          "작성 중인 내용을 삭제하시겠습니까?",
+                                        onConfirm: () => {
+                                          localStorage.removeItem(draft._key);
+                                          showToast(
+                                            "작성 중인 내용이 삭제되었습니다.",
+                                          );
+                                          setDeleteConfirmModal({
+                                            isOpen: false,
+                                            title: "",
+                                            message: "",
+                                            onConfirm: () => { },
+                                          });
+                                        },
+                                      });
+                                    }}
                                     style={{
-                                      fontSize: 13,
-                                      color: "var(--text-dim)",
-                                      marginTop: 2,
+                                      padding: 8,
+                                      background: "rgba(0,0,0,0.3)",
+                                      borderRadius: "50%",
+                                      border: "none",
+                                      color: "#ef4444",
+                                      cursor: "pointer",
                                     }}
                                   >
-                                    Step {step + 1} 진행 중
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeleteConfirmModal({
-                                      isOpen: true,
-                                      title: "작성 중인 여행 삭제",
-                                      message:
-                                        "작성 중인 내용을 삭제하시겠습니까?",
-                                      onConfirm: () => {
-                                        localStorage.removeItem(
-                                          "trip_draft_v1",
-                                        );
-                                        showToast(
-                                          "작성 중인 내용이 삭제되었습니다.",
-                                        );
-
-                                        setDeleteConfirmModal({
-                                          isOpen: false,
-                                          title: "",
-                                          message: "",
-                                          onConfirm: () => { },
-                                        });
-                                      },
-                                    });
-                                  }}
-                                  style={{
-                                    padding: 8,
-                                    background: "rgba(0,0,0,0.3)",
-                                    borderRadius: "50%",
-                                    border: "none",
-                                    color: "#ef4444",
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  <X size={16} />
-                                </button>
-                              </motion.div>
-                            </div>
-                          );
-                        })()}
+                                    <X size={16} />
+                                  </button>
+                                </motion.div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                       {(() => {
                         const groups: Record<
                           string,
@@ -750,42 +875,31 @@ const App: React.FC = () => {
                                         tripItem.points.length > 0
                                       ) {
                                         try {
-                                          // Reconstruct with base defaults to ensure no missing fields
-                                          const loadedTrip: TripPlan = {
-                                            ...okinawaTrip,
+                                          // DO NOT merge with okinawaTrip for user-defined trips
+                                          // Create a clean base plan instead
+                                          const basePlan: TripPlan = {
                                             ...tripItem,
+                                            id: tripItem.id,
                                             metadata: {
-                                              ...okinawaTrip.metadata,
-                                              ...(tripItem.metadata || {}),
-                                              destination:
-                                                tripItem.destination ||
-                                                tripItem.metadata
-                                                  ?.destination ||
-                                                "Destination",
-                                              title:
-                                                tripItem.title ||
-                                                tripItem.metadata?.title ||
-                                                "Untitled Trip",
-                                              period:
-                                                tripItem.period ||
-                                                tripItem.metadata?.period ||
-                                                "Dates TBD",
+                                              destination: tripItem.destination || tripItem.metadata?.destination || "Destination",
+                                              title: tripItem.title || tripItem.metadata?.title || "Untitled Trip",
+                                              period: tripItem.period || tripItem.metadata?.period || "Dates TBD",
+                                              startDate: tripItem.startDate || tripItem.metadata?.startDate || "",
+                                              endDate: tripItem.endDate || tripItem.metadata?.endDate || "",
+                                              useRentalCar: tripItem.useRentalCar || tripItem.metadata?.useRentalCar || false,
+                                              primaryColor: tripItem.color || tripItem.metadata?.primaryColor || "#00d4ff"
                                             },
+                                            points: tripItem.points || [],
+                                            days: tripItem.days || [],
+                                            speechData: okinawaTrip.speechData,
+                                            defaultFiles: []
                                           };
-                                          console.log(
-                                            "Loading Trip:",
-                                            loadedTrip,
-                                          );
-                                          setTrip(loadedTrip);
+
+                                          setTrip(basePlan);
                                           setView("app");
                                         } catch (err) {
-                                          console.error(
-                                            "Failed to load trip:",
-                                            err,
-                                          );
-                                          alert(
-                                            "여행 데이터를 불러오는 중 오류가 발생했습니다.",
-                                          );
+                                          console.error("Failed to load trip:", err);
+                                          alert("여행 데이터를 불러오는 중 오류가 발생했습니다.");
                                         }
                                       }
                                     }}
@@ -901,10 +1015,6 @@ const App: React.FC = () => {
                                                 (t) => t.id !== tripItem.id,
                                               );
                                               setTrips(updated);
-                                              localStorage.setItem(
-                                                "trips_v1",
-                                                JSON.stringify(updated),
-                                              );
                                               showToast(
                                                 "여행 가이드가 삭제되었습니다.",
                                               );
@@ -957,6 +1067,7 @@ const App: React.FC = () => {
                 justifyContent: "center",
                 background:
                   "radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)",
+                overflowY: "auto"
               }}
             >
               <h2
@@ -1077,9 +1188,10 @@ const App: React.FC = () => {
                 display: "flex",
                 flexDirection: "column",
                 padding: "30px",
-                justifyContent: "center",
+                justifyContent: "flex-start",
                 background:
                   "radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)",
+                overflowY: "auto"
               }}
             >
               <h2
@@ -1407,6 +1519,7 @@ const App: React.FC = () => {
                     {plannerStep === 5 && <PlannerStep5 />}
                     {plannerStep === 6 && <PlannerStep6 />}
                     {plannerStep === 7 && <PlannerStep7 />}
+                    {plannerStep === 8 && <PlannerStep8 />}
                   </AnimatePresence>
                 </div>
               </div>
@@ -1542,9 +1655,47 @@ const App: React.FC = () => {
             onConfirm: () => { },
           })
         }
-        confirmText="삭제"
-        cancelText="취소"
+        confirmText={deleteConfirmModal.confirmText || "삭제"}
+        cancelText={deleteConfirmModal.cancelText || "취소"}
       />
+
+      {/* Full Screen Image Preview Overlay */}
+      {selectedFile && (
+        <div
+          className="fullscreen-overlay"
+          onClick={() => setSelectedFile(null)}
+          style={{ cursor: 'pointer' }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 20,
+              right: 20,
+              zIndex: 3001,
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '50%',
+              padding: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <X color="white" size={24} />
+          </div>
+          <motion.img
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            src={selectedFile.data || selectedFile.path}
+            alt={selectedFile.name}
+            className="fullscreen-img"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}
+          />
+        </div>
+      )}
 
       {/* Toast Notifications */}
       < Toast toasts={toasts} onClose={closeToast} />

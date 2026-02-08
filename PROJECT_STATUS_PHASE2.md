@@ -21,6 +21,8 @@
 ## Next Steps
 - **Map & Location Logic**: (Optional) Extract map-related logic in future if needed.
 - **Testing**: Ongoing user verification.
+- **Flight Logic Verification**: Verify 'Smart Chaining' logic with complex connecting flight ticket samples (Outbound vs Inbound classification).
+- **Verification**: 여행 새로 만들어서 상세보기 내용 확인하기 (Check detailed info content by creating a new trip).
 
 ## Known Issues
 - `window.google` type errors persist (standard for this project setup, safe to ignore if functionality works).

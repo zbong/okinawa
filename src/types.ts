@@ -43,7 +43,7 @@ export interface TripMetadata {
     endDate: string;
     useRentalCar: boolean;
     primaryColor?: string;
-    accommodations?: { id?: string, name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number } }[];
+    accommodations?: { id?: string, name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean }[];
 }
 
 export interface TripPlan {
@@ -53,6 +53,8 @@ export interface TripPlan {
     days?: { day: number; points: LocationPoint[] }[]; // Added for AI generated structure
     speechData: SpeechItem[];
     defaultFiles: TravelFile[];
+    customFiles?: any[];
+    recommendations?: any[];
 }
 
 export interface PlannerData {
@@ -83,7 +85,7 @@ export interface PlannerData {
     useRentalCar: boolean;
     companion: string;
     transport: 'rental' | 'public' | string;
-    accommodations: { id?: string, name: string, startDate: string, endDate: string, nights?: number, area?: string, coordinates?: { lat: number; lng: number } }[];
+    accommodations: { id?: string, name: string, startDate: string, endDate: string, nights?: number, area?: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean }[];
     theme: string;
     pace: 'relaxed' | 'normal' | 'tight' | string;
     // Coordinates for travel entry
@@ -91,4 +93,25 @@ export interface PlannerData {
     entryCoordinates?: { lat: number; lng: number };
     peopleCount?: number;
     companionCount?: number;
+
+    // Multi-leg flight support
+    outboundFlights?: FlightLeg[];
+    inboundFlights?: FlightLeg[];
+}
+
+export interface FlightLeg {
+    id: string;
+    airline: string;
+    flightNumber: string;
+    departureContext: {
+        airport: string;
+        date: string;
+        time: string;
+    };
+    arrivalContext: {
+        airport: string;
+        date: string;
+        time: string;
+    };
+    linkedFileId?: string; // OCR file ID
 }

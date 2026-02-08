@@ -1,14 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Phone, Edit3, Trash2, MapPin,
-    Star, MessageCircle, FileText
+    Star, MessageCircle, FileText, Sparkles
 } from "lucide-react";
 import { usePlanner } from "../contexts/PlannerContext";
 import { LocationPoint } from "../types";
 
 export const LocationBottomSheet: React.FC = () => {
     const {
+        theme,
         selectedPoint,
         setSelectedPoint,
         activeTab,
@@ -25,10 +26,19 @@ export const LocationBottomSheet: React.FC = () => {
         customFiles,
         handleFileUpload,
         deleteFile,
-        deletePoint
+        deletePoint,
+        showToast,
+        setActivePlannerDetail
     } = usePlanner();
 
     const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+    // Auto-close when switching tabs
+    useEffect(() => {
+        setSelectedPoint(null);
+    }, [activeTab, setSelectedPoint]);
+
+    const isLight = theme === 'light';
 
     // Bottom Sheet Height Logic
     const bottomSheetTop = activeTab === "summary" ? "380px" : "280px";
@@ -67,6 +77,7 @@ export const LocationBottomSheet: React.FC = () => {
                     borderTopLeftRadius: "24px",
                     borderTopRightRadius: "24px",
                     background: "var(--sheet-bg)",
+                    borderTop: "1px solid var(--glass-border)",
                     overflowY: "auto",
                     padding: "24px",
                 }}
@@ -84,7 +95,7 @@ export const LocationBottomSheet: React.FC = () => {
                         width: 32,
                         height: 32,
                         borderRadius: "50%",
-                        background: "rgba(255,255,255,0.1)",
+                        background: isLight ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.1)",
                         border: "none",
                         display: "flex",
                         alignItems: "center",
@@ -94,7 +105,7 @@ export const LocationBottomSheet: React.FC = () => {
                         transition: "background 0.2s",
                     }}
                 >
-                    <X size={18} color="white" />
+                    <X size={18} color="var(--text-primary)" />
                 </button>
 
                 {/* Handle with hint */}
@@ -102,9 +113,9 @@ export const LocationBottomSheet: React.FC = () => {
                     <div
                         className="handle"
                         onClick={() => setSelectedPoint(null)}
-                        style={{ cursor: "pointer" }}
+                        style={{ cursor: "pointer", background: "var(--text-dim)", opacity: 0.3 }}
                     />
-                    <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>
                         아래로 밀어서 닫기
                     </div>
                 </div>
@@ -120,6 +131,7 @@ export const LocationBottomSheet: React.FC = () => {
                             display: "flex",
                             alignItems: "center",
                             gap: 10,
+                            color: "var(--text-primary)"
                         }}
                     >
                         {selectedPoint.name}
@@ -165,9 +177,24 @@ export const LocationBottomSheet: React.FC = () => {
                             </span>
                         )}
                     </div>
+
+                    {/* Basic Info (Description) */}
+                    {selectedPoint.description && (
+                        <p style={{
+                            marginTop: 14,
+                            fontSize: "14px",
+                            lineHeight: 1.6,
+                            color: "var(--text-secondary)",
+                            padding: "12px",
+                            background: isLight ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.03)",
+                            borderRadius: "12px",
+                            border: "1px solid var(--glass-border)"
+                        }}>
+                            {selectedPoint.description}
+                        </p>
+                    )}
                 </div>
 
-                {/* Actions Grid */}
                 <div
                     style={{
                         display: "grid",
@@ -176,34 +203,137 @@ export const LocationBottomSheet: React.FC = () => {
                         marginBottom: "24px",
                     }}
                 >
+                    {/* 상세정보 button moved to front */}
                     <button
-                        className={`action-btn ${completedItems[selectedPoint.id] ? "active" : ""}`}
                         style={{
+                            flex: 1,
+                            padding: "16px 8px",
+                            borderRadius: "16px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            background: "var(--tab-inactive)",
+                            border: "1px solid var(--glass-border)",
+                            color: "var(--text-primary)",
+                            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)"
+                        }}
+                        onClick={() => setActivePlannerDetail(selectedPoint)}
+                    >
+                        <div style={{
+                            width: 32, height: 32, borderRadius: "50%",
+                            background: "rgba(0, 212, 255, 0.15)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: "var(--primary)"
+                        }}>
+                            <Sparkles size={16} />
+                        </div>
+                        상세정보
+                    </button>
+
+                    <button
+                        style={{
+                            flex: 1,
+                            padding: "16px 8px",
+                            borderRadius: "16px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
                             background: completedItems[selectedPoint.id]
-                                ? "rgba(16, 185, 129, 0.2)"
-                                : "var(--input-bg)",
+                                ? "rgba(16, 185, 129, 0.15)"
+                                : "var(--tab-inactive)",
                             border: completedItems[selectedPoint.id]
-                                ? "1px solid #10b981"
-                                : "1px solid var(--border-color)",
+                                ? "1px solid rgba(16, 185, 129, 0.3)"
+                                : "1px solid var(--glass-border)",
                             color: completedItems[selectedPoint.id]
                                 ? "#10b981"
                                 : "var(--text-primary)",
                         }}
                         onClick={(e) => toggleComplete(selectedPoint.id, e)}
                     >
-                        ✅ 방문 체크
+                        <div style={{
+                            width: 32, height: 32, borderRadius: "50%",
+                            background: completedItems[selectedPoint.id] ? "#10b981" : "var(--glass-border)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: completedItems[selectedPoint.id] ? (isLight ? "white" : "black") : "var(--text-secondary)",
+                            transition: "all 0.2s"
+                        }}>
+                            <Star size={16} fill={completedItems[selectedPoint.id] ? "currentColor" : "none"} />
+                        </div>
+                        방문체크
                     </button>
+
                     <button
-                        className="action-btn"
+                        style={{
+                            flex: 1,
+                            padding: "16px 8px",
+                            borderRadius: "16px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            background: "var(--tab-inactive)",
+                            border: "1px solid var(--glass-border)",
+                            color: "var(--text-primary)",
+                        }}
                         onClick={() => setIsEditingPoint(true)}
                     >
-                        <Edit3 size={16} /> 정보 수정
+                        <div style={{
+                            width: 32, height: 32, borderRadius: "50%",
+                            background: "rgba(59, 130, 246, 0.2)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: "#3b82f6"
+                        }}>
+                            <Edit3 size={16} />
+                        </div>
+                        정보수정
                     </button>
+
                     <button
-                        className="action-btn delete"
+                        style={{
+                            flex: 1,
+                            padding: "16px 8px",
+                            borderRadius: "16px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            background: "var(--tab-inactive)",
+                            border: "1px solid var(--glass-border)",
+                            color: "var(--text-primary)",
+                        }}
                         onClick={(e) => deletePoint(selectedPoint.id, e)}
                     >
-                        <Trash2 size={16} /> 장소 삭제
+                        <div style={{
+                            width: 32, height: 32, borderRadius: "50%",
+                            background: "rgba(239, 68, 68, 0.2)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: "#ef4444"
+                        }}>
+                            <Trash2 size={16} />
+                        </div>
+                        장소삭제
                     </button>
                 </div>
 
@@ -213,7 +343,7 @@ export const LocationBottomSheet: React.FC = () => {
                         className="glass-card"
                         style={{ padding: "20px", marginBottom: "20px" }}
                     >
-                        <h3 style={{ marginTop: 0, marginBottom: 15 }}>장소 정보 수정</h3>
+                        <h3 style={{ marginTop: 0, marginBottom: 15, color: "var(--text-primary)" }}>장소 정보 수정</h3>
                         <div style={{ marginBottom: 12 }}>
                             <label
                                 style={{
@@ -221,6 +351,7 @@ export const LocationBottomSheet: React.FC = () => {
                                     opacity: 0.6,
                                     marginBottom: "6px",
                                     display: "block",
+                                    color: "var(--text-secondary)"
                                 }}
                             >
                                 장소명
@@ -232,9 +363,9 @@ export const LocationBottomSheet: React.FC = () => {
                                     width: "100%",
                                     padding: "12px",
                                     borderRadius: "10px",
-                                    background: "rgba(255,255,255,0.05)",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    color: "white",
+                                    background: "var(--input-bg)",
+                                    border: "1px solid var(--glass-border)",
+                                    color: "var(--text-primary)",
                                 }}
                             />
                         </div>
@@ -245,6 +376,7 @@ export const LocationBottomSheet: React.FC = () => {
                                     opacity: 0.6,
                                     marginBottom: "6px",
                                     display: "block",
+                                    color: "var(--text-secondary)"
                                 }}
                             >
                                 전화번호
@@ -256,9 +388,9 @@ export const LocationBottomSheet: React.FC = () => {
                                     width: "100%",
                                     padding: "12px",
                                     borderRadius: "10px",
-                                    background: "rgba(255,255,255,0.05)",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    color: "white",
+                                    background: "var(--input-bg)",
+                                    border: "1px solid var(--glass-border)",
+                                    color: "var(--text-primary)",
                                 }}
                             />
                         </div>
@@ -269,6 +401,7 @@ export const LocationBottomSheet: React.FC = () => {
                                     opacity: 0.6,
                                     marginBottom: "6px",
                                     display: "block",
+                                    color: "var(--text-secondary)"
                                 }}
                             >
                                 맵코드
@@ -280,9 +413,9 @@ export const LocationBottomSheet: React.FC = () => {
                                     width: "100%",
                                     padding: "12px",
                                     borderRadius: "10px",
-                                    background: "rgba(255,255,255,0.05)",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    color: "white",
+                                    background: "var(--input-bg)",
+                                    border: "1px solid var(--glass-border)",
+                                    color: "var(--text-primary)",
                                 }}
                             />
                         </div>
@@ -299,9 +432,9 @@ export const LocationBottomSheet: React.FC = () => {
                                     flex: 1,
                                     padding: "12px",
                                     borderRadius: "10px",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    background: "transparent",
-                                    color: "white",
+                                    border: "1px solid var(--glass-border)",
+                                    background: "var(--tab-inactive)",
+                                    color: "var(--text-primary)",
                                     fontWeight: 600,
                                 }}
                             >
@@ -324,7 +457,7 @@ export const LocationBottomSheet: React.FC = () => {
                                     borderRadius: "10px",
                                     border: "none",
                                     background: "var(--primary)",
-                                    color: "black",
+                                    color: "var(--text-on-primary)",
                                     fontWeight: 800,
                                 }}
                             >
@@ -333,48 +466,67 @@ export const LocationBottomSheet: React.FC = () => {
                         </div>
                     </div>
                 ) : (
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
-                            gap: "12px",
-                            marginBottom: "24px",
-                        }}
-                    >
-                        <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${selectedPoint.coordinates.lat},${selectedPoint.coordinates.lng}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="primary-button"
+                    <>
+                        {/* Navigation Buttons */}
+                        <div
                             style={{
-                                background: "var(--primary)",
-                                color: "black",
-                                textDecoration: "none",
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-                                gap: 6,
+                                display: "grid",
+                                gridTemplateColumns: selectedPoint.mapcode ? "1fr 1fr" : "1fr",
+                                gap: "12px",
+                                marginBottom: "24px",
                             }}
                         >
-                            <MapPin size={16} /> 구글맵 열기
-                        </a>
-                        {selectedPoint.mapcode && (
-                            <button
-                                className="primary-button"
+                            <a
+                                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPoint.coordinates.lat},${selectedPoint.coordinates.lng}`}
+                                target="_blank"
+                                rel="noreferrer"
                                 style={{
-                                    background: "var(--surface)",
-                                    border: "1px solid var(--border-color)",
-                                }}
-                                onClick={() => {
-                                    navigator.clipboard.writeText(selectedPoint.mapcode!);
-                                    alert(`맵코드가 복사되었습니다: ${selectedPoint.mapcode}`);
+                                    background: "var(--primary)",
+                                    color: "var(--text-on-primary)",
+                                    textDecoration: "none",
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    alignItems: "center",
+                                    gap: 10,
+                                    padding: "16px",
+                                    borderRadius: "18px",
+                                    fontSize: "15px",
+                                    fontWeight: 800,
+                                    boxShadow: isLight ? "0 4px 12px rgba(14, 165, 233, 0.2)" : "0 10px 20px rgba(0, 212, 255, 0.15)",
+                                    transition: "transform 0.2s"
                                 }}
                             >
-                                🗺️ 맵코드 복사
-                            </button>
-                        )}
-                    </div>
+                                <MapPin size={18} /> 길찾기
+                            </a>
+                            {selectedPoint.mapcode && (
+                                <button
+                                    style={{
+                                        background: "var(--tab-inactive)",
+                                        border: "1px solid var(--glass-border)",
+                                        color: "var(--text-primary)",
+                                        cursor: "pointer",
+                                        padding: "16px",
+                                        borderRadius: "18px",
+                                        fontSize: "15px",
+                                        fontWeight: 700,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: 10,
+                                        transition: "all 0.2s"
+                                    }}
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(selectedPoint.mapcode!);
+                                        showToast(`${selectedPoint.name}의 맵코드가 복사되었습니다!`, "success");
+                                    }}
+                                >
+                                    <span style={{ fontSize: "18px" }}>🗺️</span> 맵코드 복사
+                                </button>
+                            )}
+                        </div>
+                    </>
                 )}
+
 
                 {/* Reviews Section */}
                 <div style={{ marginBottom: "20px" }}>
@@ -391,13 +543,14 @@ export const LocationBottomSheet: React.FC = () => {
                             style={{
                                 margin: 0,
                                 fontSize: "16px",
+                                color: "var(--text-primary)",
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 8,
                             }}
                         >
                             <Star size={18} fill="var(--primary)" color="var(--primary)" />
-                            나으 평가
+                            나의 평가
                         </h3>
                         <span
                             style={{
@@ -431,7 +584,7 @@ export const LocationBottomSheet: React.FC = () => {
                                     color={
                                         (userReviews[selectedPoint.id]?.rating || 0) >= star
                                             ? "#F59E0B"
-                                            : "#4B5563"
+                                            : "var(--text-dim)"
                                     }
                                     style={{ cursor: "pointer" }}
                                     onClick={() =>
@@ -445,7 +598,7 @@ export const LocationBottomSheet: React.FC = () => {
                             ))}
                         </div>
                         <textarea
-                            placeholder="이 장소에 대한 나만의 평를 남겨보세요..."
+                            placeholder="이 장소에 대한 나만의 평가를 남겨보세요..."
                             value={userReviews[selectedPoint.id]?.text || ""}
                             onChange={(e) =>
                                 updateReview(
@@ -456,8 +609,8 @@ export const LocationBottomSheet: React.FC = () => {
                             }
                             style={{
                                 width: "100%",
-                                background: "rgba(0,0,0,0.2)",
-                                border: "1px solid rgba(255,255,255,0.1)",
+                                background: isLight ? "rgba(0,0,0,0.02)" : "rgba(0,0,0,0.2)",
+                                border: "1px solid var(--glass-border)",
                                 borderRadius: "8px",
                                 padding: "12px",
                                 color: "var(--text-primary)",
@@ -481,7 +634,7 @@ export const LocationBottomSheet: React.FC = () => {
                         }}
                     >
                         <MessageCircle size={18} color="var(--primary)" />
-                        <h3 style={{ margin: 0, fontSize: "16px" }}>개인적인 메모</h3>
+                        <h3 style={{ margin: 0, fontSize: "16px", color: "var(--text-primary)" }}>개인적인 메모</h3>
                     </div>
 
                     <motion.div
@@ -540,7 +693,7 @@ export const LocationBottomSheet: React.FC = () => {
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <FileText size={18} color="var(--primary)" />
-                            <h3 style={{ margin: 0, fontSize: "16px" }}>관련 서류</h3>
+                            <h3 style={{ margin: 0, fontSize: "16px", color: "var(--text-primary)" }}>관련 서류</h3>
                         </div>
                         <label style={{
                             fontSize: "12px",
@@ -572,14 +725,14 @@ export const LocationBottomSheet: React.FC = () => {
                                 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                         <FileText size={16} color="var(--text-secondary)" />
-                                        <span style={{ fontSize: "14px" }}>{file.name}</span>
+                                        <span style={{ fontSize: "14px", color: "var(--text-primary)" }}>{file.name}</span>
                                     </div>
                                     <button
                                         onClick={(e) => deleteFile(file.id, e)}
                                         style={{
                                             background: "transparent",
                                             border: "none",
-                                            color: "#ef4444",
+                                            color: "var(--secondary)",
                                             cursor: "pointer"
                                         }}
                                     >
@@ -593,7 +746,7 @@ export const LocationBottomSheet: React.FC = () => {
                                 padding: "20px",
                                 color: "var(--text-secondary)",
                                 fontSize: "13px",
-                                background: "rgba(255,255,255,0.02)",
+                                background: isLight ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)",
                                 borderRadius: "12px"
                             }}>
                                 등록된 파일이 없습니다.

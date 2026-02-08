@@ -24,13 +24,15 @@ export const PlannerStep1: React.FC = () => {
         setCalendarDate
     } = usePlanner();
 
-    // Auto-switch calendar to start date if exists
+    // Auto-switch calendar to start date if exists, otherwise show today
     React.useEffect(() => {
         if (plannerData.startDate) {
             const date = new Date(plannerData.startDate);
             if (!isNaN(date.getTime())) {
                 setCalendarDate(date);
             }
+        } else {
+            setCalendarDate(new Date());
         }
     }, []);
 

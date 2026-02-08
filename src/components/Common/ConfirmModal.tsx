@@ -41,14 +41,13 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                         }}
                     />
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        initial={{ opacity: 0, scale: 0.9, x: "-50%", y: "-45%" }}
+                        animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
+                        exit={{ opacity: 0, scale: 0.9, x: "-50%", y: "-45%" }}
                         style={{
                             position: 'fixed',
                             top: '50%',
                             left: '50%',
-                            transform: 'translate(-50%, -50%)',
                             background: '#1e293b',
                             borderRadius: '20px',
                             padding: '30px',

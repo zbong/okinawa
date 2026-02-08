@@ -14,10 +14,91 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   const {
     activeTab,
     trip,
-    customFiles
+    customFiles,
+    setSelectedFile
   } = usePlanner();
 
   if (activeTab !== "files") return null;
+
+  const renderFileCard = (f: any, isDefault: boolean = false) => {
+    const isImage = isDefault || f.type === 'image';
+    const rawData = isDefault ? f.path : f.data;
+
+    // For custom files, check if prefix is missing
+    const displaySrc = (!isDefault && isImage && rawData && !rawData.startsWith('data:'))
+      ? `data:image/jpeg;base64,${rawData}`
+      : rawData;
+
+    return (
+      <div
+        key={isDefault ? f.name : f.id}
+        className="file-card"
+        onClick={() => isImage && setSelectedFile({ ...f, data: displaySrc })}
+        style={{ cursor: isImage ? 'pointer' : 'default' }}
+      >
+        {isImage ? (
+          <img src={displaySrc} alt={f.name} className="file-img" />
+        ) : (
+          <div className="file-img" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
+            <FileText size={48} color="var(--primary)" />
+          </div>
+        )}
+        <div
+          className="file-info"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              maxWidth: isDefault ? "100%" : "80%",
+            }}
+          >
+            {f.name}
+          </span>
+          {!isDefault && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteFile(f.id, e);
+              }}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "white",
+                padding: 0,
+                cursor: "pointer",
+              }}
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+        {!isDefault && f.linkedTo && (
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              background: "var(--primary)",
+              padding: "2px 6px",
+              borderRadius: 4,
+              fontSize: 10,
+              color: "black",
+              fontWeight: "bold",
+            }}
+          >
+            연결됨
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="file-grid" style={{ paddingBottom: 80 }}>
@@ -60,73 +141,10 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       </div>
 
       {/* Custom Files */}
-      {customFiles.map((f) => (
-        <div key={f.id} className="file-card">
-          {f.type === 'image' ? (
-            <img src={f.data} alt={f.name} className="file-img" />
-          ) : (
-            <div className="file-img" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
-              <FileText size={48} color="var(--primary)" />
-            </div>
-          )}
-          <div
-            className="file-info"
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                maxWidth: "80%",
-              }}
-            >
-              {f.name}
-            </span>
-            <button
-              onClick={(e) => deleteFile(f.id, e)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "white",
-                padding: 0,
-                cursor: "pointer",
-              }}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-          {f.linkedTo && (
-            <div
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                background: "var(--primary)",
-                padding: "2px 6px",
-                borderRadius: 4,
-                fontSize: 10,
-                color: "black",
-                fontWeight: "bold",
-              }}
-            >
-              연결됨
-            </div>
-          )}
-        </div>
-      ))}
+      {customFiles.map((f) => renderFileCard(f, false))}
 
       {/* Default Files */}
-      {trip.defaultFiles.map((f) => (
-        <div key={f.name} className="file-card">
-          <img src={f.path} alt={f.name} className="file-img" />
-          <div className="file-info">{f.name}</div>
-        </div>
-      ))}
+      {trip.defaultFiles.map((f) => renderFileCard(f, true))}
     </div>
   );
 };

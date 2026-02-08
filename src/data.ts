@@ -2,6 +2,22 @@ import { LocationPoint, TravelFile, SpeechItem, TripPlan } from './types';
 
 const okinawaPoints: LocationPoint[] = [
   {
+    id: 'home',
+    name: '우리집 (출발)',
+    category: 'logistics',
+    day: 1,
+    coordinates: { lat: 37.5665, lng: 126.9780 },
+    tips: ['09:00 출발 예정', '여권, 환전 내역 확인', '돼지코(변압기) 챙기기']
+  },
+  {
+    id: 'incheon',
+    name: '인천국제공항 T1',
+    category: 'logistics',
+    day: 1,
+    coordinates: { lat: 37.4602, lng: 126.4407 },
+    tips: ['12:30 공항 도착', '포켓 와이파이 / 로밍 수령', '체크인 및 수하물 위탁 (제주항공 7C1104)']
+  },
+  {
     id: 'airport',
     name: '나하 공항',
     category: 'logistics',

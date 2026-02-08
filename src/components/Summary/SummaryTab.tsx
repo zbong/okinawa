@@ -1,592 +1,198 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import {
-  Calendar, Phone, Hotel, Sparkles, Trash2, Loader2, CloudSun, Wind, Droplets
+  Calendar, MapPin, Hotel, Sparkles, Plane, Clock, Info, ChevronRight
 } from 'lucide-react';
-import MapComponent from '../MapComponent';
 import { usePlanner } from '../../contexts/PlannerContext';
 
 export const SummaryTab: React.FC = () => {
   const {
     activeTab,
     theme,
-    overviewMode,
-    setOverviewMode,
     trip,
-    selectedPoint,
-    setSelectedPoint,
-    setSelectedWeatherLocation,
-    weatherIndex,
-    setWeatherIndex,
-    getFormattedDate,
-    getWeatherForDay,
-    isLoadingWeather,
-    weatherError,
-    calculateProgress,
-    setIsPlanning,
-    setPlannerStep,
-    addAccommodation,
-    deleteAccommodation,
-    fetchAttractionsWithAI,
-    fetchHotelsWithAI,
-    validateAndAddPlace,
-    validateHotel,
-    generatePlanWithAI
+    calculateProgress
   } = usePlanner();
 
   if (activeTab !== "summary") return null;
 
+  const isLight = theme === 'light';
+  const displayPoints = trip?.points || [];
+
   return (
-    <div className="overview-content">
-      {/* Toggle Switch */}
-      <div
-        style={{
-          display: "flex",
-          background:
-            theme === "dark"
-              ? "rgba(255,255,255,0.1)"
-              : "rgba(0,0,0,0.08)",
-          padding: 4,
-          borderRadius: 24,
-          marginBottom: 20,
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={() => setOverviewMode("map")}
-          style={{
-            flex: 1,
-            padding: "8px",
-            borderRadius: 20,
-            border: "none",
-            background:
-              overviewMode === "map"
-                ? "var(--primary)"
-                : "transparent",
-            color:
-              overviewMode === "map"
-                ? "var(--text-on-primary)"
-                : "var(--text-secondary)",
-            fontWeight: "bold",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          지도로 보기
-        </button>
-        <button
-          onClick={() => setOverviewMode("text")}
-          style={{
-            flex: 1,
-            padding: "8px",
-            borderRadius: 20,
-            border: "none",
-            background:
-              overviewMode === "text"
-                ? "var(--primary)"
-                : "transparent",
-            color:
-              overviewMode === "text"
-                ? "var(--text-on-primary)"
-                : "var(--text-secondary)",
-            fontWeight: "bold",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          내용 보기
-        </button>
+    <div className="overview-content" style={{ padding: '20px', paddingBottom: '60px' }}>
+      {/* Trip Header Card */}
+      <div className="glass-card" style={{
+        padding: '24px',
+        marginBottom: '28px',
+        border: isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid var(--primary)',
+        background: isLight
+          ? 'linear-gradient(135deg, #ffffff 0%, #f0f2f5 100%)'
+          : 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 0, 0, 0.4) 100%)',
+        borderRadius: '20px',
+        boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.05)' : '0 10px 30px rgba(0,0,0,0.3)'
+      }}>
+        <div style={{
+          fontSize: '12px',
+          color: 'var(--primary)',
+          fontWeight: 800,
+          marginBottom: '8px',
+          letterSpacing: '1.5px',
+          textTransform: 'uppercase'
+        }}>Trip Intelligence Summary</div>
+        <h3 style={{
+          fontSize: '28px',
+          fontWeight: 900,
+          marginBottom: '16px',
+          color: 'var(--text-primary)',
+          lineHeight: 1.2
+        }}>{trip?.metadata?.title || '나의 여행 가이드'}</h3>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', opacity: 0.9, marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+            <Calendar size={16} color="var(--primary)" />
+            <span>{trip?.metadata?.period || '기간 미설정'}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+            <MapPin size={16} color="var(--primary)" />
+            <span>{trip?.metadata?.destination || '목적지 미설정'}</span>
+          </div>
+        </div>
+
+        {/* Progress Section */}
+        <div style={{
+          background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
+          padding: '16px',
+          borderRadius: '14px',
+          border: isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.05)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>체크리스트 달성률</span>
+            <span style={{ fontSize: '15px', fontWeight: 900, color: 'var(--primary)' }}>{calculateProgress()}%</span>
+          </div>
+          <div style={{ width: "100%", height: 8, background: isLight ? 'rgba(0,0,0,0.05)' : "rgba(255,255,255,0.05)", borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{
+              width: `${calculateProgress()}%`,
+              height: "100%",
+              background: "linear-gradient(90deg, var(--primary) 0%, #00f2fe 100%)",
+              borderRadius: 4,
+              transition: "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)"
+            }} />
+          </div>
+        </div>
       </div>
 
-      {overviewMode === "map" ? (
-        <div
-          style={{
-            flex: 1,
-            width: "100%",
-            borderRadius: "16px",
-            overflow: "hidden",
-            minHeight: "300px",
-          }}
-        >
-          <MapComponent
-            points={trip.points}
-            selectedPoint={selectedPoint}
-            onPointClick={(p) => {
-              setSelectedPoint(p);
-              setSelectedWeatherLocation(p);
-            }}
-          />
-        </div>
-      ) : (
-        <>
-          <section style={{ marginBottom: 24 }}>
-            <div
-              style={{
-                position: "relative",
-                width: "100%",
-                height: "210px",
-              }}
-            >
-              <motion.div
-                key={weatherIndex}
-                className="glass-card"
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.2}
-                whileTap={{ cursor: "grabbing" }}
-                whileDrag={{ scale: 0.98, cursor: "grabbing" }}
-                onDragEnd={(_, info) => {
-                  const threshold = 40;
-                  if (info.offset.x > threshold) {
-                    setWeatherIndex((prev) => (prev - 1 + 3) % 3);
-                  } else if (info.offset.x < -threshold) {
-                    setWeatherIndex((prev) => (prev + 1) % 3);
-                  }
-                }}
-                animate={{ x: 0, scale: 1 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 300,
-                  damping: 30,
-                }}
-                style={{
-                  background:
-                    weatherIndex === 0
-                      ? "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-                      : weatherIndex === 1
-                        ? "linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%)"
-                        : "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
-                  border: "none",
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: "100%",
-                  padding: "20px",
-                  cursor: "grab",
-                  touchAction: "pan-y",
-                }}
-              >
-                {isLoadingWeather ? (
-                  <div
-                    style={{
-                      position: "relative",
-                      zIndex: 2,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      height: "100%",
-                      color: "white",
-                    }}
-                  >
-                    <Loader2
-                      size={48}
-                      className="spin"
-                      style={{ marginBottom: 12 }}
-                    />
-                    <div style={{ fontSize: 14, opacity: 0.9 }}>
-                      날씨 정보 불러오는 중...
-                    </div>
-                  </div>
-                ) : weatherError ? (
-                  <div
-                    style={{
-                      position: "relative",
-                      zIndex: 2,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      height: "100%",
-                      color: "white",
-                    }}
-                  >
-                    <CloudSun
-                      size={48}
-                      style={{ marginBottom: 12, opacity: 0.5 }}
-                    />
-                    <div style={{ fontSize: 14, opacity: 0.9 }}>
-                      {weatherError}
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div
-                      style={{
-                        position: "relative",
-                        zIndex: 2,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        color: "white",
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 500,
-                            opacity: 0.7,
-                            marginBottom: 2,
-                          }}
-                        >
-                          {getFormattedDate(weatherIndex)}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 600,
-                            opacity: 0.9,
-                            marginBottom: 4,
-                          }}
-                        >
-                          {getWeatherForDay(weatherIndex).location}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 42,
-                            fontWeight: 800,
-                          }}
-                        >
-                          {getWeatherForDay(weatherIndex).temp}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 600,
-                            opacity: 0.9,
-                          }}
-                        >
-                          {getWeatherForDay(weatherIndex).condition}
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          textAlign: "right",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            marginBottom: 8,
-                            justifyContent: "flex-end",
-                          }}
-                        >
-                          <Wind size={16} opacity={0.8} />
-                          <span style={{ fontSize: 13 }}>
-                            {getWeatherForDay(weatherIndex).wind}
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            justifyContent: "flex-end",
-                          }}
-                        >
-                          <Droplets size={16} opacity={0.8} />
-                          <span style={{ fontSize: 13 }}>
-                            {getWeatherForDay(weatherIndex).humidity}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+      <div style={{ marginBottom: '20px' }}>
+        <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+          <Sparkles size={20} color="var(--primary)" /> 전체 일정 프리뷰
+        </h3>
 
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: 20,
-                        left: 0,
-                        right: 0,
-                        display: "flex",
-                        justifyContent: "center",
-                        gap: 12,
-                        zIndex: 2,
-                      }}
-                    >
-                      {[0, 1, 2].map((i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            background:
-                              weatherIndex === i
-                                ? "white"
-                                : "rgba(255,255,255,0.3)",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </motion.div>
-            </div>
-          </section>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {displayPoints.length > 0 ? (
+            displayPoints.map((item: any, i: number) => {
+              const category = item.category || item.type || 'sightseeing';
+              const isStay = category === 'stay';
+              const isLogistics = category === 'logistics';
+              const isFood = category === 'food';
 
-          <section style={{ marginBottom: 24 }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 18,
-                  fontWeight: 800,
-                  color: "var(--text-primary)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <Sparkles size={18} color="var(--primary)" /> 여행
-                요약
-              </h3>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "var(--primary)",
-                  fontWeight: "bold",
-                  background: "rgba(0, 212, 255, 0.1)",
-                  padding: "4px 12px",
-                  borderRadius: 12,
-                }}
-              >
-                진행률 {calculateProgress()}%
-              </div>
-            </div>
-            <div className="glass-card">
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 16,
-                }}
-              >
+              let accentColor = "var(--primary)";
+              let icon = <MapPin size={20} />;
+              let shadow = isLight ? "rgba(0, 0, 0, 0.05)" : "rgba(0, 212, 255, 0.1)";
+
+              if (isStay) {
+                accentColor = "#818cf8";
+                icon = <Hotel size={20} />;
+                shadow = isLight ? "rgba(0, 0, 0, 0.05)" : "rgba(129, 140, 248, 0.1)";
+              } else if (isLogistics) {
+                accentColor = "#10b981";
+                icon = <Plane size={20} />;
+                shadow = isLight ? "rgba(0, 0, 0, 0.05)" : "rgba(16, 185, 129, 0.1)";
+              } else if (isFood) {
+                accentColor = "#fbbf24";
+                icon = <Info size={20} />;
+                shadow = isLight ? "rgba(0, 0, 0, 0.05)" : "rgba(251, 191, 36, 0.1)";
+              }
+
+              return (
                 <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <Calendar size={20} color="var(--primary)" />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      여행 기간
-                    </div>
-                    <div
-                      style={{ fontWeight: 600, fontSize: 14 }}
-                    >
-                      {trip.metadata.period} (
-                      {trip.metadata.startDate} ~{" "}
-                      {trip.metadata.endDate})
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <Phone size={20} color="var(--primary)" />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      비상 연락처
-                    </div>
-                    <div
-                      style={{ fontWeight: 600, fontSize: 14 }}
-                    >
-                      현지 렌터카: 098-XXX-XXXX
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    width: "100%",
-                    height: 8,
-                    background: "rgba(255,255,255,0.05)",
-                    borderRadius: 4,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${calculateProgress()}%`,
-                      height: "100%",
-                      background:
-                        "linear-gradient(90deg, var(--primary) 0%, #00f2fe 100%)",
-                      borderRadius: 4,
-                      transition: "width 0.5s ease-out",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section style={{ marginBottom: 24 }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 18,
-                  fontWeight: 800,
-                  color: "var(--text-primary)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <Hotel size={18} color="var(--primary)" /> 숙소
-                정보
-              </h3>
-              <button
-                onClick={addAccommodation}
-                style={{
-                  padding: "4px 12px",
-                  borderRadius: 12,
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  color: "white",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
-              >
-                + 추가
-              </button>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-              }}
-            >
-              {trip.metadata.accommodations &&
-                trip.metadata.accommodations.length > 0 ? (
-                trip.metadata.accommodations.map((acc, idx) => (
-                  <div
-                    key={idx}
-                    className="glass-card"
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 15,
-                          marginBottom: 4,
-                        }}
-                      >
-                        {acc.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        📅 {acc.startDate} ~ {acc.endDate}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => deleteAccommodation(idx)}
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "rgba(255,255,255,0.2)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div
+                  key={i}
                   className="glass-card"
                   style={{
-                    textAlign: "center",
-                    padding: "30px 20px",
-                    opacity: 0.6,
-                    border: "2px dashed var(--glass-border)",
+                    padding: "18px 20px",
+                    display: "flex",
+                    gap: "18px",
+                    alignItems: "center",
+                    borderLeft: `4px solid ${accentColor}`,
+                    background: isLight ? '#ffffff' : 'rgba(255,255,255,0.02)',
+                    boxShadow: `0 4px 15px ${shadow}`,
+                    borderTop: isLight ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                    borderRight: isLight ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                    borderBottom: isLight ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                    borderRadius: '12px'
                   }}
                 >
-                  <Hotel
-                    size={32}
-                    style={{ marginBottom: 10, opacity: 0.3 }}
-                  />
-                  <div style={{ fontSize: 14 }}>
-                    등록된 숙소 정보가 없습니다.
+                  <div style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "12px",
+                    background: accentColor,
+                    color: "white",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    boxShadow: `0 4px 10px ${shadow}`
+                  }}>
+                    {icon}
                   </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                      <div style={{ fontWeight: 800, fontSize: "17px", color: 'var(--text-primary)' }}>{item.name}</div>
+                      <div style={{
+                        fontSize: '10px',
+                        fontWeight: 900,
+                        background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        color: 'var(--text-dim)',
+                        border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)'
+                      }}>
+                        DAY {item.day}
+                      </div>
+                      {item.time && (
+                        <div style={{ fontSize: '12px', color: accentColor, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={12} /> {item.time}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{
+                      fontSize: "13px",
+                      color: 'var(--text-secondary)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      lineHeight: 1.4
+                    }}>
+                      {item.desc || item.description || (item.tips && item.tips[0]) || '일정 설명이 없습니다.'}
+                    </div>
+                  </div>
+                  <ChevronRight size={16} color="var(--text-dim)" opacity={0.5} />
                 </div>
-              )}
+              );
+            })
+          ) : (
+            <div className="glass-card" style={{
+              textAlign: 'center',
+              padding: '60px 20px',
+              opacity: 0.5,
+              border: isLight ? '2px dashed rgba(0,0,0,0.1)' : '2px dashed rgba(255,255,255,0.1)',
+              background: 'transparent'
+            }}>
+              일정 데이터가 없습니다. 플래너를 통해 여행을 계획해보세요.
             </div>
-          </section>
-
-          <div
-            className="glass-card primary"
-            onClick={() => {
-              setIsPlanning(true);
-              setPlannerStep(0);
-            }}
-            style={{
-              cursor: "pointer",
-              padding: "20px",
-              textAlign: "center",
-              background: "rgba(0, 212, 255, 0.1)",
-              border: "1px solid rgba(0, 212, 255, 0.3)",
-              marginBottom: 40,
-            }}
-          >
-            <h4 style={{ margin: 0, color: "var(--primary)" }}>
-              새로운 여행 계획하기 ✨
-            </h4>
-            <p
-              style={{
-                fontSize: 12,
-                margin: "4px 0 0",
-                opacity: 0.8,
-              }}
-            >
-              AI와 함께 나만의 완벽한 오키나와 여행을 만들어보세요.
-            </p>
-          </div>
-        </>
-      )}
+          )}
+        </div>
+      </div>
     </div>
   );
 };
