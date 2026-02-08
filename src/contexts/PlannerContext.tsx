@@ -219,11 +219,11 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [hotelStrategy, setHotelStrategy] = useState<string>("");
     const [toasts, setToasts] = useState<any[]>([]);
     const showToast = React.useCallback((message: string, type: "success" | "error" | "info" = "info") => {
-        const id = Date.now().toString();
+        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
         setToasts((prev) => [...prev, { id, message, type }]);
         setTimeout(() => {
             setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, 1500); // Increased duration slightly for better readability
+        }, 1500);
     }, []);
 
     const closeToast = React.useCallback((id: string) => {
@@ -568,7 +568,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     endDate: plannerData.endDate,
                     useRentalCar: plannerData.useRentalCar,
                 },
-                id: `trip-${Date.now()}`,
+                id: `trip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
                 speechData: [],
                 defaultFiles: [],
                 points: mappedPoints,
@@ -714,7 +714,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${trip.metadata?.title || "okinawa_trip"}_export.json`;
+        a.download = `${trip?.metadata?.title || "okinawa_trip"}_export.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

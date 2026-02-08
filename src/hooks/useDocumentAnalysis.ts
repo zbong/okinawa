@@ -161,7 +161,7 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
                         const finalArrTime = normalizeTime(rawArrTime) || (cleanedTimes.length > 1 ? cleanedTimes[1] : "");
 
                         const leg: FlightLeg = {
-                            id: `leg-${Date.now()}-primary`,
+                            id: `leg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
                             airline: flightObj.airline || parsed.airline || "미확인 항공사",
                             flightNumber: flightObj.flightNumber || parsed.flightNumber || "",
                             departureContext: {
@@ -212,11 +212,11 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
 
                         if (isOutbound) {
                             if (!newOutbound.some(l => l.flightNumber === leg.flightNumber)) {
-                                newOutbound.push({ ...leg, id: `leg-${Date.now()}-out-auto` });
+                                newOutbound.push({ ...leg, id: `leg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}-out` });
                             }
                         } else {
                             if (!newInbound.some(l => l.flightNumber === leg.flightNumber)) {
-                                newInbound.push({ ...leg, id: `leg-${Date.now()}-in-auto` });
+                                newInbound.push({ ...leg, id: `leg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}-in` });
                             }
                         }
 
@@ -226,7 +226,7 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
                     // 2. Explicit Return Leg Processing (For tickets showing both ways)
                     if (parsed.flight?.returnDepartureTime || parsed.flight?.returnFlightNumber) {
                         const leg: FlightLeg = {
-                            id: `leg-${Date.now()}-in-explicit`,
+                            id: `leg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}-return`,
                             airline: parsed.flight.returnAirline || parsed.flight.airline || "미확인 항공사",
                             flightNumber: parsed.flight.returnFlightNumber || "",
                             departureContext: {
