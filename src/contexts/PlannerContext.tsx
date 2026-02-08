@@ -837,9 +837,12 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         showToast("공유 링크를 생성 중입니다...", "info");
 
         const shareData = {
-            metadata: metadata,
+            metadata: {
+                ...metadata,
+                isShared: true // Flag to prioritize these points over local storage
+            },
             points: tripData.points || allPoints.filter((p: any) => p.day > 0),
-            customFiles: tripData.customFiles || [] // Now we can include files because it's DB!
+            customFiles: tripData.customFiles || []
         };
 
         try {

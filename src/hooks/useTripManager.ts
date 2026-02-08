@@ -59,6 +59,14 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
     // Effects to sync "trip" -> "allPoints"
     useEffect(() => {
         if (trip && trip.metadata?.destination) {
+            // Priority 1: If it's a shared trip, use its points directly
+            if (trip.metadata.isShared) {
+                console.log("📍 Shared trip detected. Using points from data.");
+                setAllPoints(trip.points || []);
+                return;
+            }
+
+            // Priority 2: Use local storage for local trips
             const saved = localStorage.getItem(`points_order_${trip.metadata.destination}`);
             if (saved) {
                 try {

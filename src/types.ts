@@ -44,6 +44,7 @@ export interface TripMetadata {
     useRentalCar: boolean;
     primaryColor?: string;
     accommodations?: { id?: string, name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean }[];
+    isShared?: boolean;
 }
 
 export interface TripPlan {
