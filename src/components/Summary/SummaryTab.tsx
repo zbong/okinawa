@@ -80,6 +80,25 @@ export const SummaryTab: React.FC = () => {
             }} />
           </div>
         </div>
+
+        {/* Offline usage Tip Card */}
+        <div style={{
+          marginTop: '20px',
+          padding: '14px',
+          background: isLight ? 'rgba(14, 165, 233, 0.05)' : 'rgba(0, 212, 255, 0.05)',
+          borderRadius: '12px',
+          border: '1px dashed var(--primary)',
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'flex-start'
+        }}>
+          <Info size={18} color="var(--primary)" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div style={{ fontSize: '12px', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+            <strong style={{ display: 'block', marginBottom: 4, color: 'var(--primary)' }}>💡 오프라인 활용 팁</strong>
+            현지에서 인터넷이 안 될 때를 대비해, 폰의 <b>'홈 화면에 추가'</b> 기능을 꼭 사용하세요.
+            또한, 지도를 한 번씩 훑어두시면 오프라인에서도 지도를 보실 수 있습니다.
+          </div>
+        </div>
       </div>
 
       <div style={{ marginBottom: '20px' }}>
