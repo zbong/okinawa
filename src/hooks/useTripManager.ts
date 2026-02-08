@@ -13,12 +13,14 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
         const saved = localStorage.getItem("user_trips_v2");
         if (saved) {
             try {
-                return JSON.parse(saved);
+                const parsed = JSON.parse(saved);
+                // Filter out the old hardcoded test trip if it somehow persisted
+                return Array.isArray(parsed) ? parsed.filter(t => t.id !== "okinawa") : [];
             } catch (e) {
                 console.error("Failed to parse trips:", e);
             }
         }
-        return []; // No default test trip
+        return [];
     });
 
     const [trip, setTrip] = useState<TripPlan | null>(null);
