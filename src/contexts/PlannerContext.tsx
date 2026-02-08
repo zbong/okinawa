@@ -28,8 +28,8 @@ interface PlannerContextType {
     // Trip Data
     trips: TripPlan[];
     setTrips: React.Dispatch<React.SetStateAction<TripPlan[]>>;
-    trip: TripPlan;
-    setTrip: React.Dispatch<React.SetStateAction<TripPlan>>;
+    trip: TripPlan | null;
+    setTrip: React.Dispatch<React.SetStateAction<TripPlan | null>>;
     allPoints: LocationPoint[];
     setAllPoints: React.Dispatch<React.SetStateAction<LocationPoint[]>>;
     completedItems: Record<string, boolean>;
@@ -809,37 +809,19 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
-    const shareToKakao = async (targetTrip?: any) => {
-        const kakao = (window as any).Kakao;
-        const KAKAO_KEY = import.meta.env.VITE_KAKAO_API_KEY || "976a30104e3434c15beb775ff1a8d7c3";
-
-        if (!kakao) {
-            showToast("카카오 설정을 불러올 수 없습니다.", "error");
-            return;
-        }
-
-        if (!kakao.isInitialized()) {
-            try {
-                kakao.init(KAKAO_KEY);
-            } catch (e) {
-                console.error("Kakao init failed:", e);
-            }
-        }
-
+    const copyShareLink = async (targetTrip?: any) => {
         const tripData = targetTrip || trip;
-        const metadata = tripData.metadata || tripData;
-        const title = metadata.title || "오키나와 가족 여행";
-        const description = metadata.startDate
-            ? `${metadata.startDate} ~ ${metadata.endDate || ""} 오키나와 여행 가이드`
-            : "오키나와 여행 가이드";
+        if (!tripData) return;
 
-        // Save to DB first to avoid URL length issues
+        const metadata = tripData.metadata || tripData;
+        const title = metadata.title || "여행 가이드";
+
         showToast("공유 링크를 생성 중입니다...", "info");
 
         const shareData = {
             metadata: {
                 ...metadata,
-                isShared: true // Flag to prioritize these points over local storage
+                isShared: true
             },
             points: tripData.points || allPoints.filter((p: any) => p.day > 0),
             customFiles: tripData.customFiles || []
@@ -848,65 +830,28 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         try {
             const { data, error } = await supabase
                 .from('shared_trips')
-                .insert([
-                    {
-                        trip_data: shareData,
-                        title: title,
-                        destination: metadata.destination || ""
-                    }
-                ])
+                .insert([{
+                    trip_data: shareData,
+                    title: title,
+                    destination: metadata.destination || ""
+                }])
                 .select();
 
             if (error) throw error;
-            if (!data || data.length === 0) throw new Error("No data returned from DB");
-
             const shareId = data[0].id;
-            // Generate full URL (Dedicated Vercel domain)
             const VERCEL_DOMAIN = "https://okinawa-lime.vercel.app";
-
-            // 1. Generate Link and inform user
             const shareUrl = `${VERCEL_DOMAIN}/?id=${shareId}`;
 
-            // Clipboard attempt
+            // 1. Copy to clipboard
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(shareUrl).then(() => {
-                    showToast("링크가 복사되었습니다! 카카오톡에 붙여넣으세요.", "success");
-                }).catch(() => {
-                    showToast("링크 생성 완료", "success");
-                });
+                await navigator.clipboard.writeText(shareUrl);
+                showToast("링크가 복사되었습니다! 원하는 곳에 붙여넣으세요.", "success");
             } else {
-                showToast("링크 생성 완료", "success");
+                window.prompt("링크를 복사해 주세요:", shareUrl);
             }
-
-            // 2. Open Kakao Share (Removed alert to prevent popup blocking)
-            try {
-                kakao.Share.sendDefault({
-                    objectType: 'feed',
-                    content: {
-                        title: title,
-                        description: description,
-                        imageUrl: 'https://images.unsplash.com/photo-1576675784432-994941412b3d?auto=format&fit=crop&q=80&w=1000',
-                        link: {
-                            mobileWebUrl: shareUrl,
-                            webUrl: shareUrl,
-                        },
-                    },
-                    buttons: [
-                        {
-                            title: '가이드 보기',
-                            link: {
-                                mobileWebUrl: shareUrl,
-                                webUrl: shareUrl,
-                            },
-                        },
-                    ],
-                });
-            } catch (kakaoError) {
-                console.warn("Kakao share failed:", kakaoError);
-            }
-        } catch (dbError) {
+        } catch (dbError: any) {
             console.error("Supabase error:", dbError);
-            showToast("공유 링크 생성 중 오류가 발생했습니다.", "error");
+            showToast(`공유 실패: ${dbError.message || "연결 오류"}`, "error");
         }
     };
 
@@ -958,7 +903,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isPreparingOffline,
         offlineProgress,
         prepareOfflineMap,
-        shareToKakao
+        shareToKakao: copyShareLink
     }), [
         view, activeTab, overviewMode, scheduleDay, scheduleViewMode, theme, trips, trip,
         allPoints, completedItems, selectedPoint, weatherIndex, selectedWeatherLocation,
@@ -970,7 +915,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isEditingPoint, attractionCategoryFilter, isDragging, isReviewModalOpen,
         isReEditModalOpen, tripToEdit, deleteConfirmModal, isLoggedIn, currentUser,
         selectedFile, calendarDate, isDestinationValidated, isValidatingDestination,
-        isPreparingOffline, offlineProgress
+        isPreparingOffline, offlineProgress, copyShareLink
     ]);
 
     return <PlannerContext.Provider value={value} > {children}</PlannerContext.Provider >;

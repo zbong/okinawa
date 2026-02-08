@@ -101,7 +101,11 @@ const App: React.FC = () => {
 
       if (shareId && !isHandlingLink.current) {
         isHandlingLink.current = true;
-        console.log("🔗 Shared Link detected, shareId:", shareId);
+
+        // Clean URL immediately to prevent re-execution on refresh or back
+        window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+
+        console.log("🔍 Checking Share ID:", shareId);
 
         try {
           const { data, error } = await supabase
@@ -111,42 +115,44 @@ const App: React.FC = () => {
             .single();
 
           if (error) {
-            console.error("❌ DB Fetch Error:", error);
+            console.error("❌ DB ERROR:", error.message, error.details, error.hint);
+            showToast(`데이터 로드 실패: ${error.message}`, "error");
+            // Clear trip state to prevent showing old data
+            setTrip(null);
             throw error;
           }
 
           if (data && data.trip_data) {
-            console.log("✅ Data matched, setting trip...");
-            setTrip(data.trip_data);
+            const tripWithFlag = {
+              ...data.trip_data,
+              metadata: {
+                ...data.trip_data.metadata,
+                isShared: true
+              }
+            };
+            setTrip(tripWithFlag);
             setIsPlanning(false);
 
             setTimeout(() => {
               setView("app");
               setActiveTab("summary");
-              showToast("공유 가이드 로드 완료", "success");
-            }, 100);
-
-            // 파라미터 제거
-            window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+              showToast("공유 가이드가 로드되었습니다.", "success");
+            }, 300);
           } else {
-            showToast("여행 정보를 찾을 수 없습니다.", "error");
+            showToast("공유된 일정이 존재하지 않습니다.", "error");
+            // Clear trip state if no data found for shared ID
+            setTrip(null);
           }
         } catch (err: any) {
-          console.error("❌ Global Link Load Error:", err);
-          // Vercel 환경변수 누락 여부 확인용 로그
-          if (err.message?.includes("supabaseUrl")) {
-            showToast("서버 설정이 완료되지 않았습니다 (Vercel 환경변수).", "error");
-          } else {
-            showToast("데이터를 불러오지 못했습니다.", "error");
-          }
-          // 실패 시 메인으로 가지 않고 멈춤 (테스트 데이터 방지)
-          isHandlingLink.current = false;
+          console.error("❌ Critical Load Error:", err);
+          isHandlingLink.current = false; // Allow retry
+          // Clear trip state on critical error
+          setTrip(null);
         }
       }
     };
     handleSharedLink();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount
+  }, [setTrip, setView, setActiveTab, setIsPlanning, showToast]);
 
 
   // DEBUG: Global Error Handler & Render Log
@@ -938,7 +944,7 @@ const App: React.FC = () => {
                                             },
                                             points: tripItem.points || [],
                                             days: tripItem.days || [],
-                                            speechData: tripItem.speechData || [], // No dependence on okinawaTrip
+                                            speechData: [],
                                             defaultFiles: []
                                           };
 
