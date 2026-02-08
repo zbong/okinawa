@@ -184,6 +184,7 @@ interface PlannerContextType {
     isPreparingOffline: boolean;
     offlineProgress: number;
     prepareOfflineMap: () => Promise<void>;
+    shareToKakao: () => void;
 }
 
 const PlannerContext = createContext<PlannerContextType | undefined>(undefined);
@@ -807,6 +808,45 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
+    const shareToKakao = () => {
+        if (!(window as any).Kakao) {
+            showToast("카카오톡 SDK를 불러오는 중입니다.", "info");
+            return;
+        }
+
+        const kakao = (window as any).Kakao;
+        if (!kakao.isInitialized()) {
+            // Use the key injected via index.html or fallback
+            showToast("카카오톡 초기화 중입니다.", "info");
+            return;
+        }
+
+        const title = trip.metadata?.title || "오키나와 가족 여행";
+        const description = `${trip.metadata?.startDate || ""} ~ ${trip.metadata?.endDate || ""} 오키나와 여행 가이드`;
+
+        kakao.Share.sendDefault({
+            objectType: 'feed',
+            content: {
+                title: title,
+                description: description,
+                imageUrl: 'https://okinawa-lime.vercel.app/pwa-512x512.png',
+                link: {
+                    mobileWebUrl: window.location.href,
+                    webUrl: window.location.href,
+                },
+            },
+            buttons: [
+                {
+                    title: '가이드 보기',
+                    link: {
+                        mobileWebUrl: window.location.href,
+                        webUrl: window.location.href,
+                    },
+                },
+            ],
+        });
+    };
+
     const value = {
         view, setView, activeTab, setActiveTab, overviewMode, setOverviewMode,
         scheduleDay, setScheduleDay, scheduleViewMode, setScheduleViewMode,
@@ -852,7 +892,8 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         importTrip,
         isPreparingOffline,
         offlineProgress,
-        prepareOfflineMap
+        prepareOfflineMap,
+        shareToKakao
     };
 
     return <PlannerContext.Provider value={value} > {children}</PlannerContext.Provider >;

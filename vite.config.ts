@@ -30,17 +30,48 @@ export default defineConfig({
         orientation: 'portrait'
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}'],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
+            // Google Maps JS API and Assets
+            urlPattern: /^https:\/\/maps\.googleapis\.com/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-maps-api',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30일
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
             // Google Maps Tiles Caching
-            urlPattern: /^https:\/\/mt0\.google\.com\/vt\/lyrs=m/,
+            urlPattern: /^https:\/\/mt[0-3]\.google\.com\/vt\/lyrs=m/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'google-maps-tiles',
               expiration: {
-                maxEntries: 1000,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1년 보관
+                maxEntries: 2000,
+                maxAgeSeconds: 60 * 60 * 24 * 365
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            // Lucide Icons & Unpkg Assets
+            urlPattern: /^https:\/\/unpkg\.com/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'external-assets',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 365
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -54,25 +85,12 @@ export default defineConfig({
             options: {
               cacheName: 'web-fonts',
               expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1년 보관
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 365
               },
               cacheableResponse: {
                 statuses: [0, 200]
               }
-            }
-          },
-          {
-            // Exchange Rate API (Network First, fallback to Offline Cache)
-            urlPattern: /^https:\/\/open\.er-api\.com\/v6\/latest\/JPY/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'exchange-rate',
-              expiration: {
-                maxEntries: 5,
-                maxAgeSeconds: 60 * 60 * 24 // 24시간 보관
-              },
-              networkTimeoutSeconds: 3
             }
           }
         ]
