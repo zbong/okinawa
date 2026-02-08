@@ -12,19 +12,19 @@ export const PlannerStep4: React.FC = () => {
         dynamicAttractions,
         setDynamicAttractions,
         fetchAttractionsWithAI,
-        setAttractionCategoryFilter,
         attractionCategoryFilter,
         selectedPlaceIds,
         setActivePlannerDetail,
         setSelectedPlaceIds,
         isValidatingPlace,
         validateAndAddPlace,
-        isPlaceAddedError,
-        isPlaceAddedSuccess,
         showToast,
         setPlannerStep,
         setDeleteConfirmModal,
         setIsPlanning,
+        isPlaceAddedError,
+        isPlaceAddedSuccess,
+        setAttractionCategoryFilter,
         saveDraft
     } = usePlanner();
 
@@ -476,6 +476,7 @@ export const PlannerStep4: React.FC = () => {
                                                 await validateAndAddPlace(name);
                                             if (success) {
                                                 input.value = "";
+                                                setAttractionCategoryFilter("all");
                                             }
                                         }
                                     }
@@ -498,6 +499,7 @@ export const PlannerStep4: React.FC = () => {
                                     await validateAndAddPlace(name);
                                 if (success) {
                                     input.value = "";
+                                    setAttractionCategoryFilter("all");
                                 }
                             }}
                             style={{

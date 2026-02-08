@@ -152,6 +152,26 @@ export const usePlannerAI = ({
 
     const validateAndAddPlace = async (name: string) => {
         if (!name) return false;
+
+        setIsPlaceAddedError(false);
+        setIsPlaceAddedSuccess(false);
+
+        // Simple duplicate check before AI call
+        const existing = dynamicAttractions.find(a => a.name.includes(name) || name.includes(a.name));
+        if (existing) {
+            if (!selectedPlaceIds.includes(existing.id)) {
+                setSelectedPlaceIds(prev => [...prev, existing.id]);
+                showToast(`${existing.name}을(를) 선택 목록에 추가했습니다.`, "success");
+                setIsPlaceAddedSuccess(true);
+                setTimeout(() => setIsPlaceAddedSuccess(false), 2000);
+                return true;
+            }
+            setIsPlaceAddedError(true);
+            showToast(`"${existing.name}"은(는) 이미 추가된 장소입니다.`, "info");
+            setTimeout(() => setIsPlaceAddedError(false), 2000);
+            return true;
+        }
+
         setIsValidatingPlace(true);
         try {
             const genAI = new GoogleGenerativeAI(apiKey!);
@@ -176,6 +196,8 @@ export const usePlannerAI = ({
                 setDynamicAttractions((prev) => [newPlace, ...prev]);
                 setSelectedPlaceIds((prev) => [...prev, newPlace.id]);
                 showToast(`${data.name}이(가) 추가되었습니다.`, "success");
+                setIsPlaceAddedSuccess(true);
+                setTimeout(() => setIsPlaceAddedSuccess(false), 2000);
                 return true;
             }
         } catch (e: any) {

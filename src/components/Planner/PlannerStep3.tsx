@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-    Compass, Wind, Car, Bus, Trash2, Loader2, Plane, ArrowRight, Save
+    Compass, Wind, Car, Bus, Trash2, Loader2, Plane, ArrowRight, Save, Hotel
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -15,7 +15,6 @@ export const PlannerStep3: React.FC = () => {
         setDeleteConfirmModal,
         currentUser,
         setIsPlanning,
-
         showToast,
         handleMultipleOcr,
         isOcrLoading,
@@ -307,23 +306,44 @@ export const PlannerStep3: React.FC = () => {
                                             fontSize: "13px",
                                         }}
                                     >
-                                        <Plane
-                                            size={14}
-                                            style={{
-                                                opacity: 0.7,
-                                                color: "var(--primary)",
-                                            }}
-                                        />
-                                        <span
-                                            style={{
-                                                whiteSpace: "nowrap",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                maxWidth: "250px",
-                                            }}
-                                        >
-                                            {file.name}
-                                        </span>
+                                        {file.linkedTo === 'accommodation' ? (
+                                            <Hotel
+                                                size={14}
+                                                style={{
+                                                    opacity: 0.7,
+                                                    color: "var(--primary)",
+                                                }}
+                                            />
+                                        ) : (
+                                            <Plane
+                                                size={14}
+                                                style={{
+                                                    opacity: 0.7,
+                                                    color: "var(--primary)",
+                                                }}
+                                            />
+                                        )}
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span
+                                                style={{
+                                                    whiteSpace: "nowrap",
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    maxWidth: "200px",
+                                                    fontWeight: 600
+                                                }}
+                                            >
+                                                {file.name}
+                                            </span>
+                                            <span style={{ fontSize: '10px', opacity: 0.5 }}>
+                                                {file.linkedTo === 'accommodation' ? '숙소 정보' : '항공 정보'}
+                                                {file.parsedData && (
+                                                    <span style={{ color: 'var(--primary)', marginLeft: 6 }}>
+                                                        • {file.parsedData.hotelName || file.parsedData.airline || file.parsedData.name || (file.parsedData.type === 'flight' ? '항공권' : '추출 성공')}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </div>
                                         {file.status === "loading" && (
                                             <Loader2
                                                 size={12}
@@ -749,6 +769,64 @@ export const PlannerStep3: React.FC = () => {
                                         + 현재 입력한 경로 추가
                                     </button>
                                 </div>
+
+                                {/* Extracted Accommodations Section in Step 3 */}
+                                {plannerData.accommodations && plannerData.accommodations.length > 0 && (
+                                    <div
+                                        style={{
+                                            background: "rgba(52, 211, 153, 0.05)",
+                                            padding: "20px",
+                                            borderRadius: "16px",
+                                            border: "1px solid rgba(52, 211, 153, 0.2)",
+                                            marginBottom: "20px",
+                                        }}
+                                    >
+                                        <h4
+                                            style={{
+                                                color: "#34d399",
+                                                marginBottom: "15px",
+                                                fontWeight: 800,
+                                                fontSize: "14px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 8,
+                                            }}
+                                        >
+                                            <Hotel size={16} /> 추출된 숙소 정보
+                                        </h4>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            {plannerData.accommodations.map((acc: any, i: number) => (
+                                                <div key={i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <div style={{ width: 24, height: 24, borderRadius: '8px', background: 'rgba(52, 211, 153, 0.2)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Hotel size={14} />
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
+                                                        <div style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>
+                                                            {acc.name}
+                                                        </div>
+                                                        <div style={{ fontSize: 11, opacity: 0.7 }}>
+                                                            {acc.startDate} ~ {acc.endDate} ({acc.nights}박)
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setPlannerData(prev => ({
+                                                                ...prev,
+                                                                accommodations: prev.accommodations.filter((_: any, idx: number) => idx !== i)
+                                                            }));
+                                                        }}
+                                                        style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div style={{ marginTop: 12, fontSize: 11, opacity: 0.5, textAlign: 'center' }}>
+                                            * 숙소 상세 설정은 5단계에서 가능합니다.
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         ) : (
                             <>
