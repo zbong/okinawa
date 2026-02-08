@@ -277,119 +277,140 @@ export const PlannerStep3: React.FC = () => {
 
                     {/* File List for Transportation */}
                     {analyzedFiles.length > 0 && (
-                        <div
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "8px",
-                                marginBottom: "20px",
-                            }}
-                        >
-                            {analyzedFiles.map((file, idx) => (
-                                <div
-                                    key={idx}
-                                    style={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        padding: "10px 15px",
-                                        background: "rgba(255,255,255,0.03)",
-                                        borderRadius: "12px",
-                                        border: "1px solid rgba(255,255,255,0.05)",
+                        <div style={{ marginBottom: "25px" }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                <h4 style={{ fontSize: '13px', fontWeight: 800, opacity: 0.7 }}>업로드 및 분석된 파일 ({analyzedFiles.length})</h4>
+                                <button
+                                    onClick={() => {
+                                        setDeleteConfirmModal({
+                                            isOpen: true,
+                                            title: "전체 삭제",
+                                            message: "분석된 모든 파일 목록을 비우시겠습니까? (실제 업로드된 파일은 유지됩니다)",
+                                            onConfirm: () => {
+                                                setAnalyzedFiles([]);
+                                                setDeleteConfirmModal({ isOpen: false, title: "", message: "", onConfirm: () => { } });
+                                            }
+                                        });
                                     }}
+                                    style={{ background: 'transparent', border: 'none', color: '#ff6b6b', fontSize: '11px', cursor: 'pointer', opacity: 0.8 }}
                                 >
+                                    목록 비우기
+                                </button>
+                            </div>
+                            <div
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "10px",
+                                }}
+                            >
+                                {analyzedFiles.map((file) => (
                                     <div
+                                        key={file.id || file.name}
                                         style={{
                                             display: "flex",
+                                            justifyContent: "space-between",
                                             alignItems: "center",
-                                            gap: 10,
-                                            fontSize: "13px",
+                                            padding: "16px 20px",
+                                            background: "rgba(255,255,255,0.07)",
+                                            borderRadius: "16px",
+                                            border: "1px solid rgba(255,255,255,0.15)",
+                                            boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
                                         }}
                                     >
-                                        {file.linkedTo === 'accommodation' ? (
-                                            <Hotel
-                                                size={14}
-                                                style={{
-                                                    opacity: 0.7,
-                                                    color: "var(--primary)",
-                                                }}
-                                            />
-                                        ) : (
-                                            <Plane
-                                                size={14}
-                                                style={{
-                                                    opacity: 0.7,
-                                                    color: "var(--primary)",
-                                                }}
-                                            />
-                                        )}
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span
-                                                style={{
-                                                    whiteSpace: "nowrap",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    maxWidth: "200px",
-                                                    fontWeight: 600
-                                                }}
-                                            >
-                                                {file.name}
-                                            </span>
-                                            <span style={{ fontSize: '10px', opacity: 0.5 }}>
-                                                {file.linkedTo === 'accommodation' ? '숙소 정보' : '항공 정보'}
-                                                {file.parsedData && (
-                                                    <span style={{ color: 'var(--primary)', marginLeft: 6 }}>
-                                                        • {file.parsedData.hotelName || file.parsedData.airline || file.parsedData.name || (file.parsedData.type === 'flight' ? '항공권' : '추출 성공')}
-                                                    </span>
-                                                )}
-                                            </span>
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 10,
+                                                fontSize: "13px",
+                                            }}
+                                        >
+                                            {file.linkedTo === 'accommodation' ? (
+                                                <Hotel
+                                                    size={14}
+                                                    style={{
+                                                        opacity: 0.7,
+                                                        color: "var(--primary)",
+                                                    }}
+                                                />
+                                            ) : (
+                                                <Plane
+                                                    size={14}
+                                                    style={{
+                                                        opacity: 0.7,
+                                                        color: "var(--primary)",
+                                                    }}
+                                                />
+                                            )}
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span
+                                                    style={{
+                                                        whiteSpace: "nowrap",
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
+                                                        maxWidth: "200px",
+                                                        fontWeight: 600
+                                                    }}
+                                                >
+                                                    {file.name}
+                                                </span>
+                                                <span style={{ fontSize: '10px', opacity: 0.5 }}>
+                                                    {file.linkedTo === 'accommodation' ? '숙소 정보' : '항공 정보'}
+                                                    {file.parsedData && (
+                                                        <span style={{ color: 'var(--primary)', marginLeft: 6 }}>
+                                                            • {file.parsedData.hotelName || file.parsedData.airline || file.parsedData.name || (file.parsedData.type === 'flight' ? '항공권' : '추출 성공')}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            </div>
+                                            {file.status === "loading" && (
+                                                <Loader2
+                                                    size={12}
+                                                    className="animate-spin"
+                                                />
+                                            )}
                                         </div>
-                                        {file.status === "loading" && (
-                                            <Loader2
-                                                size={12}
-                                                className="animate-spin"
-                                            />
-                                        )}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDeleteConfirmModal({
+                                                    isOpen: true,
+                                                    title: "파일 삭제",
+                                                    message: `${file.name} 파일을 삭제하시겠습니까?`,
+                                                    onConfirm: () => {
+                                                        setAnalyzedFiles((prev) =>
+                                                            prev.filter(
+                                                                (f) => f.id !== file.id && f.name !== file.name,
+                                                            ),
+                                                        );
+                                                        setDeleteConfirmModal({
+                                                            isOpen: false,
+                                                            title: "",
+                                                            message: "",
+                                                            onConfirm: () => { },
+                                                        });
+                                                    },
+                                                });
+                                            }}
+                                            style={{
+                                                background: "rgba(255,0,0,0.1)",
+                                                border: "none",
+                                                color: "#ff6b6b",
+                                                cursor: "pointer",
+                                                padding: "6px",
+                                                borderRadius: "6px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                            }}
+                                            title="파일 삭제"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setDeleteConfirmModal({
-                                                isOpen: true,
-                                                title: "파일 삭제",
-                                                message: `${file.name} 파일을 삭제하시겠습니까?`,
-                                                onConfirm: () => {
-                                                    setAnalyzedFiles((prev) =>
-                                                        prev.filter(
-                                                            (_, i) => i !== idx,
-                                                        ),
-                                                    );
-                                                    setDeleteConfirmModal({
-                                                        isOpen: false,
-                                                        title: "",
-                                                        message: "",
-                                                        onConfirm: () => { },
-                                                    });
-                                                },
-                                            });
-                                        }}
-                                        style={{
-                                            background: "rgba(255,0,0,0.1)",
-                                            border: "none",
-                                            color: "#ff6b6b",
-                                            cursor: "pointer",
-                                            padding: "6px",
-                                            borderRadius: "6px",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                        }}
-                                        title="파일 삭제"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     )}
 

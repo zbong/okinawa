@@ -39,8 +39,9 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
                     continue;
                 }
 
+                const fileId = `analyzed-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                 const fileIdx = currentAnalyzedFiles.length;
-                currentAnalyzedFiles.push({ name: file.name, text: "", status: "loading" });
+                currentAnalyzedFiles.push({ id: fileId, name: file.name, text: "", status: "loading" });
                 setAnalyzedFiles([...currentAnalyzedFiles]);
 
                 const mimeType = file.type || "image/jpeg";
@@ -76,7 +77,7 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
                         parsed = parseUniversalDocument(text);
                     } else {
                         currentAnalyzedFiles[fileIdx] = {
-                            name: file.name,
+                            ...currentAnalyzedFiles[fileIdx],
                             text: text || "(Analysis Failed)",
                             status: "error",
                         };
@@ -90,7 +91,7 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
                 }
 
                 currentAnalyzedFiles[fileIdx] = {
-                    name: file.name,
+                    ...currentAnalyzedFiles[fileIdx],
                     text: text || "(Vision Mode)",
                     parsedData: parsed,
                     status: "done",
