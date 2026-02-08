@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { fileToBase64 } from '../utils/ocr';
 import { TripPlan, LocationPoint, PlannerData, CustomFile } from '../types';
+import { okinawaTrip } from '../data';
+import { supabase } from '../utils/supabase';
 import { usePlannerAI } from '../hooks/usePlannerAI';
 import { useDocumentAnalysis } from '../hooks/useDocumentAnalysis';
 import { useTripManager } from '../hooks/useTripManager';
@@ -808,17 +810,24 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
-    const shareToKakao = (targetTrip?: any) => {
-        if (!(window as any).Kakao) {
-            showToast("카카오톡 SDK를 불러오는 중입니다.", "info");
+    const shareToKakao = async (targetTrip?: any) => {
+        const kakao = (window as any).Kakao;
+
+        if (!kakao) {
+            showToast("카카오 SDK 로드 실패. 광고 차단 프로그램이 켜져 있나요?", "error");
+            console.error("Kakao SDK object not found on window.");
             return;
         }
 
-        const kakao = (window as any).Kakao;
         if (!kakao.isInitialized()) {
-            // Use the key injected via index.html or fallback
-            showToast("카카오톡 초기화 중입니다.", "info");
-            return;
+            try {
+                kakao.init("976a30104e3434c15beb775ff1a8d7c3");
+                console.log("Defensive Kakao init success");
+            } catch (e) {
+                showToast("카카오 초기화 실패. 도메인 등록을 확인해 주세요.", "error");
+                console.error("Kakao init failed:", e);
+                return;
+            }
         }
 
         const tripData = targetTrip || trip;
@@ -828,28 +837,97 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ? `${metadata.startDate} ~ ${metadata.endDate || ""} 오키나와 여행 가이드`
             : "오키나와 여행 가이드";
 
-        kakao.Share.sendDefault({
-            objectType: 'feed',
-            content: {
-                title: title,
-                description: description,
-                imageUrl: 'https://okinawa-lime.vercel.app/pwa-512x512.png',
-                link: {
-                    mobileWebUrl: window.location.href,
-                    webUrl: window.location.href,
-                },
-            },
-            buttons: [
-                {
-                    title: '가이드 보기',
+        // Save to DB first to avoid URL length issues
+        showToast("공유 링크를 생성 중입니다...", "info");
+
+        const shareData = {
+            metadata: metadata,
+            points: tripData.points || allPoints.filter((p: any) => p.day > 0),
+            customFiles: tripData.customFiles || [] // Now we can include files because it's DB!
+        };
+
+        try {
+            const { data, error } = await supabase
+                .from('shared_trips')
+                .insert([
+                    {
+                        trip_data: shareData,
+                        title: title,
+                        destination: metadata.destination || ""
+                    }
+                ])
+                .select();
+
+            if (error) throw error;
+            if (!data || data.length === 0) throw new Error("No data returned from DB");
+
+            const shareId = data[0].id;
+
+            // Generate full URL (Dedicated Vercel domain)
+            const VERCEL_DOMAIN = "https://okinawa-lime.vercel.app";
+            const shareUrl = `${VERCEL_DOMAIN}/?id=${shareId}`;
+
+            // Show to user immediately
+            window.prompt("공유 링크가 생성되었습니다. 복사하여 핸드폰으로 보내세요:", shareUrl);
+
+            showToast("공유 링크 발급 완료", "success");
+
+            kakao.Share.sendDefault({
+                objectType: 'feed',
+                content: {
+                    title: title,
+                    description: description,
+                    imageUrl: 'https://images.unsplash.com/photo-1576675784432-994941412b3d?auto=format&fit=crop&q=80&w=1000',
                     link: {
-                        mobileWebUrl: window.location.href,
-                        webUrl: window.location.href,
+                        mobileWebUrl: shareUrl,
+                        webUrl: shareUrl,
                     },
                 },
-            ],
-        });
+                buttons: [
+                    {
+                        title: '가이드 보기',
+                        link: {
+                            mobileWebUrl: shareUrl,
+                            webUrl: shareUrl,
+                        },
+                    },
+                ],
+            });
+        } catch (dbError) {
+            console.error("Supabase error:", dbError);
+            showToast("공유 링크 생성 중 오류가 발생했습니다.", "error");
+        }
     };
+
+    // Auto-inject shared trip from URL
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sharedData = urlParams.get('sharedTrip');
+
+        if (sharedData) {
+            try {
+                const decodedData = JSON.parse(decodeURIComponent(atob(sharedData)));
+                if (decodedData.metadata) {
+                    // Inject into state
+                    setTrip({
+                        ...okinawaTrip, // Fallback base
+                        metadata: decodedData.metadata,
+                        points: decodedData.points || [],
+                        customFiles: decodedData.customFiles || []
+                    });
+
+                    // Force View State (This will be caught by App.tsx)
+                    setTimeout(() => {
+                        setView("app");
+                        setActiveTab("summary");
+                        showToast(`${decodedData.metadata.title} 가이드를 불러왔습니다.`, "success");
+                    }, 100);
+                }
+            } catch (e) {
+                console.error("Failed to parse shared trip:", e);
+            }
+        }
+    }, []);
 
     const value = {
         view, setView, activeTab, setActiveTab, overviewMode, setOverviewMode,

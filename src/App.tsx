@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import "./styles/design-system.css";
 import { okinawaTrip } from "./data";
 import { TripPlan } from "./types";
+import { supabase } from "./utils/supabase";
 import { usePlanner } from "./contexts/PlannerContext";
 import { Toast } from "./components/Common/Toast";
 import { ConfirmModal } from "./components/Common/ConfirmModal";
@@ -92,15 +93,39 @@ const App: React.FC = () => {
     shareToKakao
   } = usePlanner();
 
-  // Auto-redirect to app view if trips exist (Mobile optimized)
+  // Handle Shared Link (Supabase)
   useEffect(() => {
-    if (trips.length > 0 && view === "landing" && !isPlanning) {
-      const lastTrip = trips[trips.length - 1];
-      setTrip(lastTrip);
-      setView("app");
-      setActiveTab("summary");
-    }
-  }, [trips, view, isPlanning, setTrip, setView, setActiveTab]);
+    const handleSharedLink = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const shareId = urlParams.get('id');
+
+      if (shareId) {
+        showToast("공유된 일정을 불러오는 중입니다...", "info");
+        try {
+          const { data, error } = await supabase
+            .from('shared_trips')
+            .select('trip_data')
+            .eq('id', shareId)
+            .single();
+
+          if (error) throw error;
+          if (data && data.trip_data) {
+            setTrip(data.trip_data);
+            setView("app");
+            setActiveTab("summary");
+            showToast("여행 가이드를 성공적으로 불러왔습니다!", "success");
+            // URL 파라미터 깔끔하게 제거 (새로고침 시 중복 로딩 방지)
+            window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+          }
+        } catch (err) {
+          console.error("Failed to load shared trip:", err);
+          showToast("여행 정보를 불러오는데 실패했습니다.", "error");
+        }
+      }
+    };
+    handleSharedLink();
+  }, [setTrip, setView, setActiveTab]);
+
 
   // DEBUG: Global Error Handler & Render Log
   useEffect(() => {
