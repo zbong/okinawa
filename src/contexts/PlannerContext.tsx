@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { fileToBase64 } from '../utils/ocr';
 import { TripPlan, LocationPoint, PlannerData, CustomFile } from '../types';
-import { okinawaTrip } from '../data';
 import { supabase } from '../utils/supabase';
 import { usePlannerAI } from '../hooks/usePlannerAI';
 import { useDocumentAnalysis } from '../hooks/useDocumentAnalysis';
@@ -906,7 +905,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Shared trip injection (OLD URL-based) removed in favor of Supabase ID
 
-    const value = {
+    const value = useMemo(() => ({
         view, setView, activeTab, setActiveTab, overviewMode, setOverviewMode,
         scheduleDay, setScheduleDay, scheduleViewMode, setScheduleViewMode,
         theme, setTheme, toggleTheme, trips, setTrips, trip, setTrip,
@@ -944,7 +943,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         fetchAttractionsWithAI, fetchHotelsWithAI, validateAndAddPlace, validateHotel, generatePlanWithAI, closeToast,
         handleFileAnalysis, handleTicketOcr, handleMultipleOcr, handleFileUpload, deleteFile,
         validateDestination, isValidatingDestination, isDestinationValidated, setIsDestinationValidated,
-        saveAttractionsToCache: () => { }, // Placeholder implementation
+        saveAttractionsToCache: () => { },
         startNewPlanning,
         saveDraft,
         exportTrip,
@@ -953,7 +952,19 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         offlineProgress,
         prepareOfflineMap,
         shareToKakao
-    };
+    }), [
+        view, activeTab, overviewMode, scheduleDay, scheduleViewMode, theme, trips, trip,
+        allPoints, completedItems, selectedPoint, weatherIndex, selectedWeatherLocation,
+        activePlannerDetail, isPlanning, plannerStep, plannerData, selectedPlaceIds,
+        dynamicAttractions, isSearchingAttractions, isSearchingHotels, recommendedHotels,
+        hotelStrategy, hotelAddStatus, validatedHotel, isValidatingPlace, isPlaceAddedSuccess,
+        isPlaceAddedError, userReviews, userLogs, customFiles, weatherData, isLoadingWeather,
+        weatherError, jpyAmount, krwAmount, rate, isOcrLoading, analyzedFiles, customAiPrompt,
+        isEditingPoint, attractionCategoryFilter, isDragging, toasts, isReviewModalOpen,
+        isReEditModalOpen, tripToEdit, deleteConfirmModal, isLoggedIn, currentUser,
+        selectedFile, calendarDate, isDestinationValidated, isValidatingDestination,
+        isPreparingOffline, offlineProgress
+    ]);
 
     return <PlannerContext.Provider value={value} > {children}</PlannerContext.Provider >;
 };

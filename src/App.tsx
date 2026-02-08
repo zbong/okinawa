@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import "./styles/design-system.css";
 import { okinawaTrip } from "./data";
 import { TripPlan } from "./types";
@@ -94,12 +94,14 @@ const App: React.FC = () => {
   } = usePlanner();
 
   // Handle Shared Link (Supabase)
+  const isHandlingLink = useRef(false);
   useEffect(() => {
     const handleSharedLink = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const shareId = urlParams.get('id');
 
-      if (shareId) {
+      if (shareId && !isHandlingLink.current) {
+        isHandlingLink.current = true;
         showToast("공유된 일정을 불러오는 중입니다...", "info");
         try {
           const { data, error } = await supabase
@@ -113,13 +115,15 @@ const App: React.FC = () => {
             setTrip(data.trip_data);
             setView("app");
             setActiveTab("summary");
-            showToast("여행 가이드를 성공적으로 불러왔습니다!", "success");
-            // URL 파라미터 깔끔하게 제거 (새로고침 시 중복 로딩 방지)
+            showToast("여행 가이드 로드 완료!", "success");
+
+            // Clean URL and reset handling flag for future mounts if needed
             window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
           }
         } catch (err) {
           console.error("Failed to load shared trip:", err);
           showToast("여행 정보를 불러오는데 실패했습니다.", "error");
+          isHandlingLink.current = false; // Allow retry on error if needed
         }
       }
     };
