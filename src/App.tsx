@@ -65,6 +65,8 @@ class ErrorBoundary extends React.Component<
 
 
 
+const APP_VERSION = "v1.3.0 (Build: 01:05)";
+
 const App: React.FC = () => {
   const {
     view, setView, activeTab, setActiveTab,
@@ -1133,6 +1135,17 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 )}
+              </div>
+              {/* Build Version Tag */}
+              <div style={{
+                marginTop: "20px",
+                padding: "10px 0",
+                fontSize: "10px",
+                color: "var(--text-dim)",
+                textAlign: "center",
+                opacity: 0.6
+              }}>
+                {APP_VERSION}
               </div>
             </motion.div>
           )}
