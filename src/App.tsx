@@ -28,7 +28,7 @@ import { LocationBottomSheet } from "./components/LocationBottomSheet";
 import {
   Loader2, Sparkles, LogOut, LogIn, User, UserPlus,
   LayoutDashboard, Calendar, RefreshCw, Sun, Moon,
-  FileText, Edit3, X, MapPin, Trash2, MessageCircle
+  FileText, Edit3, X, MapPin, Trash2, MessageCircle, Link
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -89,7 +89,7 @@ const App: React.FC = () => {
     startNewPlanning,
     selectedFile,
     setSelectedFile,
-    shareToKakao
+    shareToKakao: copyShareLink
   } = usePlanner();
 
   // Handle Shared Link (Supabase)
@@ -1033,14 +1033,14 @@ const App: React.FC = () => {
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          shareToKakao(tripItem);
+                                          copyShareLink(tripItem);
                                         }}
                                         style={{
                                           padding: "8px 12px",
-                                          background: "#FEE500",
+                                          background: "rgba(0, 212, 255, 0.1)",
                                           borderRadius: "20px",
-                                          border: "none",
-                                          color: "#191919",
+                                          border: "1px solid rgba(0, 212, 255, 0.3)",
+                                          color: "#00d4ff",
                                           fontSize: "12px",
                                           fontWeight: 800,
                                           cursor: "pointer",
@@ -1049,7 +1049,7 @@ const App: React.FC = () => {
                                           gap: "4px"
                                         }}
                                       >
-                                        <MessageCircle size={14} fill="#191919" /> 카톡보내기
+                                        <Link size={14} /> 링크 복사
                                       </button>
                                       <button
                                         type="button"
