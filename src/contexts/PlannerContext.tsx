@@ -869,30 +869,35 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             // Show to user immediately
             window.prompt("공유 링크가 생성되었습니다. 복사하여 핸드폰으로 보내세요:", shareUrl);
-
             showToast("공유 링크 발급 완료", "success");
 
-            kakao.Share.sendDefault({
-                objectType: 'feed',
-                content: {
-                    title: title,
-                    description: description,
-                    imageUrl: 'https://images.unsplash.com/photo-1576675784432-994941412b3d?auto=format&fit=crop&q=80&w=1000',
-                    link: {
-                        mobileWebUrl: shareUrl,
-                        webUrl: shareUrl,
-                    },
-                },
-                buttons: [
-                    {
-                        title: '가이드 보기',
+            // Kakao share is secondary; if it fails, don't show the main error toast
+            try {
+                kakao.Share.sendDefault({
+                    objectType: 'feed',
+                    content: {
+                        title: title,
+                        description: description,
+                        imageUrl: 'https://images.unsplash.com/photo-1576675784432-994941412b3d?auto=format&fit=crop&q=80&w=1000',
                         link: {
                             mobileWebUrl: shareUrl,
                             webUrl: shareUrl,
                         },
                     },
-                ],
-            });
+                    buttons: [
+                        {
+                            title: '가이드 보기',
+                            link: {
+                                mobileWebUrl: shareUrl,
+                                webUrl: shareUrl,
+                            },
+                        },
+                    ],
+                });
+            } catch (kakaoError) {
+                console.warn("Kakao share failed (this is non-fatal):", kakaoError);
+                // Optionally show a milder toast or nothing
+            }
         } catch (dbError) {
             console.error("Supabase error:", dbError);
             showToast("공유 링크 생성 중 오류가 발생했습니다.", "error");
