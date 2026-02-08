@@ -144,10 +144,19 @@ const App: React.FC = () => {
             setTrip(null);
           }
         } catch (err: any) {
-          console.error("❌ Critical Load Error:", err);
-          isHandlingLink.current = false; // Allow retry
-          // Clear trip state on critical error
+          console.error("❌ Critical Load Error:", {
+            message: err.message,
+            hint: err.hint,
+            status: err.status
+          });
+          isHandlingLink.current = false;
           setTrip(null);
+
+          if (err.message === "Invalid API key" || err.status === 401) {
+            showToast("Vercel 환경 변수(SUPABASE_ANON_KEY)를 확인해 주세요.", "error");
+          } else {
+            showToast("데이터 로드 중 오류가 발생했습니다.", "error");
+          }
         }
       }
     };
