@@ -899,35 +899,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
-    // Auto-inject shared trip from URL
-    useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const sharedData = urlParams.get('sharedTrip');
-
-        if (sharedData) {
-            try {
-                const decodedData = JSON.parse(decodeURIComponent(atob(sharedData)));
-                if (decodedData.metadata) {
-                    // Inject into state
-                    setTrip({
-                        ...okinawaTrip, // Fallback base
-                        metadata: decodedData.metadata,
-                        points: decodedData.points || [],
-                        customFiles: decodedData.customFiles || []
-                    });
-
-                    // Force View State (This will be caught by App.tsx)
-                    setTimeout(() => {
-                        setView("app");
-                        setActiveTab("summary");
-                        showToast(`${decodedData.metadata.title} 가이드를 불러왔습니다.`, "success");
-                    }, 100);
-                }
-            } catch (e) {
-                console.error("Failed to parse shared trip:", e);
-            }
-        }
-    }, []);
+    // Shared trip injection (OLD URL-based) removed in favor of Supabase ID
 
     const value = {
         view, setView, activeTab, setActiveTab, overviewMode, setOverviewMode,

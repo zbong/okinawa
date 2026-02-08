@@ -1399,26 +1399,10 @@ const App: React.FC = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log(
-                      "🔄 Main Nav X Clicked. Returning to landing...",
-                    );
+                    console.log("🔄 Navigating to landing via X button...");
                     setSelectedPoint(null);
                     setActivePlannerDetail(null);
-                    // Force clear any pending map states
-                    // Small delay to allow map cleanup
-                    setTimeout(() => {
-                      console.log(
-                        '⏰ Timeout Executed. Calling setView("landing")...',
-                      );
-                      try {
-                        setView("landing");
-                        console.log(
-                          '✅ setView("landing") called successfully.',
-                        );
-                      } catch (err) {
-                        console.error("❌ Error during setView:", err);
-                      }
-                    }, 50);
+                    setView("landing");
                   }}
                   style={{
                     padding: "8px",
