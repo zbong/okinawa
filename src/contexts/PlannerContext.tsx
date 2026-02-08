@@ -184,7 +184,7 @@ interface PlannerContextType {
     isPreparingOffline: boolean;
     offlineProgress: number;
     prepareOfflineMap: () => Promise<void>;
-    shareToKakao: () => void;
+    shareToKakao: (targetTrip?: any) => void;
 }
 
 const PlannerContext = createContext<PlannerContextType | undefined>(undefined);
@@ -808,7 +808,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
-    const shareToKakao = () => {
+    const shareToKakao = (targetTrip?: any) => {
         if (!(window as any).Kakao) {
             showToast("카카오톡 SDK를 불러오는 중입니다.", "info");
             return;
@@ -821,8 +821,12 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return;
         }
 
-        const title = trip.metadata?.title || "오키나와 가족 여행";
-        const description = `${trip.metadata?.startDate || ""} ~ ${trip.metadata?.endDate || ""} 오키나와 여행 가이드`;
+        const tripData = targetTrip || trip;
+        const metadata = tripData.metadata || tripData;
+        const title = metadata.title || "오키나와 가족 여행";
+        const description = metadata.startDate
+            ? `${metadata.startDate} ~ ${metadata.endDate || ""} 오키나와 여행 가이드`
+            : "오키나와 여행 가이드";
 
         kakao.Share.sendDefault({
             objectType: 'feed',

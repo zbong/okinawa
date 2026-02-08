@@ -89,6 +89,7 @@ const App: React.FC = () => {
     startNewPlanning,
     selectedFile,
     setSelectedFile,
+    shareToKakao
   } = usePlanner();
 
   // Auto-redirect to app view if trips exist (Mobile optimized)
@@ -987,6 +988,28 @@ const App: React.FC = () => {
                                           달성도
                                         </div>
                                       </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          shareToKakao(tripItem);
+                                        }}
+                                        style={{
+                                          padding: "8px 12px",
+                                          background: "#FEE500",
+                                          borderRadius: "20px",
+                                          border: "none",
+                                          color: "#191919",
+                                          fontSize: "12px",
+                                          fontWeight: 800,
+                                          cursor: "pointer",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "4px"
+                                        }}
+                                      >
+                                        <MessageCircle size={14} fill="#191919" /> 카톡보내기
+                                      </button>
                                       <button
                                         type="button"
                                         onClick={(e) => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Calendar, MapPin, Hotel, Sparkles, Plane, Clock, Info, ChevronRight, Download, Upload, RefreshCw, MessageCircle
+  Calendar, MapPin, Hotel, Sparkles, Plane, Clock, Info, ChevronRight, Download, Upload, RefreshCw
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -14,8 +14,7 @@ export const SummaryTab: React.FC = () => {
     importTrip,
     isPreparingOffline,
     offlineProgress,
-    prepareOfflineMap,
-    shareToKakao
+    prepareOfflineMap
   } = usePlanner();
 
   if (activeTab !== "summary") return null;
@@ -262,36 +261,6 @@ export const SummaryTab: React.FC = () => {
           )}
         </div>
       </div>
-      {/* Share Section */}
-      <div style={{ marginTop: '30px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <MessageCircle size={18} color="#FEE500" /> 가이드 공유하기
-        </h3>
-        <button
-          onClick={shareToKakao}
-          className="hover-lift"
-          style={{
-            width: '100%',
-            padding: '16px',
-            borderRadius: '16px',
-            background: '#FEE500',
-            color: '#191919',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px',
-            fontSize: '15px',
-            fontWeight: 800,
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(254, 229, 0, 0.2)',
-            transition: 'transform 0.2s'
-          }}
-        >
-          <MessageCircle size={20} fill="#191919" /> 카카오톡으로 일정 보내기
-        </button>
-      </div>
-
       {/* Sync & Backup Section */}
       <div style={{ marginTop: '30px' }}>
         <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
