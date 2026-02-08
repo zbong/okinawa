@@ -102,7 +102,6 @@ const App: React.FC = () => {
 
       if (shareId && !isHandlingLink.current) {
         isHandlingLink.current = true;
-        // Don't show info toast yet, wait a bit
         try {
           const { data, error } = await supabase
             .from('shared_trips')
@@ -112,24 +111,22 @@ const App: React.FC = () => {
 
           if (error) throw error;
           if (data && data.trip_data) {
-            console.log("✅ Shared trip data loaded successfully.");
             setTrip(data.trip_data);
+            setIsPlanning(false);
 
-            // Critical: Ensure view transitions happen after trip is set
             setTimeout(() => {
+              console.log("🚀 Forcing view to 'app' for shared link...");
               setView("app");
               setActiveTab("summary");
-              showToast("가이드 화면으로 이동합니다.", "success");
-            }, 50);
+              showToast("공유된 여행 가이드를 불러왔습니다.", "success");
+            }, 500);
 
-            // URL Cleanup
             window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
           } else {
             throw new Error("No trip data found for this ID.");
           }
         } catch (err) {
           console.error("❌ Failed to load shared trip:", err);
-          // If it failed because of missing env vars, let the user know
           const isDev = window.location.hostname === "localhost";
           if (!isDev) {
             showToast("여행 정보를 서버에서 가져오지 못했습니다.", "error");
@@ -139,7 +136,7 @@ const App: React.FC = () => {
       }
     };
     handleSharedLink();
-  }, [setTrip, setView, setActiveTab]);
+  }, [setTrip, setView, setActiveTab, setIsPlanning, showToast]);
 
 
   // DEBUG: Global Error Handler & Render Log
@@ -201,7 +198,7 @@ const App: React.FC = () => {
       window.removeEventListener("dragover", preventDefault);
       window.removeEventListener("drop", preventDefault);
     };
-  }, []);
+  }, [trips]);
 
   useEffect(() => {
     try {

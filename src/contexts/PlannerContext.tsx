@@ -864,18 +864,21 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Generate full URL (Dedicated Vercel domain)
             const VERCEL_DOMAIN = "https://okinawa-lime.vercel.app";
 
-            // 1. Generate Link and show to user (Ensuring they can always see it)
+            // 1. Generate Link and inform user
             const shareUrl = `${VERCEL_DOMAIN}/?id=${shareId}`;
 
             // Clipboard attempt
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(shareUrl).catch(() => { });
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    showToast("링크가 복사되었습니다! 카카오톡에 붙여넣으세요.", "success");
+                }).catch(() => {
+                    showToast("링크 생성 완료", "success");
+                });
+            } else {
+                showToast("링크 생성 완료", "success");
             }
 
-            // Show confirmation with link
-            window.alert(`공유 링크가 생성되었습니다:\n${shareUrl}\n\n[확인]을 누르면 카카오톡이 열립니다.`);
-
-            // 2. Open Kakao Share
+            // 2. Open Kakao Share (Removed alert to prevent popup blocking)
             try {
                 kakao.Share.sendDefault({
                     objectType: 'feed',
