@@ -90,6 +90,17 @@ const App: React.FC = () => {
     selectedFile,
     setSelectedFile,
   } = usePlanner();
+
+  // Auto-redirect to app view if trips exist (Mobile optimized)
+  useEffect(() => {
+    if (trips.length > 0 && view === "landing" && !isPlanning) {
+      const lastTrip = trips[trips.length - 1];
+      setTrip(lastTrip);
+      setView("app");
+      setActiveTab("summary");
+    }
+  }, [trips, view, isPlanning, setTrip, setView, setActiveTab]);
+
   // DEBUG: Global Error Handler & Render Log
   useEffect(() => {
     const errorHandler = (event: ErrorEvent) =>

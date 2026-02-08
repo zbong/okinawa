@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Calendar, MapPin, Hotel, Sparkles, Plane, Clock, Info, ChevronRight, Download, Upload
+  Calendar, MapPin, Hotel, Sparkles, Plane, Clock, Info, ChevronRight, Download, Upload, RefreshCw
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -11,7 +11,10 @@ export const SummaryTab: React.FC = () => {
     trip,
     calculateProgress,
     exportTrip,
-    importTrip
+    importTrip,
+    isPreparingOffline,
+    offlineProgress,
+    prepareOfflineMap
   } = usePlanner();
 
   if (activeTab !== "summary") return null;
@@ -97,6 +100,50 @@ export const SummaryTab: React.FC = () => {
             <strong style={{ display: 'block', marginBottom: 4, color: 'var(--primary)' }}>💡 오프라인 활용 팁</strong>
             현지에서 인터넷이 안 될 때를 대비해, 폰의 <b>'홈 화면에 추가'</b> 기능을 꼭 사용하세요.
             또한, 지도를 한 번씩 훑어두시면 오프라인에서도 지도를 보실 수 있습니다.
+
+            <button
+              onClick={prepareOfflineMap}
+              disabled={isPreparingOffline}
+              style={{
+                marginTop: '12px',
+                width: '100%',
+                padding: '10px',
+                borderRadius: '8px',
+                background: isPreparingOffline ? 'rgba(0,0,0,0.1)' : 'var(--primary)',
+                color: isPreparingOffline ? 'var(--text-dim)' : 'var(--text-on-primary)',
+                border: 'none',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: isPreparingOffline ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.2s'
+              }}
+            >
+              {isPreparingOffline ? (
+                <>
+                  <RefreshCw size={14} className="spin" />
+                  지도 데이터 준비 중... ({offlineProgress}%)
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} /> 오프라인 지도 자동 준비하기
+                </>
+              )}
+            </button>
+
+            {isPreparingOffline && (
+              <div style={{ width: '100%', height: '4px', background: 'rgba(0,0,0,0.05)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${offlineProgress}%`,
+                  height: '100%',
+                  background: 'var(--primary)',
+                  transition: 'width 0.3s'
+                }} />
+              </div>
+            )}
           </div>
         </div>
       </div>
