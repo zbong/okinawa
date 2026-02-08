@@ -866,11 +866,19 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const VERCEL_DOMAIN = "https://okinawa-lime.vercel.app";
             const shareUrl = `${VERCEL_DOMAIN}/?id=${shareId}`;
 
-            // Show to user immediately
-            window.prompt("공유 링크가 생성되었습니다. 복사하여 핸드폰으로 보내세요:", shareUrl);
-            showToast("공유 링크 발급 완료", "success");
+            // 1. Copy to clipboard automatically (newer browsers)
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    showToast("복사 완료! 이제 카카오톡으로 공유하세요.", "success");
+                }).catch(() => {
+                    // Fallback for older browsers
+                    window.prompt("링크 복사:", shareUrl);
+                });
+            } else {
+                window.prompt("링크 복사:", shareUrl);
+            }
 
-            // Kakao share is secondary; if it fails, don't show the main error toast
+            // 2. Open Kakao Share
             try {
                 kakao.Share.sendDefault({
                     objectType: 'feed',
@@ -894,8 +902,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     ],
                 });
             } catch (kakaoError) {
-                console.warn("Kakao share failed (this is non-fatal):", kakaoError);
-                // Optionally show a milder toast or nothing
+                console.warn("Kakao share failed:", kakaoError);
             }
         } catch (dbError) {
             console.error("Supabase error:", dbError);
