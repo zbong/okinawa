@@ -203,38 +203,6 @@ export const PlannerStep3: React.FC = () => {
 
             {plannerData.travelMode && (
                 <div style={{ marginBottom: "30px" }}>
-                    {/* Header with Search Buttons */}
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: "15px",
-                        }}
-                    >
-                        <h3 style={{ fontSize: "17px", fontWeight: 800 }}>
-                            상세 정보 입력
-                        </h3>
-                        <button
-                            onClick={() => {
-                                setAnalyzedFiles([]);
-                                showToast("분석 내역이 초기화되었습니다.");
-                            }}
-                            style={{
-                                background: "rgba(255,107,107,0.1)",
-                                border: "1px solid rgba(255,107,107,0.2)",
-                                color: "#ff6b6b",
-                                borderRadius: "8px",
-                                padding: "6px 12px",
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                cursor: "pointer"
-                            }}
-                        >
-                            업로드 내역 초기화
-                        </button>
-                    </div>
-
                     {/* Ticket Upload Area */}
                     <div
                         style={{ marginBottom: "20px" }}
@@ -291,129 +259,6 @@ export const PlannerStep3: React.FC = () => {
                             )}
                         </button>
                     </div>
-
-                    {/* File List for Transportation */}
-                    {analyzedFiles.length > 0 && (
-                        <div style={{ marginBottom: "25px" }}>
-                            <div style={{ marginBottom: 15 }}>
-                                <h4 style={{ fontSize: '14px', fontWeight: 800, color: 'var(--primary)' }}>분석 완료된 서류 ({analyzedFiles.length})</h4>
-                            </div>
-                            <div
-                                style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: "12px",
-                                }}
-                            >
-                                {analyzedFiles.map((file) => (
-                                    <div
-                                        key={file.id || file.name}
-                                        style={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                            padding: "16px 20px",
-                                            background: "rgba(255,255,255,0.07)",
-                                            borderRadius: "16px",
-                                            border: "1px solid rgba(255,255,255,0.15)",
-                                            boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 10,
-                                                fontSize: "13px",
-                                            }}
-                                        >
-                                            {file.linkedTo === 'accommodation' ? (
-                                                <Hotel
-                                                    size={14}
-                                                    style={{
-                                                        opacity: 0.7,
-                                                        color: "var(--primary)",
-                                                    }}
-                                                />
-                                            ) : (
-                                                <Plane
-                                                    size={14}
-                                                    style={{
-                                                        opacity: 0.7,
-                                                        color: "var(--primary)",
-                                                    }}
-                                                />
-                                            )}
-                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <span
-                                                    style={{
-                                                        whiteSpace: "nowrap",
-                                                        overflow: "hidden",
-                                                        textOverflow: "ellipsis",
-                                                        maxWidth: "200px",
-                                                        fontWeight: 600
-                                                    }}
-                                                >
-                                                    {file.name}
-                                                </span>
-                                                <span style={{ fontSize: '10px', opacity: 0.5 }}>
-                                                    {file.linkedTo === 'accommodation' ? '숙소 정보' : '항공 정보'}
-                                                    {file.parsedData && (
-                                                        <span style={{ color: 'var(--primary)', marginLeft: 6 }}>
-                                                            • {file.parsedData.hotelName || file.parsedData.airline || file.parsedData.name || (file.parsedData.type === 'flight' ? '항공권' : '추출 성공')}
-                                                        </span>
-                                                    )}
-                                                </span>
-                                            </div>
-                                            {file.status === "loading" && (
-                                                <Loader2
-                                                    size={12}
-                                                    className="animate-spin"
-                                                />
-                                            )}
-                                        </div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setDeleteConfirmModal({
-                                                    isOpen: true,
-                                                    title: "파일 삭제",
-                                                    message: `${file.name} 파일을 삭제하시겠습니까?`,
-                                                    onConfirm: () => {
-                                                        setAnalyzedFiles((prev) =>
-                                                            prev.filter(
-                                                                (f) => f.id !== file.id && f.name !== file.name,
-                                                            ),
-                                                        );
-                                                        setDeleteConfirmModal({
-                                                            isOpen: false,
-                                                            title: "",
-                                                            message: "",
-                                                            onConfirm: () => { },
-                                                        });
-                                                    },
-                                                });
-                                            }}
-                                            style={{
-                                                background: "rgba(255,0,0,0.1)",
-                                                border: "none",
-                                                color: "#ff6b6b",
-                                                cursor: "pointer",
-                                                padding: "6px",
-                                                borderRadius: "6px",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                            }}
-                                            title="파일 삭제"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
                     {/* Quick Booking Buttons (if Plane) */}
                     {plannerData.travelMode === "plane" && (
@@ -519,625 +364,722 @@ export const PlannerStep3: React.FC = () => {
                             })()}
                         </div>
                     )}
+                </div>
+            )}
 
-                    <div style={{ display: "grid", gap: "20px" }}>
-                        {plannerData.travelMode === "plane" ? (
-                            <>
-                                {/* Outbound Section */}
-                                <div
+            {/* Always visible results & Reset button */}
+            <div style={{ marginTop: "30px", marginBottom: "30px" }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                    <h3 style={{ fontSize: "17px", fontWeight: 800 }}>분석 내역</h3>
+                    <button
+                        onClick={() => {
+                            setAnalyzedFiles([]);
+                            showToast("분석 내역이 초기화되었습니다.");
+                        }}
+                        style={{
+                            background: "rgba(255,107,107,0.1)",
+                            border: "1px solid rgba(255,107,107,0.2)",
+                            color: "#ff6b6b",
+                            borderRadius: "8px",
+                            padding: "6px 12px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer"
+                        }}
+                    >
+                        전체 초기화
+                    </button>
+                </div>
+
+                {analyzedFiles.length > 0 ? (
+                    <div
+                        style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "12px",
+                        }}
+                    >
+                        {analyzedFiles.map((file) => (
+                            <div
+                                key={file.id || file.name}
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    padding: "16px 20px",
+                                    background: "rgba(255,255,255,0.07)",
+                                    borderRadius: "16px",
+                                    border: "1px solid rgba(255,255,255,0.15)",
+                                    boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    {file.linkedTo === 'accommodation' ? <Hotel size={18} color="var(--primary)" /> : <Plane size={18} color="var(--primary)" />}
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontWeight: 700, fontSize: '14px' }}>{file.name}</span>
+                                        <span style={{ fontSize: '11px', opacity: 0.6 }}>
+                                            {file.linkedTo === 'accommodation' ? '숙소' : '항공'}
+                                            {file.parsedData && (
+                                                <span style={{ color: 'var(--primary)', marginLeft: 6 }}>
+                                                    • {file.parsedData.hotelName || file.parsedData.airline || file.parsedData.name || '분석 완료'}
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                    {file.status === "loading" && <Loader2 size={14} className="animate-spin" />}
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeleteConfirmModal({
+                                            isOpen: true,
+                                            title: "파일 삭제",
+                                            message: `${file.name} 파일을 삭제하시겠습니까?`,
+                                            onConfirm: () => {
+                                                setAnalyzedFiles((prev) =>
+                                                    prev.filter(
+                                                        (f) => f.id !== file.id && f.name !== file.name,
+                                                    ),
+                                                );
+                                                setDeleteConfirmModal({
+                                                    isOpen: false,
+                                                    title: "",
+                                                    message: "",
+                                                    onConfirm: () => { },
+                                                });
+                                            },
+                                        });
+                                    }}
+                                    style={{ background: 'rgba(255,0,0,0.1)', border: 'none', color: '#ff6b6b', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)', opacity: 0.5, fontSize: '14px' }}>
+                        업로드된 서류가 없습니다.
+                    </div>
+                )}
+            </div>
+
+            <div style={{ display: "grid", gap: "20px" }}>
+                {plannerData.travelMode === "plane" ? (
+                    <>
+                        {/* Outbound Section */}
+                        <div
+                            style={{
+                                background: "rgba(255,255,255,0.03)",
+                                padding: "20px",
+                                borderRadius: "16px",
+                                border: "1px solid rgba(255,255,255,0.05)",
+                                marginBottom: "20px",
+                            }}
+                        >
+                            <h4
+                                style={{
+                                    color: "#60a5fa",
+                                    marginBottom: "15px",
+                                    fontWeight: 800,
+                                    fontSize: "14px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                }}
+                            >
+                                🛫 가는 편 (출국)
+                            </h4>
+
+                            {/* Outbound Flights List */}
+                            {plannerData.outboundFlights && plannerData.outboundFlights.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                                    {plannerData.outboundFlights.map((leg, i) => (
+                                        <div key={leg.id || i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>{i + 1}</div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
+                                                <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
+                                                    [{leg.departureContext.date}] {leg.departureContext.airport} ({leg.departureContext.time.slice(-5)}) <ArrowRight size={12} style={{ display: 'inline', margin: '0 4px' }} /> {leg.arrivalContext.airport} ({leg.arrivalContext.time.slice(-5)})
+                                                </div>
+                                                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                                                    {leg.airline} | {leg.flightNumber}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setPlannerData(prev => ({
+                                                        ...prev,
+                                                        outboundFlights: (prev.outboundFlights || []).filter(l => l.id !== leg.id)
+                                                    }));
+                                                }}
+                                                style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Manual Input Grid */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                                <input
+                                    type="text"
+                                    placeholder="항공사"
+                                    value={plannerData.airline || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, airline: e.target.value })}
+                                    style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="편명 (예: KE001)"
+                                    value={plannerData.flightNumber || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, flightNumber: e.target.value })}
+                                    style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                            </div>
+                            <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
+                                <input
+                                    type="text"
+                                    placeholder="출발지 (예: ICN)"
+                                    value={plannerData.departurePoint}
+                                    onChange={(e) => setPlannerData({ ...plannerData, departurePoint: e.target.value })}
+                                    style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                                <ArrowRight size={14} color="rgba(255,255,255,0.3)" />
+                                <input
+                                    type="text"
+                                    placeholder={`도착지 (예: ${(plannerData.destination || "").toLowerCase().includes("chiang") || (plannerData.destination || "").includes("치앙마이") ? "CNX" : "OKA"})`}
+                                    value={plannerData.entryPoint === "Direct Driving" ? "" : plannerData.entryPoint}
+                                    onChange={(e) => setPlannerData({ ...plannerData, entryPoint: e.target.value })}
+                                    style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                            </div>
+                            <div style={{ display: "flex", gap: "5px" }}>
+                                <input
+                                    type="date"
+                                    value={plannerData.startDate || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, startDate: e.target.value })}
+                                    style={{ flex: 3, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                                <input
+                                    type="time"
+                                    value={plannerData.departureTime || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, departureTime: e.target.value })}
+                                    style={{ flex: 2, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                            </div>
+
+                            {/* Add Button */}
+                            <button
+                                onClick={() => {
+                                    if (!plannerData.airline && !plannerData.flightNumber) return;
+                                    const newLeg: any = {
+                                        id: `manual-${Date.now()}`,
+                                        airline: plannerData.airline || "",
+                                        flightNumber: plannerData.flightNumber || "",
+                                        departureContext: {
+                                            airport: plannerData.departurePoint || "",
+                                            date: plannerData.startDate || "",
+                                            time: plannerData.departureTime || ""
+                                        },
+                                        arrivalContext: {
+                                            airport: plannerData.entryPoint || "",
+                                            date: plannerData.startDate || "",
+                                            time: plannerData.arrivalTime || ""
+                                        }
+                                    };
+                                    setPlannerData(prev => ({
+                                        ...prev,
+                                        outboundFlights: [...(prev.outboundFlights || []), newLeg],
+                                        // Clear inputs after add
+                                        airline: "", flightNumber: "", departurePoint: "", entryPoint: "", departureTime: "", arrivalTime: ""
+                                    }));
+                                }}
+                                style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 8, background: 'rgba(96, 165, 250, 0.1)', color: '#60a5fa', border: '1px dashed #60a5fa', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                            >
+                                + 현재 입력한 경로 추가
+                            </button>
+                        </div>
+
+                        {/* Inbound Section */}
+                        <div
+                            style={{
+                                background: "rgba(255,255,255,0.03)",
+                                padding: "20px",
+                                borderRadius: "16px",
+                                border: "1px solid rgba(255,255,255,0.05)",
+                            }}
+                        >
+                            <h4
+                                style={{
+                                    color: "#fbbf24",
+                                    marginBottom: "15px",
+                                    fontWeight: 800,
+                                    fontSize: "14px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                }}
+                            >
+                                🛬 오는 편 (귀국)
+                            </h4>
+
+                            {/* Inbound Flights List */}
+                            {plannerData.inboundFlights && plannerData.inboundFlights.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                                    {plannerData.inboundFlights.map((leg, i) => (
+                                        <div key={leg.id || i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(251, 191, 36, 0.2)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>{i + 1}</div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
+                                                <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
+                                                    [{leg.departureContext.date}] {leg.departureContext.airport} ({leg.departureContext.time.slice(-5)}) <ArrowRight size={12} style={{ display: 'inline', margin: '0 4px' }} /> {leg.arrivalContext.airport} ({leg.arrivalContext.time.slice(-5)})
+                                                </div>
+                                                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                                                    {leg.airline} | {leg.flightNumber}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setPlannerData(prev => ({
+                                                        ...prev,
+                                                        inboundFlights: (prev.inboundFlights || []).filter(l => l.id !== leg.id)
+                                                    }));
+                                                }}
+                                                style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Manual Input Grid */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                                <input
+                                    type="text"
+                                    placeholder="항공사"
+                                    value={plannerData.returnAirline || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, returnAirline: e.target.value })}
+                                    style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="편명 (예: KE002)"
+                                    value={plannerData.returnFlightNumber || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, returnFlightNumber: e.target.value })}
+                                    style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                            </div>
+                            <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
+                                <input
+                                    type="text"
+                                    placeholder={`출발지 (예: ${(plannerData.destination || "").toLowerCase().includes("chiang") || (plannerData.destination || "").includes("치앙마이") ? "CNX" : "OKA"})`}
+                                    value={plannerData.returnDeparturePoint || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, returnDeparturePoint: e.target.value })}
+                                    style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                                <ArrowRight size={14} color="rgba(255,255,255,0.3)" />
+                                <input
+                                    type="text"
+                                    placeholder="도착지 (예: ICN)"
+                                    value={plannerData.returnArrivalPoint || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, returnArrivalPoint: e.target.value })}
+                                    style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                            </div>
+                            <div style={{ display: "flex", gap: "5px" }}>
+                                <input
+                                    type="date"
+                                    value={plannerData.endDate || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, endDate: e.target.value })}
+                                    style={{ flex: 3, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                                <input
+                                    type="time"
+                                    value={plannerData.returnDepartureTime || ""}
+                                    onChange={(e) => setPlannerData({ ...plannerData, returnDepartureTime: e.target.value })}
+                                    style={{ flex: 2, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
+                                />
+                            </div>
+
+                            {/* Add Button */}
+                            <button
+                                onClick={() => {
+                                    if (!plannerData.returnAirline && !plannerData.returnFlightNumber) return;
+                                    const newLeg: any = {
+                                        id: `manual-${Date.now()}`,
+                                        airline: plannerData.returnAirline || "",
+                                        flightNumber: plannerData.returnFlightNumber || "",
+                                        departureContext: {
+                                            airport: plannerData.returnDeparturePoint || "",
+                                            date: plannerData.endDate || "",
+                                            time: plannerData.returnDepartureTime || ""
+                                        },
+                                        arrivalContext: {
+                                            airport: plannerData.returnArrivalPoint || "",
+                                            date: plannerData.endDate || "",
+                                            time: plannerData.returnArrivalTime || ""
+                                        }
+                                    };
+                                    setPlannerData(prev => ({
+                                        ...prev,
+                                        inboundFlights: [...(prev.inboundFlights || []), newLeg],
+                                        // Clear inputs
+                                        returnAirline: "", returnFlightNumber: "", returnDeparturePoint: "", returnArrivalPoint: "", returnDepartureTime: "", returnArrivalTime: ""
+                                    }));
+                                }}
+                                style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 8, background: 'rgba(251, 191, 36, 0.1)', color: '#fbbf24', border: '1px dashed #fbbf24', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                            >
+                                + 현재 입력한 경로 추가
+                            </button>
+                        </div>
+
+                        {/* Extracted Accommodations Section in Step 3 */}
+                        {plannerData.accommodations && plannerData.accommodations.length > 0 && (
+                            <div
+                                style={{
+                                    background: "rgba(52, 211, 153, 0.05)",
+                                    padding: "20px",
+                                    borderRadius: "16px",
+                                    border: "1px solid rgba(52, 211, 153, 0.2)",
+                                    marginBottom: "20px",
+                                }}
+                            >
+                                <h4
                                     style={{
-                                        background: "rgba(255,255,255,0.03)",
-                                        padding: "20px",
-                                        borderRadius: "16px",
-                                        border: "1px solid rgba(255,255,255,0.05)",
-                                        marginBottom: "20px",
+                                        color: "#34d399",
+                                        marginBottom: "15px",
+                                        fontWeight: 800,
+                                        fontSize: "14px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
                                     }}
                                 >
-                                    <h4
-                                        style={{
-                                            color: "#60a5fa",
-                                            marginBottom: "15px",
-                                            fontWeight: 800,
-                                            fontSize: "14px",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: 8,
-                                        }}
-                                    >
-                                        🛫 가는 편 (출국)
-                                    </h4>
-
-                                    {/* Outbound Flights List */}
-                                    {plannerData.outboundFlights && plannerData.outboundFlights.length > 0 && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-                                            {plannerData.outboundFlights.map((leg, i) => (
-                                                <div key={leg.id || i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
-                                                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>{i + 1}</div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
-                                                        <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
-                                                            [{leg.departureContext.date}] {leg.departureContext.airport} ({leg.departureContext.time.slice(-5)}) <ArrowRight size={12} style={{ display: 'inline', margin: '0 4px' }} /> {leg.arrivalContext.airport} ({leg.arrivalContext.time.slice(-5)})
-                                                        </div>
-                                                        <div style={{ fontSize: 12, opacity: 0.7 }}>
-                                                            {leg.airline} | {leg.flightNumber}
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            setPlannerData(prev => ({
-                                                                ...prev,
-                                                                outboundFlights: (prev.outboundFlights || []).filter(l => l.id !== leg.id)
-                                                            }));
-                                                        }}
-                                                        style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
+                                    <Hotel size={16} /> 추출된 숙소 정보
+                                </h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {plannerData.accommodations.map((acc: any, i: number) => (
+                                        <div key={i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ width: 24, height: 24, borderRadius: '8px', background: 'rgba(52, 211, 153, 0.2)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Hotel size={14} />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
+                                                <div style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>
+                                                    {acc.name}
                                                 </div>
-                                            ))}
+                                                <div style={{ fontSize: 11, opacity: 0.7 }}>
+                                                    {acc.startDate} ~ {acc.endDate} ({acc.nights}박)
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setPlannerData(prev => ({
+                                                        ...prev,
+                                                        accommodations: prev.accommodations.filter((_: any, idx: number) => idx !== i)
+                                                    }));
+                                                }}
+                                                style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
                                         </div>
-                                    )}
-
-                                    {/* Manual Input Grid */}
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-                                        <input
-                                            type="text"
-                                            placeholder="항공사"
-                                            value={plannerData.airline || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, airline: e.target.value })}
-                                            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="편명 (예: KE001)"
-                                            value={plannerData.flightNumber || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, flightNumber: e.target.value })}
-                                            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                    </div>
-                                    <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
-                                        <input
-                                            type="text"
-                                            placeholder="출발지 (예: ICN)"
-                                            value={plannerData.departurePoint}
-                                            onChange={(e) => setPlannerData({ ...plannerData, departurePoint: e.target.value })}
-                                            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                        <ArrowRight size={14} color="rgba(255,255,255,0.3)" />
-                                        <input
-                                            type="text"
-                                            placeholder={`도착지 (예: ${(plannerData.destination || "").toLowerCase().includes("chiang") || (plannerData.destination || "").includes("치앙마이") ? "CNX" : "OKA"})`}
-                                            value={plannerData.entryPoint === "Direct Driving" ? "" : plannerData.entryPoint}
-                                            onChange={(e) => setPlannerData({ ...plannerData, entryPoint: e.target.value })}
-                                            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                    </div>
-                                    <div style={{ display: "flex", gap: "5px" }}>
-                                        <input
-                                            type="date"
-                                            value={plannerData.startDate || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, startDate: e.target.value })}
-                                            style={{ flex: 3, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                        <input
-                                            type="time"
-                                            value={plannerData.departureTime || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, departureTime: e.target.value })}
-                                            style={{ flex: 2, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                    </div>
-
-                                    {/* Add Button */}
-                                    <button
-                                        onClick={() => {
-                                            if (!plannerData.airline && !plannerData.flightNumber) return;
-                                            const newLeg: any = {
-                                                id: `manual-${Date.now()}`,
-                                                airline: plannerData.airline || "",
-                                                flightNumber: plannerData.flightNumber || "",
-                                                departureContext: {
-                                                    airport: plannerData.departurePoint || "",
-                                                    date: plannerData.startDate || "",
-                                                    time: plannerData.departureTime || ""
-                                                },
-                                                arrivalContext: {
-                                                    airport: plannerData.entryPoint || "",
-                                                    date: plannerData.startDate || "",
-                                                    time: plannerData.arrivalTime || ""
-                                                }
-                                            };
-                                            setPlannerData(prev => ({
-                                                ...prev,
-                                                outboundFlights: [...(prev.outboundFlights || []), newLeg],
-                                                // Clear inputs after add
-                                                airline: "", flightNumber: "", departurePoint: "", entryPoint: "", departureTime: "", arrivalTime: ""
-                                            }));
-                                        }}
-                                        style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 8, background: 'rgba(96, 165, 250, 0.1)', color: '#60a5fa', border: '1px dashed #60a5fa', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
-                                    >
-                                        + 현재 입력한 경로 추가
-                                    </button>
+                                    ))}
                                 </div>
-
-                                {/* Inbound Section */}
-                                <div
-                                    style={{
-                                        background: "rgba(255,255,255,0.03)",
-                                        padding: "20px",
-                                        borderRadius: "16px",
-                                        border: "1px solid rgba(255,255,255,0.05)",
-                                    }}
-                                >
-                                    <h4
-                                        style={{
-                                            color: "#fbbf24",
-                                            marginBottom: "15px",
-                                            fontWeight: 800,
-                                            fontSize: "14px",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: 8,
-                                        }}
-                                    >
-                                        🛬 오는 편 (귀국)
-                                    </h4>
-
-                                    {/* Inbound Flights List */}
-                                    {plannerData.inboundFlights && plannerData.inboundFlights.length > 0 && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-                                            {plannerData.inboundFlights.map((leg, i) => (
-                                                <div key={leg.id || i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
-                                                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(251, 191, 36, 0.2)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>{i + 1}</div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
-                                                        <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
-                                                            [{leg.departureContext.date}] {leg.departureContext.airport} ({leg.departureContext.time.slice(-5)}) <ArrowRight size={12} style={{ display: 'inline', margin: '0 4px' }} /> {leg.arrivalContext.airport} ({leg.arrivalContext.time.slice(-5)})
-                                                        </div>
-                                                        <div style={{ fontSize: 12, opacity: 0.7 }}>
-                                                            {leg.airline} | {leg.flightNumber}
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            setPlannerData(prev => ({
-                                                                ...prev,
-                                                                inboundFlights: (prev.inboundFlights || []).filter(l => l.id !== leg.id)
-                                                            }));
-                                                        }}
-                                                        style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* Manual Input Grid */}
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-                                        <input
-                                            type="text"
-                                            placeholder="항공사"
-                                            value={plannerData.returnAirline || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, returnAirline: e.target.value })}
-                                            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="편명 (예: KE002)"
-                                            value={plannerData.returnFlightNumber || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, returnFlightNumber: e.target.value })}
-                                            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                    </div>
-                                    <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
-                                        <input
-                                            type="text"
-                                            placeholder={`출발지 (예: ${(plannerData.destination || "").toLowerCase().includes("chiang") || (plannerData.destination || "").includes("치앙마이") ? "CNX" : "OKA"})`}
-                                            value={plannerData.returnDeparturePoint || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, returnDeparturePoint: e.target.value })}
-                                            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                        <ArrowRight size={14} color="rgba(255,255,255,0.3)" />
-                                        <input
-                                            type="text"
-                                            placeholder="도착지 (예: ICN)"
-                                            value={plannerData.returnArrivalPoint || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, returnArrivalPoint: e.target.value })}
-                                            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                    </div>
-                                    <div style={{ display: "flex", gap: "5px" }}>
-                                        <input
-                                            type="date"
-                                            value={plannerData.endDate || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, endDate: e.target.value })}
-                                            style={{ flex: 3, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                        <input
-                                            type="time"
-                                            value={plannerData.returnDepartureTime || ""}
-                                            onChange={(e) => setPlannerData({ ...plannerData, returnDepartureTime: e.target.value })}
-                                            style={{ flex: 2, padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.3)", color: "white" }}
-                                        />
-                                    </div>
-
-                                    {/* Add Button */}
-                                    <button
-                                        onClick={() => {
-                                            if (!plannerData.returnAirline && !plannerData.returnFlightNumber) return;
-                                            const newLeg: any = {
-                                                id: `manual-${Date.now()}`,
-                                                airline: plannerData.returnAirline || "",
-                                                flightNumber: plannerData.returnFlightNumber || "",
-                                                departureContext: {
-                                                    airport: plannerData.returnDeparturePoint || "",
-                                                    date: plannerData.endDate || "",
-                                                    time: plannerData.returnDepartureTime || ""
-                                                },
-                                                arrivalContext: {
-                                                    airport: plannerData.returnArrivalPoint || "",
-                                                    date: plannerData.endDate || "",
-                                                    time: plannerData.returnArrivalTime || ""
-                                                }
-                                            };
-                                            setPlannerData(prev => ({
-                                                ...prev,
-                                                inboundFlights: [...(prev.inboundFlights || []), newLeg],
-                                                // Clear inputs
-                                                returnAirline: "", returnFlightNumber: "", returnDeparturePoint: "", returnArrivalPoint: "", returnDepartureTime: "", returnArrivalTime: ""
-                                            }));
-                                        }}
-                                        style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 8, background: 'rgba(251, 191, 36, 0.1)', color: '#fbbf24', border: '1px dashed #fbbf24', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
-                                    >
-                                        + 현재 입력한 경로 추가
-                                    </button>
+                                <div style={{ marginTop: 12, fontSize: 11, opacity: 0.5, textAlign: 'center' }}>
+                                    * 숙소 상세 설정은 5단계에서 가능합니다.
                                 </div>
-
-                                {/* Extracted Accommodations Section in Step 3 */}
-                                {plannerData.accommodations && plannerData.accommodations.length > 0 && (
-                                    <div
-                                        style={{
-                                            background: "rgba(52, 211, 153, 0.05)",
-                                            padding: "20px",
-                                            borderRadius: "16px",
-                                            border: "1px solid rgba(52, 211, 153, 0.2)",
-                                            marginBottom: "20px",
-                                        }}
-                                    >
-                                        <h4
-                                            style={{
-                                                color: "#34d399",
-                                                marginBottom: "15px",
-                                                fontWeight: 800,
-                                                fontSize: "14px",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 8,
-                                            }}
-                                        >
-                                            <Hotel size={16} /> 추출된 숙소 정보
-                                        </h4>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                            {plannerData.accommodations.map((acc: any, i: number) => (
-                                                <div key={i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
-                                                    <div style={{ width: 24, height: 24, borderRadius: '8px', background: 'rgba(52, 211, 153, 0.2)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <Hotel size={14} />
-                                                    </div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
-                                                        <div style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>
-                                                            {acc.name}
-                                                        </div>
-                                                        <div style={{ fontSize: 11, opacity: 0.7 }}>
-                                                            {acc.startDate} ~ {acc.endDate} ({acc.nights}박)
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            setPlannerData(prev => ({
-                                                                ...prev,
-                                                                accommodations: prev.accommodations.filter((_: any, idx: number) => idx !== i)
-                                                            }));
-                                                        }}
-                                                        style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: 4 }}
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div style={{ marginTop: 12, fontSize: 11, opacity: 0.5, textAlign: 'center' }}>
-                                            * 숙소 상세 설정은 5단계에서 가능합니다.
-                                        </div>
-                                    </div>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        {/* Generic Mode (Car/Ship/etc) */}
+                        <div>
+                            <label
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    marginBottom: "8px",
+                                    fontSize: "13px",
+                                    fontWeight: 700,
+                                    opacity: 0.8,
+                                }}
+                            >
+                                <span>출발지</span>
+                                {plannerData.departureCoordinates && (
+                                    <span style={{ fontSize: "10px", color: "#10b981" }}>
+                                        ✓ 위치 확인됨
+                                    </span>
                                 )}
-                            </>
-                        ) : (
-                            <>
-                                {/* Generic Mode (Car/Ship/etc) */}
-                                <div>
-                                    <label
-                                        style={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            marginBottom: "8px",
-                                            fontSize: "13px",
-                                            fontWeight: 700,
-                                            opacity: 0.8,
-                                        }}
-                                    >
-                                        <span>출발지</span>
-                                        {plannerData.departureCoordinates && (
-                                            <span style={{ fontSize: "10px", color: "#10b981" }}>
-                                                ✓ 위치 확인됨
-                                            </span>
-                                        )}
-                                    </label>
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="예: 출발지 입력"
+                                value={plannerData.departurePoint}
+                                onChange={(e) =>
+                                    setPlannerData({
+                                        ...plannerData,
+                                        departurePoint: e.target.value,
+                                    })
+                                }
+                                style={{
+                                    width: "100%",
+                                    padding: "14px",
+                                    borderRadius: "12px",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    background: "rgba(0,0,0,0.3)",
+                                    color: "white",
+                                }}
+                            />
+                        </div>
+
+                        {plannerData.travelMode !== "car" && (
+                            <div>
+                                <label
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        marginBottom: "8px",
+                                        fontSize: "13px",
+                                        fontWeight: 700,
+                                        opacity: 0.8,
+                                    }}
+                                >
+                                    <span>도착지</span>
+                                    {plannerData.entryCoordinates && (
+                                        <span style={{ fontSize: "10px", color: "#10b981" }}>
+                                            ✓ 위치 확인됨
+                                        </span>
+                                    )}
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder={`예: ${plannerData.destination} 항구/터미널`}
+                                    value={
+                                        plannerData.entryPoint === "Direct Driving"
+                                            ? ""
+                                            : plannerData.entryPoint
+                                    }
+                                    onChange={(e) =>
+                                        setPlannerData({
+                                            ...plannerData,
+                                            entryPoint: e.target.value,
+                                        })
+                                    }
+                                    style={{
+                                        width: "100%",
+                                        padding: "14px",
+                                        borderRadius: "12px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        background: "rgba(0,0,0,0.3)",
+                                        color: "white",
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {/* Date/Time */}
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: "15px",
+                            }}
+                        >
+                            <div>
+                                <label
+                                    style={{
+                                        display: "block",
+                                        marginBottom: "8px",
+                                        fontSize: "13px",
+                                        fontWeight: 700,
+                                        opacity: 0.8,
+                                    }}
+                                >
+                                    출발 일시
+                                </label>
+                                <div style={{ display: "flex", gap: "5px" }}>
                                     <input
-                                        type="text"
-                                        placeholder="예: 출발지 입력"
-                                        value={plannerData.departurePoint}
+                                        type="date"
+                                        value={plannerData.startDate || ""}
                                         onChange={(e) =>
                                             setPlannerData({
                                                 ...plannerData,
-                                                departurePoint: e.target.value,
+                                                startDate: e.target.value,
                                             })
                                         }
                                         style={{
-                                            width: "100%",
-                                            padding: "14px",
-                                            borderRadius: "12px",
+                                            flex: 3,
+                                            padding: "12px",
+                                            borderRadius: "10px",
+                                            border: "1px solid rgba(255,255,255,0.1)",
+                                            background: "rgba(0,0,0,0.3)",
+                                            color: "white",
+                                        }}
+                                    />
+                                    <input
+                                        type="time"
+                                        value={plannerData.departureTime || ""}
+                                        onChange={(e) =>
+                                            setPlannerData({
+                                                ...plannerData,
+                                                departureTime: e.target.value,
+                                            })
+                                        }
+                                        style={{
+                                            flex: 2,
+                                            padding: "12px",
+                                            borderRadius: "10px",
                                             border: "1px solid rgba(255,255,255,0.1)",
                                             background: "rgba(0,0,0,0.3)",
                                             color: "white",
                                         }}
                                     />
                                 </div>
-
-                                {plannerData.travelMode !== "car" && (
-                                    <div>
-                                        <label
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                marginBottom: "8px",
-                                                fontSize: "13px",
-                                                fontWeight: 700,
-                                                opacity: 0.8,
-                                            }}
-                                        >
-                                            <span>도착지</span>
-                                            {plannerData.entryCoordinates && (
-                                                <span style={{ fontSize: "10px", color: "#10b981" }}>
-                                                    ✓ 위치 확인됨
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            placeholder={`예: ${plannerData.destination} 항구/터미널`}
-                                            value={
-                                                plannerData.entryPoint === "Direct Driving"
-                                                    ? ""
-                                                    : plannerData.entryPoint
-                                            }
-                                            onChange={(e) =>
-                                                setPlannerData({
-                                                    ...plannerData,
-                                                    entryPoint: e.target.value,
-                                                })
-                                            }
-                                            style={{
-                                                width: "100%",
-                                                padding: "14px",
-                                                borderRadius: "12px",
-                                                border: "1px solid rgba(255,255,255,0.1)",
-                                                background: "rgba(0,0,0,0.3)",
-                                                color: "white",
-                                            }}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* Date/Time */}
-                                <div
+                            </div>
+                            <div>
+                                <label
                                     style={{
-                                        display: "grid",
-                                        gridTemplateColumns: "1fr 1fr",
-                                        gap: "15px",
+                                        display: "block",
+                                        marginBottom: "8px",
+                                        fontSize: "13px",
+                                        fontWeight: 700,
+                                        opacity: 0.8,
                                     }}
                                 >
-                                    <div>
-                                        <label
-                                            style={{
-                                                display: "block",
-                                                marginBottom: "8px",
-                                                fontSize: "13px",
-                                                fontWeight: 700,
-                                                opacity: 0.8,
-                                            }}
-                                        >
-                                            출발 일시
-                                        </label>
-                                        <div style={{ display: "flex", gap: "5px" }}>
-                                            <input
-                                                type="date"
-                                                value={plannerData.startDate || ""}
-                                                onChange={(e) =>
-                                                    setPlannerData({
-                                                        ...plannerData,
-                                                        startDate: e.target.value,
-                                                    })
-                                                }
-                                                style={{
-                                                    flex: 3,
-                                                    padding: "12px",
-                                                    borderRadius: "10px",
-                                                    border: "1px solid rgba(255,255,255,0.1)",
-                                                    background: "rgba(0,0,0,0.3)",
-                                                    color: "white",
-                                                }}
-                                            />
-                                            <input
-                                                type="time"
-                                                value={plannerData.departureTime || ""}
-                                                onChange={(e) =>
-                                                    setPlannerData({
-                                                        ...plannerData,
-                                                        departureTime: e.target.value,
-                                                    })
-                                                }
-                                                style={{
-                                                    flex: 2,
-                                                    padding: "12px",
-                                                    borderRadius: "10px",
-                                                    border: "1px solid rgba(255,255,255,0.1)",
-                                                    background: "rgba(0,0,0,0.3)",
-                                                    color: "white",
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label
-                                            style={{
-                                                display: "block",
-                                                marginBottom: "8px",
-                                                fontSize: "13px",
-                                                fontWeight: 700,
-                                                opacity: 0.8,
-                                            }}
-                                        >
-                                            도착 일시
-                                        </label>
-                                        <div style={{ display: "flex", gap: "5px" }}>
-                                            <input
-                                                type="date"
-                                                value={
-                                                    plannerData.arrivalDate ||
-                                                    plannerData.startDate ||
-                                                    ""
-                                                }
-                                                onChange={(e) =>
-                                                    setPlannerData({
-                                                        ...plannerData,
-                                                        arrivalDate: e.target.value,
-                                                    })
-                                                }
-                                                style={{
-                                                    flex: 3,
-                                                    padding: "12px",
-                                                    borderRadius: "10px",
-                                                    border: "1px solid rgba(255,255,255,0.1)",
-                                                    background: "rgba(0,0,0,0.3)",
-                                                    color: "white",
-                                                }}
-                                            />
-                                            <input
-                                                type="time"
-                                                value={plannerData.arrivalTime || ""}
-                                                onChange={(e) =>
-                                                    setPlannerData({
-                                                        ...plannerData,
-                                                        arrivalTime: e.target.value,
-                                                    })
-                                                }
-                                                style={{
-                                                    flex: 2,
-                                                    padding: "12px",
-                                                    borderRadius: "10px",
-                                                    border: "1px solid rgba(255,255,255,0.1)",
-                                                    background: "rgba(0,0,0,0.3)",
-                                                    color: "white",
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
+                                    도착 일시
+                                </label>
+                                <div style={{ display: "flex", gap: "5px" }}>
+                                    <input
+                                        type="date"
+                                        value={
+                                            plannerData.arrivalDate ||
+                                            plannerData.startDate ||
+                                            ""
+                                        }
+                                        onChange={(e) =>
+                                            setPlannerData({
+                                                ...plannerData,
+                                                arrivalDate: e.target.value,
+                                            })
+                                        }
+                                        style={{
+                                            flex: 3,
+                                            padding: "12px",
+                                            borderRadius: "10px",
+                                            border: "1px solid rgba(255,255,255,0.1)",
+                                            background: "rgba(0,0,0,0.3)",
+                                            color: "white",
+                                        }}
+                                    />
+                                    <input
+                                        type="time"
+                                        value={plannerData.arrivalTime || ""}
+                                        onChange={(e) =>
+                                            setPlannerData({
+                                                ...plannerData,
+                                                arrivalTime: e.target.value,
+                                            })
+                                        }
+                                        style={{
+                                            flex: 2,
+                                            padding: "12px",
+                                            borderRadius: "10px",
+                                            border: "1px solid rgba(255,255,255,0.1)",
+                                            background: "rgba(0,0,0,0.3)",
+                                            color: "white",
+                                        }}
+                                    />
                                 </div>
-                            </>
-                        )
-                        }
-                    </div >
-                </div >
-            )}
+                            </div>
+                        </div>
+                    </>
+                )
+                }
 
-            <div style={{ display: "flex", gap: "15px" }}>
-                <button
-                    onClick={() => setPlannerStep(2)}
-                    style={{
-                        flex: 1,
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "transparent",
-                        color: "white",
-                        fontWeight: 800,
-                        cursor: "pointer",
-                    }}
-                >
-                    이전
-                </button>
-                <button
-                    onClick={() => {
-                        if (saveDraft(3)) {
-                            showToast('여행이 임시 저장되었습니다', 'success');
-                            setTimeout(() => setIsPlanning(false), 500);
-                        }
-                    }}
-                    style={{
-                        flex: 1,
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "1px solid rgba(255,255,255,0.3)",
-                        background: "rgba(255,255,255,0.15)",
-                        color: "white",
-                        fontWeight: 800,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 6,
-                    }}
-                >
-                    <Save size={18} /> 저장
-                </button>
-                <button
-                    onClick={() => {
-                        const outboundMismatch = plannerData.outboundFlights?.some(leg => leg.departureContext.date !== plannerData.startDate);
-                        const inboundMismatch = plannerData.inboundFlights?.some(leg => leg.departureContext.date !== plannerData.endDate);
+                <div style={{ display: "flex", gap: "15px", marginTop: "30px" }}>
+                    <button
+                        onClick={() => setPlannerStep(2)}
+                        style={{
+                            flex: 1,
+                            padding: "20px",
+                            borderRadius: "20px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "transparent",
+                            color: "white",
+                            fontWeight: 800,
+                            cursor: "pointer",
+                        }}
+                    >
+                        이전
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (saveDraft(3)) {
+                                showToast('여행이 임시 저장되었습니다', 'success');
+                                setTimeout(() => setIsPlanning(false), 500);
+                            }
+                        }}
+                        style={{
+                            flex: 1,
+                            padding: "20px",
+                            borderRadius: "20px",
+                            border: "1px solid rgba(255,255,255,0.3)",
+                            background: "rgba(255,255,255,0.15)",
+                            color: "white",
+                            fontWeight: 800,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                        }}
+                    >
+                        <Save size={18} /> 저장
+                    </button>
+                    <button
+                        onClick={() => {
+                            const outboundMismatch = plannerData.outboundFlights?.some(leg => (leg as any).departureContext?.date !== plannerData.startDate);
+                            const inboundMismatch = plannerData.inboundFlights?.some(leg => (leg as any).departureContext?.date !== plannerData.endDate);
 
-                        if (plannerData.travelMode === 'plane' && (outboundMismatch || inboundMismatch)) {
-                            setDeleteConfirmModal({
-                                isOpen: true,
-                                title: "날짜 불일치 확인",
-                                message: "등록된 비행기 날짜와 여행 기간이 일치하지 않습니다. 그래도 진행하시겠습니까?",
-                                confirmText: "진행",
-                                cancelText: "취소",
-                                onConfirm: () => {
-                                    setDeleteConfirmModal({ isOpen: false, title: "", message: "", onConfirm: () => { } });
-                                    setPlannerStep(4);
-                                }
-                            });
-                        } else {
-                            setPlannerStep(4);
-                        }
-                    }}
-                    disabled={!plannerData.travelMode}
-                    style={{
-                        flex: 2,
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "none",
-                        background: plannerData.travelMode
-                            ? "var(--primary)"
-                            : "rgba(255,255,255,0.1)",
-                        color: plannerData.travelMode
-                            ? "black"
-                            : "rgba(255,255,255,0.3)",
-                        fontWeight: 800,
-                        cursor: plannerData.travelMode ? "pointer" : "not-allowed",
-                    }}
-                >
-                    다음 단계로 (명소 추천)
-                </button>
+                            if (plannerData.travelMode === 'plane' && (outboundMismatch || inboundMismatch)) {
+                                setDeleteConfirmModal({
+                                    isOpen: true,
+                                    title: "날짜 불일치 확인",
+                                    message: "등록된 비행기 날짜와 여행 기간이 일치하지 않습니다. 그래도 진행하시겠습니까?",
+                                    confirmText: "진행",
+                                    cancelText: "취소",
+                                    onConfirm: () => {
+                                        setDeleteConfirmModal({ isOpen: false, title: "", message: "", onConfirm: () => { } });
+                                        setPlannerStep(4);
+                                    }
+                                });
+                            } else {
+                                setPlannerStep(4);
+                            }
+                        }}
+                        disabled={!plannerData.travelMode}
+                        style={{
+                            flex: 2,
+                            padding: "20px",
+                            borderRadius: "20px",
+                            border: "none",
+                            background: plannerData.travelMode
+                                ? "var(--primary)"
+                                : "rgba(255,255,255,0.1)",
+                            color: plannerData.travelMode
+                                ? "black"
+                                : "rgba(255,255,255,0.3)",
+                            fontWeight: 800,
+                            cursor: plannerData.travelMode ? "pointer" : "not-allowed",
+                        }}
+                    >
+                        다음 단계로 (명소 추천)
+                    </button>
+                </div>
             </div>
-        </motion.div >
+        </motion.div>
     );
 };

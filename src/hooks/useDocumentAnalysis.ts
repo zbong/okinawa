@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { PlannerData, FlightLeg } from '../types';
 import { extractTextFromFile, parseUniversalDocument, fileToBase64 } from '../utils/ocr';
 import { parseWithAI } from '../utils/ai-parser';
@@ -7,12 +7,14 @@ interface UseDocumentAnalysisProps {
     plannerData: PlannerData;
     setPlannerData: React.Dispatch<React.SetStateAction<PlannerData>>;
     setCustomFiles: React.Dispatch<React.SetStateAction<any[]>>;
+    analyzedFiles: any[]; // Lifted state
+    setAnalyzedFiles: React.Dispatch<React.SetStateAction<any[]>>; // Lifted state setter
     showToast: (message: string, type?: "success" | "error" | "info") => void;
 }
 
-export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFiles, showToast }: UseDocumentAnalysisProps) => {
+export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFiles, analyzedFiles, setAnalyzedFiles, showToast }: UseDocumentAnalysisProps) => {
     const [isOcrLoading, setIsOcrLoading] = useState(false);
-    const [analyzedFiles, setAnalyzedFiles] = useState<any[]>([]);
+    // const [analyzedFiles, setAnalyzedFiles] = useState<any[]>([]); // Removed internal state
     const ticketFileInputRef = useRef<HTMLInputElement>(null);
     const [customAiPrompt, setCustomAiPrompt] = useState("");
 
@@ -34,9 +36,10 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
 
-                if (currentAnalyzedFiles.some((f) => f.name === file.name)) {
-                    showToast(`"${file.name}" 파일을 다시 읽어옵니다...`, "info");
-                    currentAnalyzedFiles = currentAnalyzedFiles.filter(f => f.name !== file.name);
+                const existingIdx = currentAnalyzedFiles.findIndex((f) => f.name === file.name);
+                if (existingIdx !== -1) {
+                    showToast(`기존 파일(${file.name})을 새로운 분석 결과로 대체합니다.`, "info");
+                    currentAnalyzedFiles.splice(existingIdx, 1);
                 }
 
                 const fileId = `analyzed-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;

@@ -146,16 +146,14 @@ const App: React.FC = () => {
             setTrip(null);
           }
         } catch (err: any) {
-          console.error("❌ Critical Load Error:", {
-            message: err.message,
-            hint: err.hint,
-            status: err.status
-          });
+          console.error("❌ Critical Load Error:", err);
           isHandlingLink.current = false;
           setTrip(null);
 
           if (err.message === "Invalid API key" || err.status === 401) {
-            showToast("Vercel 환경 변수(SUPABASE_ANON_KEY)를 확인해 주세요.", "error");
+            showToast("인증 오류: 관리자에게 문의하세요 (API Key).", "error");
+          } else if (err.code === "PGRST116") {
+            showToast("존재하지 않는 공유 링크입니다.", "error");
           } else {
             showToast("데이터 로드 중 오류가 발생했습니다.", "error");
           }
@@ -209,7 +207,7 @@ const App: React.FC = () => {
         console.error("Cleanup failed:", e);
       }
     };
-    cleanupStorage();
+    // cleanupStorage(); // DISABLED: Prevent accidental data loss
 
     // Prevent browser from opening dropped files globally
     const preventDefault = (e: DragEvent) => {

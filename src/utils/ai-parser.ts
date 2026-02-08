@@ -52,10 +52,10 @@ export const parseWithAI = async (text: string, fileData?: { base64: string, mim
   /**
    * Verified model list for this account:
    * 1. gemini-2.0-flash (Strongest stable)
-   * 2. gemini-flash-latest (Reliable fallback)
-   * 3. gemini-2.5-flash (Cutting edge)
+   * 2. gemini-1.5-flash (Reliable stable)
+   * 3. gemini-1.5-flash-8b (Lightweight fallback)
    */
-  const modelsToTry = ["gemini-2.0-flash", "gemini-flash-latest", "gemini-1.5-flash-latest"];
+  const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"];
   let lastError: any;
 
   for (const modelName of modelsToTry) {

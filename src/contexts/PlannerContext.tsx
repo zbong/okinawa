@@ -361,6 +361,29 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         customFiles
     });
 
+    // OCR Lab (Extracted to useDocumentAnalysis)
+    const [analyzedFiles, setAnalyzedFiles] = useState<any[]>([]); // Lifted State
+
+    const {
+        isOcrLoading,
+        setIsOcrLoading,
+        // analyzedFiles, // Removed from destructuring
+        // setAnalyzedFiles, // Removed from destructuring
+        ticketFileInputRef,
+        customAiPrompt,
+        setCustomAiPrompt,
+        handleFileAnalysis,
+        handleTicketOcr,
+        handleMultipleOcr
+    } = useDocumentAnalysis({
+        plannerData,
+        setPlannerData,
+        setCustomFiles,
+        analyzedFiles,     // Passed as prop
+        setAnalyzedFiles,  // Passed as prop
+        showToast
+    });
+
     useEffect(() => {
         const saved = localStorage.getItem("trip_draft_v1");
         if (saved) {
@@ -372,13 +395,16 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 if (parsed.hotels) setRecommendedHotels(parsed.hotels);
                 if (parsed.hotelStrategy) setHotelStrategy(parsed.hotelStrategy);
                 if (parsed.customFiles) setCustomFiles(parsed.customFiles);
-                if (parsed.analyzedFiles) setAnalyzedFiles(parsed.analyzedFiles);
+                if (parsed.analyzedFiles) {
+                    console.log("Restoring analyzed files:", parsed.analyzedFiles);
+                    setAnalyzedFiles(parsed.analyzedFiles);
+                }
                 if (parsed.step !== undefined) setPlannerStep(parsed.step);
-
-
-            } catch (e) { }
+            } catch (e) {
+                console.error("Failed to restore draft:", e);
+            }
         }
-    }, []);
+    }, [setAnalyzedFiles, setCustomFiles, setDynamicAttractions, setHotelStrategy, setPlannerData, setPlannerStep, setRecommendedHotels, setSelectedPlaceIds]);
 
     useEffect(() => {
         if (isPlanning) {
@@ -401,7 +427,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 console.warn("Auto-save failed: Storage quota exceeded", e);
             }
         }
-    }, [isPlanning, plannerStep, plannerData, selectedPlaceIds, dynamicAttractions, recommendedHotels, hotelStrategy, customFiles]);
+    }, [isPlanning, plannerStep, plannerData, selectedPlaceIds, dynamicAttractions, recommendedHotels, hotelStrategy, customFiles, analyzedFiles]);
 
     // Sync planner destination to active trip for correct data storage (files, logs)
     // ONLY sync when destination is validated to avoid creating dozens of localStorage entries while typing
@@ -424,25 +450,6 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSelectedPoint(null);
     }, [trip?.metadata?.destination]);
 
-
-    // OCR Lab (Extracted to useDocumentAnalysis)
-    const {
-        isOcrLoading,
-        setIsOcrLoading,
-        analyzedFiles,
-        setAnalyzedFiles,
-        ticketFileInputRef,
-        customAiPrompt,
-        setCustomAiPrompt,
-        handleFileAnalysis,
-        handleTicketOcr,
-        handleMultipleOcr
-    } = useDocumentAnalysis({
-        plannerData,
-        setPlannerData,
-        setCustomFiles,
-        showToast
-    });
 
     // App Local But Moved to Context
     const [isEditingPoint, setIsEditingPoint] = useState(false);
@@ -667,6 +674,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 5. OCR / Documents
         setAnalyzedFiles([]);
+        setCustomFiles([]); // Reset custom files from previous session
         setCustomAiPrompt("");
 
         // 6. Detailed States
