@@ -22,7 +22,8 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                return Array.isArray(parsed) ? parsed.filter(t => t.id !== "okinawa" && t.metadata?.destination !== "오키나와") : [];
+                // Only filter out the SPECIFIC hardcoded ID 'okinawa', not all trips to Okinawa
+                return Array.isArray(parsed) ? parsed.filter(t => t.id !== "okinawa") : [];
             } catch (e) {
                 console.error("Failed to parse trips:", e);
             }
