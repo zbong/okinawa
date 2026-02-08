@@ -967,7 +967,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         hotelStrategy, hotelAddStatus, validatedHotel, isValidatingPlace, isPlaceAddedSuccess,
         isPlaceAddedError, userReviews, userLogs, customFiles, weatherData, isLoadingWeather,
         weatherError, jpyAmount, krwAmount, rate, isOcrLoading, analyzedFiles, customAiPrompt,
-        isEditingPoint, attractionCategoryFilter, isDragging, toasts, isReviewModalOpen,
+        isEditingPoint, attractionCategoryFilter, isDragging, isReviewModalOpen,
         isReEditModalOpen, tripToEdit, deleteConfirmModal, isLoggedIn, currentUser,
         selectedFile, calendarDate, isDestinationValidated, isValidatingDestination,
         isPreparingOffline, offlineProgress

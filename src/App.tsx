@@ -102,6 +102,8 @@ const App: React.FC = () => {
 
       if (shareId && !isHandlingLink.current) {
         isHandlingLink.current = true;
+        console.log("🔗 Shared Link detected, shareId:", shareId);
+
         try {
           const { data, error } = await supabase
             .from('shared_trips')
@@ -109,34 +111,43 @@ const App: React.FC = () => {
             .eq('id', shareId)
             .single();
 
-          if (error) throw error;
+          if (error) {
+            console.error("❌ DB Fetch Error:", error);
+            throw error;
+          }
+
           if (data && data.trip_data) {
+            console.log("✅ Data matched, setting trip...");
             setTrip(data.trip_data);
             setIsPlanning(false);
 
             setTimeout(() => {
-              console.log("🚀 Forcing view to 'app' for shared link...");
               setView("app");
               setActiveTab("summary");
-              showToast("공유된 여행 가이드를 불러왔습니다.", "success");
-            }, 500);
+              showToast("공유 가이드 로드 완료", "success");
+            }, 100);
 
+            // 파라미터 제거
             window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
           } else {
-            throw new Error("No trip data found for this ID.");
+            showToast("여행 정보를 찾을 수 없습니다.", "error");
           }
-        } catch (err) {
-          console.error("❌ Failed to load shared trip:", err);
-          const isDev = window.location.hostname === "localhost";
-          if (!isDev) {
-            showToast("여행 정보를 서버에서 가져오지 못했습니다.", "error");
+        } catch (err: any) {
+          console.error("❌ Global Link Load Error:", err);
+          // Vercel 환경변수 누락 여부 확인용 로그
+          if (err.message?.includes("supabaseUrl")) {
+            showToast("서버 설정이 완료되지 않았습니다 (Vercel 환경변수).", "error");
+          } else {
+            showToast("데이터를 불러오지 못했습니다.", "error");
           }
+          // 실패 시 메인으로 가지 않고 멈춤 (테스트 데이터 방지)
           isHandlingLink.current = false;
         }
       }
     };
     handleSharedLink();
-  }, [setTrip, setView, setActiveTab, setIsPlanning, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
 
   // DEBUG: Global Error Handler & Render Log
