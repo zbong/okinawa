@@ -10,12 +10,19 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
     // Trips & Current Trip
     const [trips, setTrips] = useState<TripPlan[]>(() => {
         if (typeof window === "undefined") return [];
+
+        // Final annihilation of the hardcoded test trip from the browser's memory
+        localStorage.removeItem("points_order_오키나와");
+        localStorage.removeItem("checklist_오키나와");
+        localStorage.removeItem("reviews_오키나와");
+        localStorage.removeItem("logs_오키나와");
+        localStorage.removeItem("files_오키나와");
+
         const saved = localStorage.getItem("user_trips_v2");
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                // Filter out the old hardcoded test trip if it somehow persisted
-                return Array.isArray(parsed) ? parsed.filter(t => t.id !== "okinawa") : [];
+                return Array.isArray(parsed) ? parsed.filter(t => t.id !== "okinawa" && t.metadata?.destination !== "오키나와") : [];
             } catch (e) {
                 console.error("Failed to parse trips:", e);
             }
