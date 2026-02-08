@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { TripPlan, LocationPoint, CustomFile } from '../types';
-import { okinawaTrip } from '../data';
 
 interface UseTripManagerProps {
     showToast: (message: string, type?: "success" | "error" | "info") => void;
@@ -10,7 +9,7 @@ interface UseTripManagerProps {
 export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripManagerProps) => {
     // Trips & Current Trip
     const [trips, setTrips] = useState<TripPlan[]>(() => {
-        if (typeof window === "undefined") return [okinawaTrip];
+        if (typeof window === "undefined") return [];
         const saved = localStorage.getItem("user_trips_v2");
         if (saved) {
             try {
@@ -19,10 +18,10 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
                 console.error("Failed to parse trips:", e);
             }
         }
-        return [okinawaTrip];
+        return []; // No default test trip
     });
 
-    const [trip, setTrip] = useState<TripPlan>(okinawaTrip);
+    const [trip, setTrip] = useState<TripPlan | null>(null);
 
     useEffect(() => {
         if (typeof window !== "undefined") {
@@ -35,20 +34,7 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
     }, [trips]);
 
     // Points Order (allPoints)
-    const [allPoints, setAllPoints] = useState<LocationPoint[]>(() => {
-        if (!okinawaTrip.metadata?.destination) return okinawaTrip.points || [];
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem(`points_order_${okinawaTrip.metadata.destination}`);
-            if (saved) {
-                try {
-                    return JSON.parse(saved);
-                } catch (e) {
-                    return okinawaTrip.points || [];
-                }
-            }
-        }
-        return okinawaTrip.points || [];
-    });
+    const [allPoints, setAllPoints] = useState<LocationPoint[]>([]);
 
     // Check completed items, reviews, logs, files
     const [completedItems, setCompletedItems] = useState<Record<string, boolean>>({});
@@ -113,7 +99,7 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal }: UseTripMana
             // Only clear if we don't already have unsaved files (like from earlier planning steps)
             setCustomFiles([]);
         }
-    }, [trip?.metadata?.destination, trip.customFiles]);
+    }, [trip?.metadata?.destination, trip?.customFiles]);
 
     // Save sub-data
     useEffect(() => {

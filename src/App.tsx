@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from "react";
 import "./styles/design-system.css";
-import { okinawaTrip } from "./data";
 import { TripPlan } from "./types";
 import { supabase } from "./utils/supabase";
 import { usePlanner } from "./contexts/PlannerContext";
@@ -69,7 +68,7 @@ class ErrorBoundary extends React.Component<
 const App: React.FC = () => {
   const {
     view, setView, activeTab, setActiveTab,
-    theme, toggleTheme, trips, setTrips, setTrip,
+    theme, toggleTheme, trips, setTrips, trip, setTrip,
     setSelectedPoint,
     isPlanning, setIsPlanning,
     setPlannerStep,
@@ -923,20 +922,8 @@ const App: React.FC = () => {
                                   <div
                                     key={tripItem.id}
                                     onClick={() => {
-                                      // Clean landing state and load trip
-                                      if (
-                                        tripItem.id === "okinawa" ||
-                                        tripItem.id === okinawaTrip.id
-                                      ) {
-                                        setTrip(okinawaTrip);
-                                        setView("app");
-                                      } else if (
-                                        tripItem.points &&
-                                        tripItem.points.length > 0
-                                      ) {
+                                      if (tripItem.points && tripItem.points.length > 0) {
                                         try {
-                                          // DO NOT merge with okinawaTrip for user-defined trips
-                                          // Create a clean base plan instead
                                           const basePlan: TripPlan = {
                                             ...tripItem,
                                             id: tripItem.id,
@@ -951,7 +938,7 @@ const App: React.FC = () => {
                                             },
                                             points: tripItem.points || [],
                                             days: tripItem.days || [],
-                                            speechData: okinawaTrip.speechData,
+                                            speechData: tripItem.speechData || [], // No dependence on okinawaTrip
                                             defaultFiles: []
                                           };
 
@@ -959,7 +946,7 @@ const App: React.FC = () => {
                                           setView("app");
                                         } catch (err) {
                                           console.error("Failed to load trip:", err);
-                                          alert("여행 데이터를 불러오는 중 오류가 발생했습니다.");
+                                          showToast("데이터 형식에 오류가 있습니다.", "error");
                                         }
                                       }
                                     }}
@@ -1404,7 +1391,7 @@ const App: React.FC = () => {
             </motion.div>
           )}
 
-          {view === "app" && (
+          {view === "app" && trip && (
             <motion.div
               key="app"
               initial={{ opacity: 0 }}
