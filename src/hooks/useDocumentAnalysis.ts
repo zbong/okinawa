@@ -35,8 +35,8 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
                 const file = files[i];
 
                 if (currentAnalyzedFiles.some((f) => f.name === file.name)) {
-                    showToast(`이미 목록에 있는 파일입니다: ${file.name}. 다시 분석하려면 기존 파일을 삭제 후 업로드해주세요.`, "info");
-                    continue;
+                    showToast(`"${file.name}" 파일을 다시 읽어옵니다...`, "info");
+                    currentAnalyzedFiles = currentAnalyzedFiles.filter(f => f.name !== file.name);
                 }
 
                 const fileId = `analyzed-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;

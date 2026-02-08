@@ -215,7 +215,24 @@ export const PlannerStep3: React.FC = () => {
                         <h3 style={{ fontSize: "17px", fontWeight: 800 }}>
                             상세 정보 입력
                         </h3>
-
+                        <button
+                            onClick={() => {
+                                setAnalyzedFiles([]);
+                                showToast("분석 내역이 초기화되었습니다.");
+                            }}
+                            style={{
+                                background: "rgba(255,107,107,0.1)",
+                                border: "1px solid rgba(255,107,107,0.2)",
+                                color: "#ff6b6b",
+                                borderRadius: "8px",
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                cursor: "pointer"
+                            }}
+                        >
+                            업로드 내역 초기화
+                        </button>
                     </div>
 
                     {/* Ticket Upload Area */}
@@ -278,30 +295,14 @@ export const PlannerStep3: React.FC = () => {
                     {/* File List for Transportation */}
                     {analyzedFiles.length > 0 && (
                         <div style={{ marginBottom: "25px" }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                                <h4 style={{ fontSize: '13px', fontWeight: 800, opacity: 0.7 }}>업로드 및 분석된 파일 ({analyzedFiles.length})</h4>
-                                <button
-                                    onClick={() => {
-                                        setDeleteConfirmModal({
-                                            isOpen: true,
-                                            title: "전체 삭제",
-                                            message: "분석된 모든 파일 목록을 비우시겠습니까? (실제 업로드된 파일은 유지됩니다)",
-                                            onConfirm: () => {
-                                                setAnalyzedFiles([]);
-                                                setDeleteConfirmModal({ isOpen: false, title: "", message: "", onConfirm: () => { } });
-                                            }
-                                        });
-                                    }}
-                                    style={{ background: 'transparent', border: 'none', color: '#ff6b6b', fontSize: '11px', cursor: 'pointer', opacity: 0.8 }}
-                                >
-                                    목록 비우기
-                                </button>
+                            <div style={{ marginBottom: 15 }}>
+                                <h4 style={{ fontSize: '14px', fontWeight: 800, color: 'var(--primary)' }}>분석 완료된 서류 ({analyzedFiles.length})</h4>
                             </div>
                             <div
                                 style={{
                                     display: "flex",
                                     flexDirection: "column",
-                                    gap: "10px",
+                                    gap: "12px",
                                 }}
                             >
                                 {analyzedFiles.map((file) => (
