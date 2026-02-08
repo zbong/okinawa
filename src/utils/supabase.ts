@@ -6,8 +6,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const isMissingKey = !supabaseUrl || !supabaseAnonKey || supabaseUrl === 'undefined' || supabaseAnonKey === 'undefined';
 
 if (isMissingKey) {
-    console.error("❌ SUPABASE CONFIG MISSING: Check Vercel Environment Variables!");
-    console.error("URL:", supabaseUrl, "Key:", supabaseAnonKey);
+    console.error("❌ SUPABASE CONFIG MISSING!");
+    console.log("Current URL Value:", supabaseUrl);
+    console.log("Current Key Value:", supabaseAnonKey ? (supabaseAnonKey.substring(0, 5) + "...") : "MISSING");
+} else {
+    console.log("✅ Supabase initialized with URL:", supabaseUrl?.substring(0, 20) + "...");
 }
 
 export const supabase = createClient(
