@@ -218,17 +218,17 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Global UI States (Declared early for hooks)
     const [hotelStrategy, setHotelStrategy] = useState<string>("");
     const [toasts, setToasts] = useState<any[]>([]);
-    const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    const showToast = React.useCallback((message: string, type: "success" | "error" | "info" = "info") => {
         const id = Date.now().toString();
         setToasts((prev) => [...prev, { id, message, type }]);
         setTimeout(() => {
             setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, 700);
-    };
+        }, 1500); // Increased duration slightly for better readability
+    }, []);
 
-    const closeToast = (id: string) => {
+    const closeToast = React.useCallback((id: string) => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-    };
+    }, []);
 
     const [deleteConfirmModal, setDeleteConfirmModal] = useState<any>({
         isOpen: false,
@@ -811,21 +811,18 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const shareToKakao = async (targetTrip?: any) => {
         const kakao = (window as any).Kakao;
+        const KAKAO_KEY = import.meta.env.VITE_KAKAO_API_KEY || "976a30104e3434c15beb775ff1a8d7c3";
 
         if (!kakao) {
-            showToast("카카오 SDK 로드 실패. 광고 차단 프로그램이 켜져 있나요?", "error");
-            console.error("Kakao SDK object not found on window.");
+            showToast("카카오 설정을 불러올 수 없습니다.", "error");
             return;
         }
 
         if (!kakao.isInitialized()) {
             try {
-                kakao.init("976a30104e3434c15beb775ff1a8d7c3");
-                console.log("Defensive Kakao init success");
+                kakao.init(KAKAO_KEY);
             } catch (e) {
-                showToast("카카오 초기화 실패. 도메인 등록을 확인해 주세요.", "error");
                 console.error("Kakao init failed:", e);
-                return;
             }
         }
 
