@@ -179,6 +179,8 @@ interface PlannerContextType {
     setIsDestinationValidated: React.Dispatch<React.SetStateAction<boolean>>;
     startNewPlanning: () => void;
     saveDraft: (step: number, customData?: any) => boolean;
+    exportTrip: () => void;
+    importTrip: (file: File) => Promise<void>;
 }
 
 const PlannerContext = createContext<PlannerContextType | undefined>(undefined);
@@ -691,6 +693,54 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
+    const exportTrip = () => {
+        const data = {
+            version: "2.0",
+            trip,
+            points: allPoints,
+            checklist: completedItems,
+            reviews: userReviews,
+            logs: userLogs,
+            files: customFiles,
+            exportedAt: new Date().toISOString()
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${trip.metadata?.title || "okinawa_trip"}_export.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast("여행 데이터가 파일로 추출되었습니다.", "success");
+    };
+
+    const importTrip = async (file: File) => {
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+
+            if (data.trip && data.points) {
+                setTrip(data.trip);
+                setAllPoints(data.points);
+                if (data.checklist) setCompletedItems(data.checklist);
+                if (data.reviews) setUserReviews(data.reviews);
+                if (data.logs) setUserLogs(data.logs);
+                if (data.files) setCustomFiles(data.files);
+
+                showToast("여행 가이드를 성공적으로 불러왔습니다.", "success");
+                setActiveTab("summary");
+            } else {
+                throw new Error("Invalid format");
+            }
+        } catch (err) {
+            console.error("Import failed:", err);
+            showToast("파일 형식이 올바르지 않거나 손상되었습니다.", "error");
+        }
+    };
+
     const value = {
         view, setView, activeTab, setActiveTab, overviewMode, setOverviewMode,
         scheduleDay, setScheduleDay, scheduleViewMode, setScheduleViewMode,
@@ -731,7 +781,9 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         validateDestination, isValidatingDestination, isDestinationValidated, setIsDestinationValidated,
         saveAttractionsToCache: () => { }, // Placeholder implementation
         startNewPlanning,
-        saveDraft
+        saveDraft,
+        exportTrip,
+        importTrip
     };
 
     return <PlannerContext.Provider value={value} > {children}</PlannerContext.Provider >;

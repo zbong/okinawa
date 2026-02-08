@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Calendar, MapPin, Hotel, Sparkles, Plane, Clock, Info, ChevronRight
+  Calendar, MapPin, Hotel, Sparkles, Plane, Clock, Info, ChevronRight, Download, Upload
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -9,7 +9,9 @@ export const SummaryTab: React.FC = () => {
     activeTab,
     theme,
     trip,
-    calculateProgress
+    calculateProgress,
+    exportTrip,
+    importTrip
   } = usePlanner();
 
   if (activeTab !== "summary") return null;
@@ -193,6 +195,66 @@ export const SummaryTab: React.FC = () => {
           )}
         </div>
       </div>
+      {/* Sync & Backup Section */}
+      <div style={{ marginTop: '30px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Sparkles size={18} color="var(--primary)" /> 데이터 동기화 및 백업
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <button
+            onClick={exportTrip}
+            style={{
+              padding: '16px',
+              borderRadius: '16px',
+              background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <Download size={20} color="var(--primary)" />
+            <span style={{ fontSize: '13px', fontWeight: 700 }}>파일로 내보내기</span>
+          </button>
+
+          <label
+            style={{
+              padding: '16px',
+              borderRadius: '16px',
+              background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <Upload size={20} color="#10b981" />
+            <span style={{ fontSize: '13px', fontWeight: 700 }}>파일 불러오기</span>
+            <input
+              type="file"
+              accept=".json"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  importTrip(file);
+                }
+              }}
+            />
+          </label>
+        </div>
+        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '12px', textAlign: 'center', lineHeight: 1.5 }}>
+          PC에서 만든 일정을 파일로 저장한 뒤,<br />폰에서 '파일 불러오기'를 하면 그대로 옮겨집니다.
+        </p>
+      </div>
+
+      <div style={{ height: "40px" }} /> {/* Bottom Spacer */}
     </div>
   );
 };
