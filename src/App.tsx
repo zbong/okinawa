@@ -12,31 +12,23 @@ import { FullScreenImagePreview } from "./components/Common/FullScreenImagePrevi
 import { LoginForm } from "./components/Auth/LoginForm";
 import { SignupForm } from "./components/Auth/SignupForm";
 import { DebugView } from "./components/Debug/DebugView";
+import { TabNavigation } from "./components/Navigation/TabNavigation";
 import { ScheduleTab } from "./components/Schedule/ScheduleTab";
 import { SummaryTab } from "./components/Summary/SummaryTab";
 import { DocumentsTab } from "./components/Documents/DocumentsTab";
 import { ExchangeTab } from "./components/Exchange/ExchangeTab";
 import { PhrasebookTab } from "./components/Phrasebook/PhrasebookTab";
 import { Ocr_labTab } from "./components/Ocr_lab/Ocr_labTab";
-import { PlannerOnboarding } from "./components/Planner/PlannerOnboarding";
-import { PlannerStep1 } from "./components/Planner/PlannerStep1";
-import { PlannerStep2 } from "./components/Planner/PlannerStep2";
-import { PlannerStep3 } from "./components/Planner/PlannerStep3";
-import { PlannerStep4 } from "./components/Planner/PlannerStep4";
-import { PlannerStep5 } from "./components/Planner/PlannerStep5";
-import { PlannerStep6 } from "./components/Planner/PlannerStep6";
-import { PlannerStep7 } from "./components/Planner/PlannerStep7";
-import { PlannerStep8 } from "./components/Planner/PlannerStep8";
+import { PlanningWizardOverlay } from "./components/Planner/PlanningWizardOverlay";
 import { PlannerReviewModal } from "./components/Planner/PlannerReviewModal";
 import { PlannerReEditModal } from "./components/Planner/PlannerReEditModal";
 import { AttractionDetailModal } from "./components/Planner/AttractionDetailModal";
 import { LocationBottomSheet } from "./components/LocationBottomSheet";
 import {
   Sparkles, LogOut,
-  LayoutDashboard, Calendar, RefreshCw, Sun, Moon,
-  FileText, Edit3, X, MapPin, Trash2, MessageCircle, Link
+  Edit3, MapPin, Trash2, Link, X, RefreshCw, FileText
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 const APP_VERSION = "v1.3.0 (Build: 01:05)";
 
@@ -964,92 +956,21 @@ const App: React.FC = () => {
                 overflow: "hidden",
               }}
             >
-              <nav className="nav-tabs">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    console.log("🔄 Navigating to landing via X button...");
-                    setSelectedPoint(null);
-                    setActivePlannerDetail(null);
-                    setView("landing");
-                  }}
-                  style={{
-                    padding: "8px",
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--text-primary)",
-                    marginRight: "8px",
-                  }}
-                >
-                  <X size={20} />
-                </button>
-                <button
-                  className={`tab ${activeTab === "summary" ? "active" : ""} `}
-                  onClick={() => {
-                    setSelectedPoint(null);
-                    setActivePlannerDetail(null);
-                    setActiveTab("summary");
-                  }}
-                >
-                  <LayoutDashboard size={18} />{" "}
-                  <span style={{ marginLeft: "4px" }}>개요</span>
-                </button>
-                <button
-                  className={`tab ${activeTab === "schedule" ? "active" : ""} `}
-                  onClick={() => {
-                    setSelectedPoint(null);
-                    setActivePlannerDetail(null);
-                    setActiveTab("schedule");
-                  }}
-                >
-                  <Calendar size={18} />{" "}
-                  <span style={{ marginLeft: "4px" }}>일정</span>
-                </button>
-                <button
-                  className={`tab ${activeTab === "files" ? "active" : ""} `}
-                  onClick={() => {
-                    setSelectedPoint(null);
-                    setActivePlannerDetail(null);
-                    setActiveTab("files");
-                  }}
-                >
-                  <FileText size={18} />{" "}
-                  <span style={{ marginLeft: "4px" }}>서류</span>
-                </button>
-                <button
-                  className={`tab ${activeTab === "exchange" ? "active" : ""} `}
-                  onClick={() => {
-                    setSelectedPoint(null);
-                    setActivePlannerDetail(null);
-                    setActiveTab("exchange");
-                  }}
-                >
-                  <RefreshCw size={18} />{" "}
-                  <span style={{ marginLeft: "4px" }}>환율</span>
-                </button>
-                <button
-                  className={`tab ${activeTab === "speech" ? "active" : ""} `}
-                  onClick={() => {
-                    setSelectedPoint(null);
-                    setActivePlannerDetail(null);
-                    setActiveTab("speech");
-                  }}
-                >
-                  <MessageCircle size={18} />{" "}
-                  <span style={{ marginLeft: "4px" }}>회화</span>
-                </button>
-                <button
-                  className="tab"
-                  onClick={toggleTheme}
-                  style={{
-                    marginLeft: "auto",
-                    padding: "6px 10px",
-                    minWidth: "auto",
-                  }}
-                >
-                  {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-                </button>
-              </nav>
+              <TabNavigation
+                activeTab={activeTab as any}
+                setActiveTab={setActiveTab as any}
+                theme={theme as "dark" | "light"}
+                toggleTheme={toggleTheme}
+                onClose={() => {
+                  setSelectedPoint(null);
+                  setActivePlannerDetail(null);
+                  setView("landing");
+                }}
+                onTabChange={() => {
+                  setSelectedPoint(null);
+                  setActivePlannerDetail(null);
+                }}
+              />
 
               <main
                 style={{
@@ -1084,60 +1005,7 @@ const App: React.FC = () => {
         </>
 
         {/* Planning Wizard Overlay */}
-        <AnimatePresence>
-          {isPlanning && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: "rgba(0,0,0,0.98)",
-                backdropFilter: "blur(30px)",
-                zIndex: 5000000,
-                display: "flex",
-                flexDirection: "column",
-                color: "white",
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: plannerStep >= 3 ? "flex-start" : "center",
-                  alignItems: "center",
-                  padding: "0 30px 60px",
-                  overflowY: "auto",
-                }}
-              >
-                <div
-                  style={{
-                    width: "100%",
-                    maxWidth: "700px",
-                    textAlign: "center",
-                  }}
-                >
-                  <AnimatePresence mode="wait">
-                    {plannerStep === 0 && <PlannerOnboarding />}
-                    {plannerStep === 1 && <PlannerStep1 />}
-                    {plannerStep === 2 && <PlannerStep2 />}
-                    {plannerStep === 3 && <PlannerStep3 />}
-                    {plannerStep === 4 && <PlannerStep4 />}
-                    {plannerStep === 5 && <PlannerStep5 />}
-                    {plannerStep === 6 && <PlannerStep6 />}
-                    {plannerStep === 7 && <PlannerStep7 />}
-                    {plannerStep === 8 && <PlannerStep8 />}
-                  </AnimatePresence>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <PlanningWizardOverlay isPlanning={isPlanning} plannerStep={plannerStep} />
 
         {/* Attraction Detail Modal */}
         <AttractionDetailModal />
