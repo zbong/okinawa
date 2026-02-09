@@ -4,6 +4,7 @@ import {
     ChevronLeft, ChevronRight, CheckCircle, Loader2
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
+import { StepIndicator } from '../Common/StepIndicator';
 
 export const PlannerStep1: React.FC = () => {
     const {
@@ -43,31 +44,7 @@ export const PlannerStep1: React.FC = () => {
             exit={{ opacity: 0 }}
             style={{ width: "100%", maxWidth: "800px" }}
         >
-            <div
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    marginBottom: "20px",
-                    justifyContent: "center",
-                }}
-            >
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div
-                        key={i}
-                        style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background:
-                                i === 1
-                                    ? "var(--primary)"
-                                    : "rgba(255,255,255,0.1)",
-                            opacity: i < 1 ? 0.3 : 1,
-                        }}
-                    />
-                ))}
-            </div>
+            <StepIndicator currentStep={1} totalSteps={6} />
             <h2
                 style={{
                     fontSize: "32px",
