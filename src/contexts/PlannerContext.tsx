@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { fileToBase64 } from '../utils/ocr';
+
 import { TripPlan, LocationPoint, PlannerData, CustomFile } from '../types';
 import { supabase } from '../utils/supabase';
 import { usePlannerAI } from '../hooks/usePlannerAI';
@@ -8,6 +8,9 @@ import { useTripManager } from '../hooks/useTripManager';
 import { useGoogleTTS } from '../hooks/useGoogleTTS';
 import { useCurrency } from '../hooks/useCurrency';
 import { useWeather } from '../hooks/useWeather';
+import { usePlannerState } from '../hooks/planner/usePlannerState';
+import { useFileActions } from '../hooks/planner/useFileActions';
+import { useOfflineMap } from '../hooks/useOfflineMap';
 
 interface PlannerContextType {
     // Navigation & View
@@ -216,7 +219,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [scheduleViewMode, setScheduleViewMode] = useState<"map" | "list">("list");
 
     // Global UI States (Declared early for hooks)
-    const [hotelStrategy, setHotelStrategy] = useState<string>("");
+    // hotelStrategy moved to usePlannerState
     const [toasts, setToasts] = useState<any[]>([]);
     const showToast = React.useCallback((message: string, type: "success" | "error" | "info" = "info") => {
         const id = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
@@ -247,7 +250,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         completedItems, setCompletedItems,
         userReviews, setUserReviews,
         userLogs, setUserLogs,
-        customFiles, setCustomFiles,
+        customFiles: tripCustomFiles, setCustomFiles: setTripCustomFiles,
         handleReorder: handleReorderBase,
         deletePoint,
         addPoint,
@@ -269,54 +272,22 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [selectedPoint, setSelectedPoint] = useState<LocationPoint | null>(null);
     const [activePlannerDetail, setActivePlannerDetail] = useState<any | null>(null);
 
-    // Planning
-    const [isPlanning, setIsPlanning] = useState(false);
-    const [plannerStep, setPlannerStep] = useState(() => {
-        const saved = localStorage.getItem("trip_draft_v1");
-        if (saved) {
-            try {
-                return JSON.parse(saved).step;
-            } catch (e) { return 0; }
-        }
-        return 0;
-    });
+    // Planning State (Extracted to usePlannerState)
+    const {
+        isPlanning, setIsPlanning,
+        plannerStep, setPlannerStep,
+        plannerData, setPlannerData,
+        selectedPlaceIds, setSelectedPlaceIds,
+        dynamicAttractions, setDynamicAttractions,
+        recommendedHotels, setRecommendedHotels,
+        hotelStrategy, setHotelStrategy,
+        customFiles: plannerCustomFiles, setCustomFiles: setPlannerCustomFiles,
+        analyzedFiles, setAnalyzedFiles,
+        resetPlannerState
+    } = usePlannerState();
 
-    const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>(() => {
-        const saved = localStorage.getItem("trip_draft_v1");
-        if (saved) {
-            try {
-                return JSON.parse(saved).selectedIds || [];
-            } catch (e) { return []; }
-        }
-        return [];
-    });
-
-    const [plannerData, setPlannerData] = useState<PlannerData>(() => {
-        const saved = localStorage.getItem("trip_draft_v1");
-        const defaultData: PlannerData = {
-            title: "",
-            destination: "",
-            startDate: "",
-            endDate: "",
-            arrivalTime: "10:00",
-            departureTime: "18:00",
-            departurePoint: "",
-            entryPoint: "",
-            travelMode: "plane",
-            useRentalCar: false,
-            companion: "",
-            transport: "rental",
-            accommodations: [],
-            theme: "",
-            pace: "normal",
-        };
-        if (saved) {
-            try {
-                return { ...defaultData, ...JSON.parse(saved).data };
-            } catch (e) { return defaultData; }
-        }
-        return defaultData;
-    });
+    const customFiles = isPlanning || plannerStep > 0 ? plannerCustomFiles : tripCustomFiles;
+    const setCustomFiles = isPlanning || plannerStep > 0 ? setPlannerCustomFiles : (setTripCustomFiles as any);
 
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
     const [isReEditModalOpen, setIsReEditModalOpen] = useState(false);
@@ -330,12 +301,9 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Calendar
     const [calendarDate, setCalendarDate] = useState(new Date());
 
-    // AI Logic (Extracted to usePlannerAI)
     const {
-        dynamicAttractions, setDynamicAttractions,
         isSearchingAttractions, setIsSearchingAttractions,
         isSearchingHotels, setIsSearchingHotels,
-        recommendedHotels, setRecommendedHotels,
         hotelAddStatus, setHotelAddStatus,
         validatedHotel, setValidatedHotel,
         isValidatingPlace, setIsValidatingPlace,
@@ -358,11 +326,15 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         showToast,
         hotelStrategy,
         setHotelStrategy,
-        customFiles
+        customFiles,
+        dynamicAttractions,
+        setDynamicAttractions,
+        recommendedHotels,
+        setRecommendedHotels
     });
 
     // OCR Lab (Extracted to useDocumentAnalysis)
-    const [analyzedFiles, setAnalyzedFiles] = useState<any[]>([]); // Lifted State
+    // analyzedFiles is now in usePlannerState
 
     const {
         isOcrLoading,
@@ -384,50 +356,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         showToast
     });
 
-    useEffect(() => {
-        const saved = localStorage.getItem("trip_draft_v1");
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed.data) setPlannerData(parsed.data);
-                if (parsed.selectedIds) setSelectedPlaceIds(parsed.selectedIds);
-                if (parsed.attractions) setDynamicAttractions(parsed.attractions);
-                if (parsed.hotels) setRecommendedHotels(parsed.hotels);
-                if (parsed.hotelStrategy) setHotelStrategy(parsed.hotelStrategy);
-                if (parsed.customFiles) setCustomFiles(parsed.customFiles);
-                if (parsed.analyzedFiles) {
-                    console.log("Restoring analyzed files:", parsed.analyzedFiles);
-                    setAnalyzedFiles(parsed.analyzedFiles);
-                }
-                if (parsed.step !== undefined) setPlannerStep(parsed.step);
-            } catch (e) {
-                console.error("Failed to restore draft:", e);
-            }
-        }
-    }, [setAnalyzedFiles, setCustomFiles, setDynamicAttractions, setHotelStrategy, setPlannerData, setPlannerStep, setRecommendedHotels, setSelectedPlaceIds]);
-
-    useEffect(() => {
-        if (isPlanning) {
-            const hasData = plannerData.destination.trim() !== "" || plannerData.title.trim() !== "";
-            if (!hasData && plannerStep === 0) return;
-
-            const draft = {
-                step: plannerStep,
-                data: plannerData,
-                selectedIds: selectedPlaceIds,
-                attractions: dynamicAttractions,
-                hotels: recommendedHotels,
-                hotelStrategy: hotelStrategy,
-                customFiles,
-                analyzedFiles
-            };
-            try {
-                localStorage.setItem("trip_draft_v1", JSON.stringify(draft));
-            } catch (e) {
-                console.warn("Auto-save failed: Storage quota exceeded", e);
-            }
-        }
-    }, [isPlanning, plannerStep, plannerData, selectedPlaceIds, dynamicAttractions, recommendedHotels, hotelStrategy, customFiles, analyzedFiles]);
+    // Auto-save and Restore effects are handled inside usePlannerState
 
     // Sync planner destination to active trip for correct data storage (files, logs)
     // ONLY sync when destination is validated to avoid creating dozens of localStorage entries while typing
@@ -602,86 +531,17 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement> | File[], linkedTo?: string) => {
-        let files: File[] = [];
-        if (Array.isArray(e)) {
-            files = e;
-        } else if (e && "target" in e && e.target.files) {
-            files = Array.from(e.target.files);
-        }
-
-        if (files.length === 0) return;
-
-        const newFiles: any[] = [];
-        for (const file of files) {
-            try {
-                const base64 = await fileToBase64(file);
-                newFiles.push({
-                    id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-                    name: file.name,
-                    type: file.type.includes("pdf") ? "pdf" : "image",
-                    data: base64,
-                    linkedTo,
-                    date: new Date().toISOString(),
-                });
-            } catch (err) {
-                showToast(`${file.name} 업로드 실패`, "error");
-            }
-        }
-
-        if (newFiles.length > 0) {
-            setCustomFiles((prev: any) => [...prev, ...newFiles]);
-            showToast(`${newFiles.length}건의 서류가 업로드되었습니다.`, "success");
-        }
-    };
-
-    const deleteFile = (id: string, e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        setCustomFiles((prev: any) => prev.filter((f: any) => f.id !== id));
-    };
-
     const startNewPlanning = () => {
-        // 1. Clear LocalStorage Draft
-        localStorage.removeItem("trip_draft_v1");
-
-        // 2. Fundamental UI State
-        setIsPlanning(true);
-        setPlannerStep(0);
-
-        // 3. Planning Data
-        setPlannerData({
-            title: "",
-            destination: "",
-            startDate: "",
-            endDate: "",
-            arrivalTime: "10:00",
-            departureTime: "18:00",
-            departurePoint: currentUser?.homeAddress || "",
-            entryPoint: "",
-            travelMode: "plane",
-            useRentalCar: false,
-            companion: "",
-            transport: "rental",
-            accommodations: [],
-            theme: "",
-            pace: "normal",
-        });
-
-        // 4. Selections & AI Results
-        setSelectedPlaceIds([]);
-        setDynamicAttractions([]);
-        setRecommendedHotels([]);
-
-        // 5. OCR / Documents
-        setAnalyzedFiles([]);
-        setCustomFiles([]); // Reset custom files from previous session
+        resetPlannerState();
         setCustomAiPrompt("");
-
-        // 6. Detailed States
-        setHotelStrategy("");
         setValidatedHotel(null);
         setActivePlannerDetail(null);
     };
+
+    const { handleFileUpload, deleteFile } = useFileActions({
+        setCustomFiles: setCustomFiles as any,
+        showToast
+    });
 
     const saveDraft = (step: number, customData: any = {}) => {
         const draft = {
@@ -749,73 +609,11 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Invalid format");
             }
         } catch (err) {
-            console.error("Import failed:", err);
             showToast("파일 형식이 올바르지 않거나 손상되었습니다.", "error");
         }
     };
 
-    const [isPreparingOffline, setIsPreparingOffline] = useState(false);
-    const [offlineProgress, setOfflineProgress] = useState(0);
-
-    const prepareOfflineMap = async () => {
-        if (!allPoints.length) {
-            showToast("먼저 여행 일정을 만들어주세요.", "info");
-            return;
-        }
-
-        setIsPreparingOffline(true);
-        setOfflineProgress(0);
-
-        const zooms = [13, 15, 17];
-        const totalSteps = allPoints.length * zooms.length;
-        let completedSteps = 0;
-
-        const latLngToTile = (lat: number, lng: number, zoom: number) => {
-            const n = Math.pow(2, zoom);
-            const x = Math.floor((lng + 180) / 360 * n);
-            const lat_rad = lat * Math.PI / 180;
-            const y = Math.floor((1 - Math.log(Math.tan(lat_rad) + 1 / Math.cos(lat_rad)) / Math.PI) / 2 * n);
-            return { x, y };
-        };
-
-        const fetchTile = (x: number, y: number, z: number) => {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => resolve(true);
-                img.onerror = () => resolve(false);
-                const server = Math.floor(Math.random() * 4);
-                img.src = `https://mt${server}.google.com/vt/lyrs=m&x=${x}&y=${y}&z=${z}`;
-            });
-        };
-
-        try {
-            for (const point of allPoints) {
-                const lat = Number(point.coordinates?.lat);
-                const lng = Number(point.coordinates?.lng);
-                if (isNaN(lat) || isNaN(lng)) continue;
-
-                for (const z of zooms) {
-                    const { x, y } = latLngToTile(lat, lng, z);
-                    const promises = [];
-                    for (let dx = -1; dx <= 1; dx++) {
-                        for (let dy = -1; dy <= 1; dy++) {
-                            promises.push(fetchTile(x + dx, y + dy, z));
-                        }
-                    }
-                    await Promise.all(promises);
-                    completedSteps++;
-                    setOfflineProgress(Math.round((completedSteps / totalSteps) * 100));
-                }
-            }
-            showToast("오프라인 지도 데이터가 준비되었습니다.", "success");
-        } catch (err) {
-            console.error("Map pre-fetch failed:", err);
-            showToast("지도 준비 중 오류가 발생했습니다.", "error");
-        } finally {
-            setIsPreparingOffline(false);
-            setOfflineProgress(100);
-        }
-    };
+    const { isPreparingOffline, offlineProgress, prepareOfflineMap } = useOfflineMap({ allPoints, showToast });
 
     const copyShareLink = async (targetTrip?: any) => {
         const tripData = targetTrip || trip;

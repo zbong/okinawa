@@ -11,6 +11,10 @@ interface UsePlannerAIProps {
     hotelStrategy: string;
     setHotelStrategy: React.Dispatch<React.SetStateAction<string>>;
     customFiles: any[];
+    dynamicAttractions: any[];
+    setDynamicAttractions: React.Dispatch<React.SetStateAction<any[]>>;
+    recommendedHotels: any[];
+    setRecommendedHotels: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 export const usePlannerAI = ({
@@ -21,21 +25,28 @@ export const usePlannerAI = ({
     showToast,
     hotelStrategy,
     setHotelStrategy,
-    customFiles
+    customFiles,
+    dynamicAttractions,
+    setDynamicAttractions,
+    recommendedHotels,
+    setRecommendedHotels
 }: UsePlannerAIProps) => {
     const [isValidatingDestination, setIsValidatingDestination] = useState(false);
     const [isDestinationValidated, setIsDestinationValidated] = useState(() => {
         return !!(plannerData && plannerData.destination && plannerData.destination.trim().length > 0);
     });
-    const [dynamicAttractions, setDynamicAttractions] = useState<any[]>([]);
     const [isSearchingAttractions, setIsSearchingAttractions] = useState(false);
     const [isSearchingHotels, setIsSearchingHotels] = useState(false);
-    const [recommendedHotels, setRecommendedHotels] = useState<any[]>([]);
+    // dynamicAttractions and recommendedHotels are now props
     const [hotelAddStatus, setHotelAddStatus] = useState<"IDLE" | "VALIDATING" | "SUCCESS" | "ERROR">("IDLE");
     const [validatedHotel, setValidatedHotel] = useState<any | null>(null);
     const [isValidatingPlace, setIsValidatingPlace] = useState(false);
     const [isPlaceAddedSuccess, setIsPlaceAddedSuccess] = useState(false);
     const [isPlaceAddedError, setIsPlaceAddedError] = useState(false);
+
+    // Suppress unused warnings for future use
+    void hotelStrategy;
+    void recommendedHotels;
 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -356,16 +367,11 @@ export const usePlannerAI = ({
     };
 
     return {
-        dynamicAttractions,
-        setDynamicAttractions,
         isSearchingAttractions,
         setIsSearchingAttractions,
         isSearchingHotels,
         setIsSearchingHotels,
-        recommendedHotels,
-        setRecommendedHotels,
-        hotelStrategy,
-        setHotelStrategy,
+        // Data states removed from return as they are managed by parent
         hotelAddStatus,
         setHotelAddStatus,
         validatedHotel,

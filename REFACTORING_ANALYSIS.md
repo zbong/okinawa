@@ -1,182 +1,74 @@
 # 🔍 코드 리팩토링 분석 보고서
 
 **생성일**: 2026-02-09  
-**최종 업데이트**: 2026-02-09 14:27  
+**최종 업데이트**: 2026-02-09 15:30  
 **분석 대상**: `e:\anti\okinawa\src` 전체
 
 ---
 
-## 🎉 리팩토링 완료 요약
+## 🎉 리팩토링 완료 요약 (Phase 1-4 완료)
 
-### ✅ 전체 목표 달성!
+### ✅ 전체 목표 달성 및 추가 성과
 
-| 파일 | 시작 | 최종 | 감소 | 상태 |
+| 파일 | 시작 | 종료 | 감소 | 상태 |
 |------|------|------|------|------|
+| **PlannerContext.tsx** | 832줄 | **648줄** | **-184줄 (22%)** | ✅ 역할 분산 성공 |
 | **App.tsx** | 1,750줄 | **952줄** | **-798줄 (46%)** | ✅ 목표 달성 |
-| **PlannerStep3.tsx** | 1,091줄 | **870줄** | **-221줄 (20%)** | ✅ 개선됨 |
+| **PlannerStep3.tsx** | 1,091줄 | **533줄** | **-558줄 (51%)** | ✅ 대폭 감소 |
 | **PlannerStep1.tsx** | 656줄 | **618줄** | **-38줄** | ✅ 개선됨 |
 | **PlannerStep2.tsx** | 367줄 | **336줄** | **-31줄** | ✅ 개선됨 |
 | **PlannerStep4.tsx** | 614줄 | **580줄** | **-34줄** | ✅ 개선됨 |
 | **PlannerStep5.tsx** | 621줄 | **583줄** | **-38줄** | ✅ 개선됨 |
+| **PlannerStep6.tsx** | 543줄 | **515줄** | **-28줄** | ✅ 개선됨 |
 
 ---
 
-## 📦 추출된 재사용 가능 컴포넌트 (총 16개)
+## 🛠️ Phase 4: Context & State 최적화 성과
 
-### Common 컴포넌트
-| 파일 | 용도 |
-|------|------|
-| `components/Common/ErrorBoundary.tsx` | 에러 경계 |
-| `components/Common/LoadingOverlay.tsx` | OCR 로딩 오버레이 |
-| `components/Common/FullScreenImagePreview.tsx` | 전체화면 이미지 미리보기 |
-| `components/Common/StepIndicator.tsx` | 단계 진행 표시기 (**5개 파일에서 재사용**) |
-| `components/Common/FileUploadZone.tsx` | 드래그앤드롭 파일 업로드 |
+### 1. `PlannerContext.tsx` 분해
+비대했던 Context 파일에서 핵심 로직을 분리하여 **Custom Hook** 형태로 추출했습니다.
 
-### Auth 컴포넌트
-| 파일 | 용도 |
-|------|------|
-| `components/Auth/LoginForm.tsx` | 로그인 폼 |
-| `components/Auth/SignupForm.tsx` | 회원가입 폼 |
+| Hook 이름 | 역할 | 상태 |
+|-----------|------|------|
+| **`usePlannerState`** | `plannerData`, `step` 등 상태 관리 및 자동 저장(LocalStorage) 전담 | ✨ 신규 생성 |
+| **`useOfflineMap`** | 오프라인 지도 데이터 프리페칭 및 타일 캐싱 로직 분리 | ✨ 신규 생성 |
+| **`useFileActions`** | 파일 업로드, OCR 처리, 파일 삭제 액션 분리 | ✨ 신규 생성 |
+| **`usePlannerAI`** | (개선됨) 내부 상태(`useState`)를 제거하고 **Stateless**하게 변경. Props로 상태 주입받음 | ♻️ 리팩토링 |
 
-### Landing 컴포넌트
-| 파일 | 용도 |
-|------|------|
-| `components/Landing/AppHeader.tsx` | 앱 로고/제목 헤더 |
-| `components/Landing/AuthButtons.tsx` | 로그인/회원가입 버튼 |
-
-### Navigation 컴포넌트
-| 파일 | 용도 |
-|------|------|
-| `components/Navigation/TabNavigation.tsx` | 탭 네비게이션 바 |
-
-### Planner 컴포넌트
-| 파일 | 용도 |
-|------|------|
-| `components/Planner/PlanningWizardOverlay.tsx` | 플래닝 위자드 오버레이 |
-| `components/Planner/TransportModeSelector.tsx` | 교통수단 선택 그리드 |
-
-### Debug 컴포넌트
-| 파일 | 용도 |
-|------|------|
-| `components/Debug/DebugView.tsx` | 스토리지 디버거 |
-
-### Custom Hooks
-| 파일 | 용도 |
-|------|------|
-| `hooks/useSharedLink.ts` | 공유 링크 처리 |
-| `hooks/useAppEvents.ts` | 글로벌 이벤트 핸들러 |
-
-### Utilities
-| 파일 | 용도 |
-|------|------|
-| `utils/airline-data.ts` | 항공사/공항 데이터 및 포맷터 |
+### 2. 컴포넌트 구조 개선
+- `useTripManager`와 `usePlannerState` 간 변수명 충돌(`customFiles`)을 명확히 해결 (`tripCustomFiles` vs `plannerCustomFiles`).
+- 조건부 로직을 통해 상황(`isPlanning`)에 맞는 데이터를 Context로 제공하도록 개선.
 
 ---
 
-## 📊 리팩토링 Phase 완료 상태
+## 📦 전체 추출된 컴포넌트 및 Hooks
 
-### Phase 1: 긴급 수정 ✅ 완료
-- [x] TypeScript 오류 수정
-- Git 커밋: `d5c053e`
+### Hooks (New / Refactored)
+- `src/hooks/planner/usePlannerState.ts`
+- `src/hooks/planner/useFileActions.ts`
+- `src/hooks/useOfflineMap.ts`
+- `src/hooks/usePlannerAI.ts` (Refactored)
 
-### Phase 2: App.tsx 분할 ✅ 완료
-**결과**: 1,750줄 → **952줄** (46% 감소)
-
-### Phase 3: Planner 컴포넌트 최적화 ✅ 완료
-- [x] StepIndicator 추출 및 5개 파일에 적용
-- [x] TransportModeSelector 추출
-- [x] FileUploadZone 추출
-- [x] airline-data 유틸리티 추출
-
-### Phase 4-6: 향후 계획 (선택)
-- [ ] PlannerContext 분할
-- [ ] `any` 타입 제거
-- [ ] 인라인 스타일 CSS 클래스화
+### Components (New)
+- `components/Common/StepIndicator.tsx`
+- `components/Common/FileUploadZone.tsx`
+- `components/Planner/AnalyzedFilesList.tsx`
+- `components/Planner/ExtractedFlightList.tsx`
+- `components/Planner/ExtractedAccommodationList.tsx`
+- `components/Planner/TransportModeSelector.tsx`
 
 ---
 
-## 📈 최종 코드베이스 상태
+## 🚀 향후 제언 (Phase 5)
 
-### 파일 크기 순위 (업데이트됨)
-| 순위 | 파일 | 라인 수 | 상태 |
-|------|------|---------|------|
-| 1 | **App.tsx** | **952** | ✅ 목표 달성 |
-| 2 | **PlannerStep3.tsx** | **870** | ✅ 개선됨 |
-| 3 | `contexts/PlannerContext.tsx` | 832 | 🟠 향후 분할 고려 |
-| 4 | `LocationBottomSheet.tsx` | 737 | 🟠 |
-| 5 | `PlannerStep1.tsx` | 618 | ✅ 개선됨 |
-| 6 | `PlannerStep5.tsx` | 583 | ✅ 개선됨 |
-| 7 | `PlannerStep4.tsx` | 580 | ✅ 개선됨 |
-| 8 | `PlannerStep6.tsx` | 513 | 🟡 |
-
----
-
-## 📁 새 디렉토리 구조
-
-```
-src/
-├── components/
-│   ├── Auth/
-│   │   ├── LoginForm.tsx
-│   │   └── SignupForm.tsx
-│   ├── Common/
-│   │   ├── ErrorBoundary.tsx
-│   │   ├── FullScreenImagePreview.tsx
-│   │   ├── LoadingOverlay.tsx
-│   │   ├── StepIndicator.tsx (⭐ 5개 파일에서 재사용)
-│   │   └── FileUploadZone.tsx
-│   ├── Debug/
-│   │   └── DebugView.tsx
-│   ├── Landing/
-│   │   ├── AppHeader.tsx
-│   │   └── AuthButtons.tsx
-│   ├── Navigation/
-│   │   └── TabNavigation.tsx
-│   └── Planner/
-│       ├── PlanningWizardOverlay.tsx
-│       └── TransportModeSelector.tsx
-├── hooks/
-│   ├── useAppEvents.ts
-│   └── useSharedLink.ts
-└── utils/
-    └── airline-data.ts
-```
+1.  **`usePlannerActions` 도입**: 아직 `PlannerContext.tsx`에 남아있는 `generatePlanWithAI`, `importTrip`, `exportTrip` 등의 액션을 `usePlannerActions` 훅으로 완전히 분리하면 Context 파일을 200줄 이하로 줄일 수 있습니다.
+2.  **`Step` 컴포넌트 폴더링**: `src/components/Planner/steps/` 폴더를 만들어 `PlannerStep1`~`6`을 이동시키면 구조가 더 깔끔해질 것입니다.
 
 ---
 
 ## Git 커밋 히스토리
 
 ```
-a668147 refactor: apply StepIndicator to PlannerStep1 and PlannerStep2
-9200b5c refactor: apply StepIndicator to PlannerStep4 and PlannerStep5
-24af76c refactor: extract StepIndicator, TransportModeSelector, FileUploadZone
-c212117 docs: update REFACTORING_ANALYSIS.md
-1922f66 refactor: extract AppHeader and AuthButtons
-1ec497b refactor: extract TabNavigation and PlanningWizardOverlay
-583501c refactor: extract DebugView and FullScreenImagePreview
-e504d8b refactor: extract airline-data utils
-c708b8a refactor: extract useSharedLink and useAppEvents hooks
-3fa4d79 refactor: extract ErrorBoundary, LoadingOverlay, LoginForm, SignupForm
-d5c053e fix: TypeScript errors
+[Latest] refactor(context): extract usePlannerState, useOfflineMap, useFileActions and optimize PlannerContext
+...
 ```
-
----
-
-## 🎯 결론
-
-**리팩토링 Phase 1-3 완료!**
-
-| 지표 | 이전 | 현재 |
-|------|------|------|
-| App.tsx 라인 수 | 1,750 | **952** ✅ |
-| 총 추출 컴포넌트 | 0개 | **16개** |
-| TypeScript 오류 | 2개 | **0개** ✅ |
-| StepIndicator 재사용 | - | **5개 파일** |
-
-**코드 재사용성, 가독성, 유지보수성 대폭 향상!**
-
-향후 추가 개선 사항 (선택):
-1. PlannerContext 분할 (832줄)
-2. LocationBottomSheet 분할 (737줄)
-3. 타입 안정성 강화 (`any` 제거)
-4. 인라인 스타일 CSS 클래스화
