@@ -5,6 +5,10 @@ import { supabase } from "./utils/supabase";
 import { usePlanner } from "./contexts/PlannerContext";
 import { Toast } from "./components/Common/Toast";
 import { ConfirmModal } from "./components/Common/ConfirmModal";
+import { ErrorBoundary } from "./components/Common/ErrorBoundary";
+import { LoadingOverlay } from "./components/Common/LoadingOverlay";
+import { LoginForm } from "./components/Auth/LoginForm";
+import { SignupForm } from "./components/Auth/SignupForm";
 import { ScheduleTab } from "./components/Schedule/ScheduleTab";
 import { SummaryTab } from "./components/Summary/SummaryTab";
 import { DocumentsTab } from "./components/Documents/DocumentsTab";
@@ -24,46 +28,12 @@ import { PlannerReviewModal } from "./components/Planner/PlannerReviewModal";
 import { PlannerReEditModal } from "./components/Planner/PlannerReEditModal";
 import { AttractionDetailModal } from "./components/Planner/AttractionDetailModal";
 import { LocationBottomSheet } from "./components/LocationBottomSheet";
-// GoogleGenerativeAI moved to context
 import {
-  Loader2, Sparkles, LogOut, LogIn, User, UserPlus,
+  Sparkles, LogOut,
   LayoutDashboard, Calendar, RefreshCw, Sun, Moon,
   FileText, Edit3, X, MapPin, Trash2, MessageCircle, Link
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: any; errorInfo: any }
-> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
-  }
-  static getDerivedStateFromError(error: any) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error: any, errorInfo: any) {
-    this.setState({ error, errorInfo });
-    console.error("ErrorBoundary caught:", error, errorInfo);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: 20, color: "white", background: "#1e293b", minHeight: "100vh" }}>
-          <h3>Something went wrong.</h3>
-          <pre style={{ fontSize: 10 }}>{this.state.error?.toString()}</pre>
-          <button onClick={() => window.location.reload()}>Reload</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-
-
-
 
 const APP_VERSION = "v1.3.0 (Build: 01:05)";
 
@@ -255,78 +225,7 @@ const App: React.FC = () => {
     <>
       <div className="app">
         {/* Global Loading Overlay for OCR */}
-        <AnimatePresence>
-          {isOcrLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: "rgba(0,0,0,0.8)",
-                backdropFilter: "blur(8px)",
-                zIndex: 10000000,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 20,
-              }}
-            >
-              <div style={{ position: "relative", width: 80, height: 80 }}>
-                <Loader2 size={80} className="spin" color="var(--primary)" />
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <FileText size={30} color="var(--primary)" />
-                </div>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <h3
-                  style={{
-                    fontSize: "24px",
-                    fontWeight: 900,
-                    color: "white",
-                    marginBottom: "8px",
-                  }}
-                >
-                  AI 문서 분석 중
-                </h3>
-                <p style={{ opacity: 0.7, color: "white", fontSize: "15px" }}>
-                  서류에서 정보를 추출하고 있습니다. 잠시만 기다려 주세요.
-                </p>
-                <div
-                  style={{
-                    marginTop: 15,
-                    fontSize: "12px",
-                    color: "var(--primary)",
-                    fontWeight: 600,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                  }}
-                >
-                  <span className="pulse">●</span> 대기 중인 요청 처리 중 (API
-                  Throttling 적용됨)
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <LoadingOverlay isLoading={isOcrLoading} />
 
         {/* AnimatePresence removed to fix black screen crash */}
         <>
@@ -1113,272 +1012,28 @@ const App: React.FC = () => {
           )}
 
           {view === "login" && (
-            <motion.div
-              key="login"
-              initial={{ x: 300, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -300, opacity: 0 }}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                padding: "30px",
-                justifyContent: "center",
-                background:
-                  "radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)",
-                overflowY: "auto"
+            <LoginForm
+              onLogin={() => {
+                setIsLoggedIn(true);
+                setCurrentUser({
+                  name: "사용자",
+                  homeAddress: "경기도 평택시 서재로 36 자이아파트",
+                });
+                setView("landing");
               }}
-            >
-              <h2
-                style={{
-                  fontSize: "28px",
-                  fontWeight: 800,
-                  marginBottom: "30px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <LogIn size={28} /> 로그인
-              </h2>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "20px",
-                }}
-              >
-                <div style={{ textAlign: "left" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "8px",
-                      opacity: 0.6,
-                      fontSize: "13px",
-                    }}
-                  >
-                    이메일
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <User
-                      size={18}
-                      style={{
-                        position: "absolute",
-                        left: 16,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        opacity: 0.5,
-                      }}
-                    />
-                    <input
-                      type="email"
-                      placeholder="email@example.com"
-                      style={{
-                        width: "100%",
-                        padding: "16px 16px 16px 48px",
-                        borderRadius: "12px",
-                        border: "1px solid var(--glass-border)",
-                        background: "var(--input-bg)",
-                        color: "white",
-                      }}
-                    />
-                  </div>
-                </div>
-                <div style={{ textAlign: "left" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "8px",
-                      opacity: 0.6,
-                      fontSize: "13px",
-                    }}
-                  >
-                    비밀번호
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    style={{
-                      width: "100%",
-                      padding: "16px",
-                      borderRadius: "12px",
-                      border: "1px solid var(--glass-border)",
-                      background: "var(--input-bg)",
-                      color: "white",
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={() => {
-                    setIsLoggedIn(true);
-                    setCurrentUser({
-                      name: "사용자",
-                      homeAddress: "경기도 평택시 서재로 36 자이아파트",
-                    });
-                    setView("landing");
-                  }}
-                  className="primary-button"
-                  style={{ marginTop: "10px" }}
-                >
-                  로그인하기
-                </button>
-                <button
-                  onClick={() => setView("landing")}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  뒤로 가기
-                </button>
-              </div>
-            </motion.div>
+              onBack={() => setView("landing")}
+            />
           )}
 
           {view === "signup" && (
-            <motion.div
-              key="signup"
-              initial={{ x: 300, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -300, opacity: 0 }}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                padding: "30px",
-                justifyContent: "flex-start",
-                background:
-                  "radial-gradient(circle at center, #1e293b 0%, #0a0a0b 100%)",
-                overflowY: "auto"
+            <SignupForm
+              onSignup={(name, address) => {
+                setIsLoggedIn(true);
+                setCurrentUser({ name, homeAddress: address });
+                setView("landing");
               }}
-            >
-              <h2
-                style={{
-                  fontSize: "28px",
-                  fontWeight: 800,
-                  marginBottom: "30px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <UserPlus size={28} /> 회원가입
-              </h2>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "20px",
-                }}
-              >
-                <div style={{ textAlign: "left" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "8px",
-                      opacity: 0.6,
-                      fontSize: "13px",
-                    }}
-                  >
-                    이름
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <User
-                      size={18}
-                      style={{
-                        position: "absolute",
-                        left: 16,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        opacity: 0.5,
-                      }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="홍길동"
-                      style={{
-                        width: "100%",
-                        padding: "16px 16px 16px 48px",
-                        borderRadius: "12px",
-                        border: "1px solid var(--glass-border)",
-                        background: "var(--input-bg)",
-                        color: "white",
-                      }}
-                    />
-                  </div>
-                </div>
-                <div style={{ textAlign: "left" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "8px",
-                      opacity: 0.6,
-                      fontSize: "13px",
-                    }}
-                  >
-                    집 주소 (여행 출발지)
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <MapPin
-                      size={18}
-                      style={{
-                        position: "absolute",
-                        left: 16,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        opacity: 0.5,
-                      }}
-                    />
-                    <input
-                      id="signup-address"
-                      type="text"
-                      placeholder="예: 서울특별시 강남구..."
-                      style={{
-                        width: "100%",
-                        padding: "16px 16px 16px 48px",
-                        borderRadius: "12px",
-                        border: "1px solid var(--glass-border)",
-                        background: "var(--input-bg)",
-                        color: "white",
-                      }}
-                    />
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    const nameInput =
-                      (
-                        document.querySelector(
-                          'input[placeholder="홍길동"]',
-                        ) as HTMLInputElement
-                      )?.value || "신규여행자";
-                    const addrInput =
-                      (
-                        document.getElementById(
-                          "signup-address",
-                        ) as HTMLInputElement
-                      )?.value || "";
-                    setIsLoggedIn(true);
-                    setCurrentUser({ name: nameInput, homeAddress: addrInput });
-                    setView("landing");
-                  }}
-                  className="primary-button"
-                >
-                  회원가입 완료
-                </button>
-                <button
-                  onClick={() => setView("landing")}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  뒤로 가기
-                </button>
-              </div>
-            </motion.div>
+              onBack={() => setView("landing")}
+            />
           )}
 
           {view === "app" && trip && (
