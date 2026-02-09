@@ -37,8 +37,8 @@ export const PhrasebookTab: React.FC<PhrasebookTabProps> = ({
           gap: 8,
         }}
       >
-        {trip.speechData
-          .filter((item) => item.category === "basic")
+        {trip?.speechData
+          ?.filter((item) => item.category === "basic")
           .map((item) => (
             <div
               key={item.id}

@@ -23,11 +23,7 @@ interface Ocr_labTabProps {
 export const Ocr_labTab: React.FC<Ocr_labTabProps> = ({
   isOcrLoading,
   analyzedFiles,
-  handleTicketOcr,
-  ticketFileInputRef,
   handleMultipleOcr,
-  handleFileUpload,
-  deleteFile
 }) => {
   const { view, setView } = usePlanner();
 

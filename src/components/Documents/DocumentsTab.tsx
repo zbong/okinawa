@@ -144,7 +144,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       {customFiles.map((f) => renderFileCard(f, false))}
 
       {/* Default Files */}
-      {trip.defaultFiles.map((f) => renderFileCard(f, true))}
+      {trip?.defaultFiles?.map((f) => renderFileCard(f, true))}
     </div>
   );
 };

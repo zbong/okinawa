@@ -173,42 +173,6 @@ const App: React.FC = () => {
     window.addEventListener("error", errorHandler);
     window.addEventListener("unhandledrejection", promiseHandler);
 
-    // One-time cleanup of "typing trash" in localStorage
-    const cleanupStorage = () => {
-      try {
-        const publishedDestinations = trips.map((t: any) => t.metadata?.destination || t.destination).filter(Boolean);
-        const keysToRemove: string[] = [];
-
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (!key) continue;
-
-          const prefixes = ["files_", "logs_", "reviews_", "checklist_", "points_order_"];
-          const matchingPrefix = prefixes.find(p => key.startsWith(p));
-
-          if (matchingPrefix) {
-            const dest = key.replace(matchingPrefix, "");
-            // Only keep data for published trips
-            if (!publishedDestinations.includes(dest)) {
-              keysToRemove.push(key);
-            }
-          }
-        }
-
-        if (localStorage.getItem("trips_v1")) {
-          keysToRemove.push("trips_v1");
-        }
-
-        if (keysToRemove.length > 0) {
-          console.log(`🧹 Cleaning up ${keysToRemove.length} storage keys...`, keysToRemove);
-          keysToRemove.forEach(k => localStorage.removeItem(k));
-        }
-      } catch (e) {
-        console.error("Cleanup failed:", e);
-      }
-    };
-    // cleanupStorage(); // DISABLED: Prevent accidental data loss
-
     // Prevent browser from opening dropped files globally
     const preventDefault = (e: DragEvent) => {
       e.preventDefault();

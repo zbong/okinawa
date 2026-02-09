@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-    MapPin, ChevronLeft, ChevronRight, CheckCircle, Loader2
+    ChevronLeft, ChevronRight, CheckCircle, Loader2
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
@@ -9,7 +9,6 @@ export const PlannerStep1: React.FC = () => {
     const {
         plannerData,
         setPlannerData,
-        plannerStep,
         setPlannerStep,
         setIsPlanning,
         analyzedFiles,

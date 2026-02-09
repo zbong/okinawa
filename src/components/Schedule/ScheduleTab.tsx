@@ -311,7 +311,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
       >
         {(() => {
           let dayCount = 0;
-          if (trip.days && trip.days.length > 0) {
+          if (trip?.days && trip.days.length > 0) {
             let maxDayWithPoints = 0;
             for (let i = 0; i < trip.days.length; i++) {
               if (trip.days[i].points && trip.days[i].points.length > 0) {
@@ -323,7 +323,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
             dayCount = Math.max(maxDayWithPoints, trip.days.length);
           } else {
             // Calculate from date range
-            if (trip.metadata?.startDate && trip.metadata?.endDate) {
+            if (trip?.metadata?.startDate && trip?.metadata?.endDate) {
               const start = new Date(trip.metadata.startDate);
               const end = new Date(trip.metadata.endDate);
               if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
@@ -333,7 +333,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
 
             // If still not determined, look at the points themselves
             if (dayCount <= 0) {
-              const maxPointDay = trip.points?.reduce((max, p) => Math.max(max, p.day), 0) || 0;
+              const maxPointDay = trip?.points?.reduce((max, p) => Math.max(max, p.day), 0) || 0;
               dayCount = Math.max(3, maxPointDay);
             }
           }
