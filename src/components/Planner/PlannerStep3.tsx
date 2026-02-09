@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 import { formatAirport, formatFlight, extractIata } from '../../utils/airline-data';
+import { StepIndicator } from '../Common/StepIndicator';
 
 export const PlannerStep3: React.FC = () => {
     const {
@@ -59,30 +60,7 @@ export const PlannerStep3: React.FC = () => {
                 zIndex: 10,
             }}
         >
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    gap: "8px",
-                    marginBottom: "30px",
-                }}
-            >
-                {[1, 2, 3, 4, 5].map((_, i) => (
-                    <div
-                        key={i}
-                        style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background:
-                                i === 3
-                                    ? "var(--primary)"
-                                    : "rgba(255,255,255,0.1)",
-                            opacity: i < 3 ? 0.3 : 1,
-                        }}
-                    />
-                ))}
-            </div>
+            <StepIndicator currentStep={3} totalSteps={5} />
             <h2
                 style={{
                     fontSize: "32px",
