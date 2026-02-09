@@ -89,16 +89,20 @@
 3. [x] 기타 미사용 변수 정리 (plannerStep, MapPin, deleteFile 등)
 4. [x] Git 커밋: `d5c053e`
 
-### Phase 2: App.tsx 분할 (2시간)
+### Phase 2: App.tsx 분할 🔄 진행 중
 **목표**: 1,705줄 → 500줄 이하
+**현재**: 1,342줄 (408줄 감소)
 
-| 추출 대상 | 예상 라인 | 새 파일 |
-|----------|----------|---------|
-| ErrorBoundary | ~30 | `components/Common/ErrorBoundary.tsx` |
-| 탭 렌더링 로직 | ~200 | `components/TabRenderer.tsx` |
-| 모달들 | ~150 | `components/Modals/` 폴더 |
-| 공유 링크 처리 | ~70 | `hooks/useSharedLink.ts` |
-| 드래그 방지 + 에러 핸들링 | ~50 | `hooks/useAppEvents.ts` |
+| 추출 대상 | 상태 | 새 파일 |
+|----------|------|---------|
+| ErrorBoundary | ✅ 완료 | `components/Common/ErrorBoundary.tsx` |
+| LoadingOverlay | ✅ 완료 | `components/Common/LoadingOverlay.tsx` |
+| LoginForm | ✅ 완료 | `components/Auth/LoginForm.tsx` |
+| SignupForm | ✅ 완료 | `components/Auth/SignupForm.tsx` |
+| Landing 페이지 | ⏳ 대기 | `components/Landing/LandingPage.tsx` |
+| 공유 링크 처리 | ⏳ 대기 | `hooks/useSharedLink.ts` |
+
+Git 커밋: `3fa4d79`
 
 ### Phase 3: PlannerStep3 분할 (1.5시간)
 **목표**: 1,053줄 → 300줄 이하
