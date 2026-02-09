@@ -8,8 +8,10 @@ import { Toast } from "./components/Common/Toast";
 import { ConfirmModal } from "./components/Common/ConfirmModal";
 import { ErrorBoundary } from "./components/Common/ErrorBoundary";
 import { LoadingOverlay } from "./components/Common/LoadingOverlay";
+import { FullScreenImagePreview } from "./components/Common/FullScreenImagePreview";
 import { LoginForm } from "./components/Auth/LoginForm";
 import { SignupForm } from "./components/Auth/SignupForm";
+import { DebugView } from "./components/Debug/DebugView";
 import { ScheduleTab } from "./components/Schedule/ScheduleTab";
 import { SummaryTab } from "./components/Summary/SummaryTab";
 import { DocumentsTab } from "./components/Documents/DocumentsTab";
@@ -1141,100 +1143,10 @@ const App: React.FC = () => {
         <AttractionDetailModal />
 
         {view === "debug" && (
-          <motion.div
-            key="debug"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="overview-content"
-            style={{
-              padding: "20px",
-              height: "100%",
-              overflowY: "auto",
-              background: "#0f172a",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-            >
-              <h1 style={{ color: "var(--primary)", margin: 0 }}>
-                Storage Debugger
-              </h1>
-              <button
-                onClick={() => setView("landing")}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "8px",
-                  background: "rgba(255,255,255,0.1)",
-                  color: "white",
-                  border: "none",
-                }}
-              >
-                돌아가기
-              </button>
-            </div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-              <button
-                onClick={() => {
-                  if (window.confirm("초기화하시겠습니까?")) {
-                    localStorage.clear();
-                    window.location.reload();
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: "8px",
-                  background: "#ff4e50",
-                  color: "white",
-                  border: "none",
-                }}
-              >
-                전체 초기화
-              </button>
-              <button
-                onClick={() => window.location.reload()}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: "8px",
-                  background: "var(--primary)",
-                  color: "black",
-                  border: "none",
-                }}
-              >
-                새로고침
-              </button>
-            </div>
-            <section style={{ marginBottom: 30 }}>
-              <h3 style={{ color: "white" }}>user_trips_v2</h3>
-              <pre
-                style={{
-                  background: "rgba(0,0,0,0.3)",
-                  padding: 15,
-                  borderRadius: 10,
-                  overflowX: "auto",
-                  fontSize: 12,
-                  color: "#10b981",
-                }}
-              >
-                {JSON.stringify(
-                  JSON.parse(localStorage.getItem("user_trips_v2") || "[]"),
-                  null,
-                  2,
-                )}
-              </pre>
-            </section>
-          </motion.div>
-        )
-        }
+          <DebugView onBack={() => setView("landing")} />
+        )}
 
-      </div >
+      </div>
 
       {/* Re-Edit Confirmation Modal */}
       < PlannerReEditModal />
@@ -1271,40 +1183,10 @@ const App: React.FC = () => {
 
       {/* Full Screen Image Preview Overlay */}
       {selectedFile && (
-        <div
-          className="fullscreen-overlay"
-          onClick={() => setSelectedFile(null)}
-          style={{ cursor: 'pointer' }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              top: 20,
-              right: 20,
-              zIndex: 3001,
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: '50%',
-              padding: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <X color="white" size={24} />
-          </div>
-          <motion.img
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            src={selectedFile.data || selectedFile.path}
-            alt={selectedFile.name}
-            className="fullscreen-img"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }}
-          />
-        </div>
+        <FullScreenImagePreview
+          file={selectedFile}
+          onClose={() => setSelectedFile(null)}
+        />
       )}
 
       {/* Toast Notifications */}
