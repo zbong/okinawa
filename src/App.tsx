@@ -12,6 +12,8 @@ import { FullScreenImagePreview } from "./components/Common/FullScreenImagePrevi
 import { LoginForm } from "./components/Auth/LoginForm";
 import { SignupForm } from "./components/Auth/SignupForm";
 import { DebugView } from "./components/Debug/DebugView";
+import { AppHeader } from "./components/Landing/AppHeader";
+import { AuthButtons } from "./components/Landing/AuthButtons";
 import { TabNavigation } from "./components/Navigation/TabNavigation";
 import { ScheduleTab } from "./components/Schedule/ScheduleTab";
 import { SummaryTab } from "./components/Summary/SummaryTab";
@@ -164,82 +166,13 @@ const App: React.FC = () => {
                   width: "100%",
                 }}
               >
-                <div
-                  style={{
-                    width: 100,
-                    height: 100,
-                    borderRadius: "30px",
-                    overflow: "hidden",
-                    marginBottom: "24px",
-                    boxShadow: "0 15px 40px rgba(0,0,0,0.4)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                  }}
-                >
-                  <img
-                    src="/logo.png"
-                    alt="빠니보살"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                    }}
-                  />
-                </div>
-                <h1
-                  style={{
-                    fontSize: "48px",
-                    fontWeight: 900,
-                    marginBottom: "4px",
-                    letterSpacing: "-2px",
-                    color: "#ffffff",
-                    textShadow: "0 0 20px rgba(0,212,255,0.4)",
-                  }}
-                >
-                  빠니보살
-                </h1>
-                <p
-                  style={{
-                    color: "var(--primary)",
-                    fontSize: "18px",
-                    fontWeight: 700,
-                    marginBottom: "40px",
-                    letterSpacing: "1px",
-                  }}
-                >
-                  AI로 자유여행
-                </p>
+                <AppHeader />
 
                 {!isLoggedIn ? (
-                  <div
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <button
-                      onClick={() => setView("login")}
-                      className="primary-button"
-                      style={{ width: "100%" }}
-                    >
-                      로그인
-                    </button>
-                    <button
-                      onClick={() => setView("signup")}
-                      style={{
-                        width: "100%",
-                        padding: "16px",
-                        borderRadius: "16px",
-                        background: "var(--glass-bg)",
-                        border: "1px solid var(--glass-border)",
-                        color: "white",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      회원가입
-                    </button>
-                  </div>
+                  <AuthButtons
+                    onLogin={() => setView("login")}
+                    onSignup={() => setView("signup")}
+                  />
                 ) : (
                   <div
                     style={{
