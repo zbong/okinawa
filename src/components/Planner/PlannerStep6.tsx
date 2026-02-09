@@ -6,6 +6,8 @@ import {
 import { usePlanner } from "../../contexts/PlannerContext";
 import { ConfirmModal } from "../Common/ConfirmModal";
 
+import { StepIndicator } from "../Common/StepIndicator";
+
 export const PlannerStep6: React.FC = () => {
     const {
         plannerData,
@@ -111,6 +113,7 @@ export const PlannerStep6: React.FC = () => {
                 confirmText="생성 시작"
                 cancelText="숙소 확인하기"
             />
+            <StepIndicator currentStep={6} totalSteps={6} />
             <h2 style={{ fontSize: "32px", fontWeight: 900, marginBottom: "8px", textAlign: "center" }}>
                 데이터 최종 점검 및 서류 등록
             </h2>
