@@ -5,6 +5,7 @@ import {
     Calendar as CalendarIcon, Trash2, Plus, Save, Star, Check
 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
+import { StepIndicator } from '../Common/StepIndicator';
 
 export const PlannerStep5: React.FC = () => {
     const {
@@ -55,31 +56,7 @@ export const PlannerStep5: React.FC = () => {
                 textAlign: "left",
             }}
         >
-            <div
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    marginBottom: "40px",
-                    justifyContent: "center",
-                }}
-            >
-                {[1, 2, 3, 4, 5].map((i) => (
-                    <div
-                        key={i}
-                        style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background:
-                                i === 5
-                                    ? "var(--primary)"
-                                    : "rgba(255,255,255,0.1)",
-                            opacity: i < 5 ? 0.3 : 1,
-                        }}
-                    />
-                ))}
-            </div>
+            <StepIndicator currentStep={5} totalSteps={5} />
             <h2
                 style={{
                     fontSize: "32px",
