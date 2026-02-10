@@ -73,7 +73,7 @@ const App: React.FC = () => {
         <LoadingOverlay isLoading={isOcrLoading || isAuthLoading} />
 
         {/* Landing Page (Handles its own visibility) */}
-        {view === "landing" && !isAuthLoading && !new URLSearchParams(window.location.search).has("id") && <LandingPage />}
+        {(view === "landing" || view === "login") && !isAuthLoading && !new URLSearchParams(window.location.search).has("id") && <LandingPage />}
 
         {/* Login Form */}
 
