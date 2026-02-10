@@ -68,7 +68,7 @@ export const PlannerStep4: React.FC = () => {
                         }}
                     />
                     <p style={{ opacity: 0.6 }}>
-                        AI가 {plannerData.destination}의 숨은 명소들을 찾
+                        AI가 {plannerData.destination}의 명소를 찾고
                         있습니다...
                     </p>
                 </div>
@@ -415,20 +415,34 @@ export const PlannerStep4: React.FC = () => {
                                             {item.desc}
                                         </div>
 
-                                        <div
-                                            style={{
-                                                fontSize: "12px",
-                                                opacity: 0.6,
-                                                lineHeight: 1.5,
-                                                textAlign: "left",
-                                                display: "-webkit-box",
-                                                WebkitLineClamp: 2,
-                                                WebkitBoxOrient: "vertical",
-                                                overflow: "hidden",
-                                            }}
-                                        >
-                                            {item.longDesc}
-                                        </div>
+                                        {item.longDesc && (
+                                            <details style={{ marginTop: "8px" }}>
+                                                <summary style={{
+                                                    fontSize: "12px",
+                                                    color: "var(--primary)",
+                                                    cursor: "pointer",
+                                                    fontWeight: 600,
+                                                    userSelect: "none",
+                                                }}>
+                                                    상세보기 ▼
+                                                </summary>
+                                                <div
+                                                    style={{
+                                                        fontSize: "12px",
+                                                        opacity: 0.8,
+                                                        lineHeight: 1.6,
+                                                        textAlign: "left",
+                                                        marginTop: "8px",
+                                                        padding: "10px",
+                                                        background: "rgba(255,255,255,0.05)",
+                                                        borderRadius: "6px",
+                                                        color: "#cbd5e1",
+                                                    }}
+                                                >
+                                                    {item.longDesc}
+                                                </div>
+                                            </details>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -559,6 +573,14 @@ export const PlannerStep4: React.FC = () => {
                 </>
             )
             }
+
+            {/* Debug View for AI Response */}
+            <details style={{ marginBottom: '20px', padding: '10px', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', color: '#00ff00', fontSize: '10px' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>🔍 AI Raw Data (Debug)</summary>
+                <pre style={{ whiteSpace: 'pre-wrap', overflowX: 'auto', maxHeight: '300px' }}>
+                    {JSON.stringify(dynamicAttractions, null, 2)}
+                </pre>
+            </details>
 
             <div style={{ display: "flex", gap: "15px" }}>
                 <button

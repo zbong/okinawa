@@ -43,11 +43,23 @@ export const usePlannerActions = ({
         const planData = await generatePlan(customPrompt);
         if (planData) {
             const mappedPoints = (planData.points || []).map((p: any) => {
-                const sourceAttr = plannerState.dynamicAttractions.find((a: any) => a.name === p.name);
-                const sourceAcc = plannerState.plannerData.accommodations.find((a: any) => a.name === p.name);
+                // Fuzzy match for source attribute to ensure we get rich details
+                const sourceAttr = plannerState.dynamicAttractions.find((a: any) =>
+                    a.name === p.name || a.name.includes(p.name) || p.name.includes(a.name)
+                );
+                const sourceAcc = plannerState.plannerData.accommodations.find((a: any) =>
+                    a.name === p.name || a.name.includes(p.name) || p.name.includes(a.name)
+                );
 
                 // Ensure day is a number and exists
                 const dayNum = p.day ? Number(p.day) : 1;
+
+                // Prioritize rich content: AI Plan desc -> Source longDesc -> Source desc
+                const richDescription = p.desc || p.description || sourceAttr?.longDesc || sourceAttr?.desc || sourceAttr?.description || sourceAcc?.desc || "";
+
+                if (!richDescription) {
+                    console.warn(`⚠️ No description found for point: ${p.name}`);
+                }
 
                 return {
                     ...p,
@@ -55,8 +67,9 @@ export const usePlannerActions = ({
                     day: dayNum,
                     coordinates: sourceAttr?.coordinates || sourceAcc?.coordinates || p.coordinates || { lat: 26.2124, lng: 127.6809 },
                     category: sourceAttr?.category || (sourceAcc ? 'stay' : (p.type || p.category || 'sightseeing')),
+                    description: richDescription || "상세 정보가 없습니다.",
                     isCompleted: false,
-                    images: p.images || []
+                    images: p.images || sourceAttr?.images || []
                 };
             });
 
@@ -195,7 +208,8 @@ export const usePlannerActions = ({
                 isShared: true
             },
             points: tripData.points || allPoints.filter((p: any) => p.day > 0),
-            customFiles: tripData.customFiles || []
+            customFiles: tripData.customFiles || [],
+            speechData: tripData.speechData || []
         };
 
         try {

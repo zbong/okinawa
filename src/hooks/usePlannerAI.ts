@@ -51,13 +51,14 @@ export const usePlannerAI = ({
     // Suppress unused warnings for future use
     void hotelStrategy;
     void recommendedHotels;
+    void user;
 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     const fetchAttractionsWithAI = async (destination: string, forceRefresh: boolean = false) => {
         if (!apiKey || !destination) return;
 
-        const destinationKey = destination.toLowerCase().trim();
+        const destinationKey = (destination.toLowerCase().trim()) + "_v2";
 
         // 🛡️ Supabase Cache Check
         try {
@@ -85,33 +86,33 @@ export const usePlannerAI = ({
         setIsSearchingAttractions(true);
         try {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", generationConfig: { maxOutputTokens: 16384 } });
 
             const prompt = `
-Act as a professional travel planner for "${destination}" with companion "${plannerData.companion}".
-I need a diverse list of recommendations across 3 specific categories in a SINGLE JSON array.
+Act as a premium travel editor for a luxury magazine.
+I need a highly detailed, curated list of recommendations for "${destination}" suitable for "${plannerData.companion}".
 
 Please generate exactly:
-1. 10 Sightseeing spots (Landmarks, Nature, Historical sites) -> set category="sightseeing"
-2. 6 Activities/Tours (Snorkeling, Diving, Island Tours like Kerama/Ishigaki, Cultural experiences) -> set category="activity"
-3. 8 Dining spots (Local food like Soba/Agu Pork, Ocean view cafes, Night markets) -> set category="dining"
+1. 7 Sightseeing spots (Landmarks, Nature, Historical sites) -> set category="sightseeing"
+2. 4 Activities/Tours (Snorkeling, Diving, Cultural experiences) -> set category="activity"
+3. 4 Dining spots (Local gourmet, Ocean view cafes) -> set category="dining"
 
-For EACH item, return this object structure:
+For EACH item, return this JSON object (Korean):
 {
     "id": "unique_string",
     "name": "Official Name (Korean)",
     "category": "sightseeing" | "activity" | "dining",
-    "desc": "Short description (Korean)",
-    "longDesc": "Detailed reason to visit (Korean)",
-    "rating": 4.5,
-    "reviewCount": 100,
+    "desc": "Short summary (1 sentence)",
+    "longDesc": "WRITE A LONG, DETAILED ARTICLE (min 400-600 characters). MUST include: 1. Historical/Cultural significance 2. What exactly to see/do 3. Best time to visit 4. Why it fits this traveler. Do not summarize. Write with emotion and detail like a travel essay.",
+    "rating": 4.8,
+    "reviewCount": 150,
     "priceLevel": "Cheap/Moderate/Expensive",
-    "tips": ["Tip 1", "Tip 2"],
-    "coordinates": { "lat": number, "lng": number },
-    "link": "google map url or homepage"
+    "tips": ["Practical Tip 1 (Parking/Tickets)", "Photo Spot Tip"],
+    "coordinates": { "lat": number, "lng": number }
 }
 
-Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not include markdown code blocks.
+STRICT RULE: "longDesc" must be VERY LONG and DETAILED. Do not write short sentences.
+Return ONLY the JSON array.
             `;
 
             console.log("Creating unified attraction request...");
@@ -126,6 +127,8 @@ Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not includ
                 // Remove some common AI-generated JSON mistakes (like comments or trailing commas)
                 jsonStr = jsonStr.replace(/\/\/.*$/gm, ""); // Remove // comments
                 jsonStr = jsonStr.replace(/,(\s*[\]}])/g, "$1"); // Remove trailing commas
+                // Fix control characters in string literals (replace newlines with spaces to be safe)
+                jsonStr = jsonStr.replace(/\n/g, " ").replace(/\r/g, "");
 
                 try {
                     const items = JSON.parse(jsonStr);
@@ -157,7 +160,9 @@ Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not includ
         } catch (error: any) {
             console.error("Fetch Attractions Error:", error);
             if (error.message?.includes("429") || error.toString().includes("429")) {
-                showToast("AI 요청량이 많아 잠시 후 다시 시도해주세요.", "error");
+                const msg = "AI 요청량이 많아 잠시 후 다시 시도해주세요. (약 10-20초 후)";
+                showToast(msg, "error");
+                alert(msg); // Explicit alert as requested
             } else {
                 showToast("추천 정보를 가져오는 중 오류가 발생했습니다.", "error");
             }
@@ -240,7 +245,9 @@ Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not includ
         } catch (e: any) {
             console.error("Hotel search failed:", e);
             if (e.message?.includes("429") || e.toString().includes("429")) {
-                showToast("AI 요청량이 많아 잠시 후 다시 시도해주세요.", "error");
+                const msg = "AI 요청량이 많아 잠시 후 다시 시도해주세요. (약 10-20초 후)";
+                showToast(msg, "error");
+                alert(msg);
             }
         } finally {
             setIsSearchingHotels(false);
@@ -300,7 +307,9 @@ Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not includ
         } catch (e: any) {
             console.error("Place validation failed:", e);
             if (e.message?.includes("429") || e.toString().includes("429")) {
-                showToast("AI 요청량이 많아 잠시 후 다시 시도해주세요.", "error");
+                const msg = "AI 요청량이 많아 잠시 후 다시 시도해주세요. (약 10-20초 후)";
+                showToast(msg, "error");
+                alert(msg);
             }
         } finally {
             setIsValidatingPlace(false);
@@ -329,7 +338,9 @@ Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not includ
         } catch (e: any) {
             setHotelAddStatus("IDLE");
             if (e.message?.includes("429") || e.toString().includes("429")) {
-                showToast("AI 요청량이 많아 잠시 후 다시 시도해주세요.", "error");
+                const msg = "AI 요청량이 많아 잠시 후 다시 시도해주세요. (약 10-20초 후)";
+                showToast(msg, "error");
+                alert(msg);
             }
         }
     };
@@ -387,8 +398,8 @@ Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not includ
             
             Return JSON matching:
             { 
-              "points": [{ "name": "string", "desc": "string", "type": "stay" | "visit" | "logistics", "day": number, "time": "HH:mm (optional)", "coordinates": { "lat": number, "lng": number } }],
-              "recommendations": [{ "name": "string", "reason": "string", "area": "string" }] 
+              "points": [{ "name": "string", "desc": "Detailed narrative description (min 3 sentences). Include historical facts, what to see, and why it's special.", "type": "stay" | "visit" | "logistics", "day": number, "time": "HH:mm (optional)", "coordinates": { "lat": number, "lng": number } }],
+              "recommendations": [{ "name": "string", "reason": "Detailed reason related to user preference", "area": "string" }] 
             }
             - Ensure points are strictly in chronological order.`;
             console.log("📡 AI Plan Generation Prompt:", prompt);
@@ -409,7 +420,9 @@ Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not includ
         } catch (error: any) {
             console.error("Plan generation failed:", error);
             if (error.message?.includes("429") || error.toString().includes("429")) {
-                showToast("AI 요청량이 많아 잠시 후 다시 시도해주세요.", "error");
+                const msg = "AI 요청량이 많아 잠시 후 다시 시도해주세요. (약 10-20초 후)";
+                showToast(msg, "error");
+                alert(msg);
             }
             return null;
         }
@@ -441,7 +454,9 @@ Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not includ
         } catch (e: any) {
             console.error("Destination validation failed:", e);
             if (e.message?.includes("429") || e.toString().includes("429")) {
-                showToast("AI 요청량이 많아 잠시 후 다시 시도해주세요.", "error");
+                const msg = "AI 요청량이 많아 잠시 후 다시 시도해주세요. (약 10-20초 후)";
+                showToast(msg, "error");
+                alert(msg);
             } else {
                 showToast("여행지 확인 중 오류가 발생했습니다.", "error");
             }

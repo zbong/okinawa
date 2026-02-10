@@ -20,6 +20,7 @@ export const PlannerStep8: React.FC = () => {
     } = usePlanner();
 
     const displayPoints = trip?.points || [];
+    const [isPublishing, setIsPublishing] = React.useState(false);
 
     return (
         <motion.div
@@ -193,6 +194,7 @@ export const PlannerStep8: React.FC = () => {
                 </div>
                 <button
                     onClick={async () => {
+                        if (isPublishing) return;
                         if (!trip || !trip.points || trip.points.length === 0) {
                             showToast(
                                 "일정 데이터가 생성되지 않았습니다. 이전 단계로 돌아가 AI 코스 생성을 다시 시도해 주세요.",
@@ -200,13 +202,14 @@ export const PlannerStep8: React.FC = () => {
                             );
                             return;
                         }
+                        setIsPublishing(true);
                         const publishedTrip = {
                             ...trip,
                             title: trip.metadata?.title || "나의 멋진 여행",
                             period: trip.metadata?.period || "기간 미정",
                             destination: trip.metadata?.destination || "목적지 미정",
                             color: trip.metadata?.primaryColor || "#00d4ff",
-                            id: `trip-${Date.now()}`,
+                            id: (trip.id && !trip.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ? trip.id : `trip-${Date.now()}`,
                             progress: 0,
                             customFiles: customFiles || [],
                             analyzedFiles: analyzedFiles || [],
@@ -230,6 +233,8 @@ export const PlannerStep8: React.FC = () => {
                         } catch (e) {
                             console.error("Failed to publish trip:", e);
                             showToast("가이드 발행 중 오류가 발생했습니다. 다시 시도해 주세요.", "error");
+                        } finally {
+                            setIsPublishing(false);
                         }
                     }}
                     style={{
@@ -248,7 +253,7 @@ export const PlannerStep8: React.FC = () => {
                         boxShadow: "0 10px 25px rgba(0, 212, 255, 0.3)"
                     }}
                 >
-                    최종 가이드 생성 및 저장
+                    {isPublishing ? "생성중입니다..." : "최종 가이드 생성 및 저장"}
                 </button>
             </div>
         </motion.div>

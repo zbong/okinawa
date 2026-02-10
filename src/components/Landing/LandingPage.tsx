@@ -119,78 +119,7 @@ export const LandingPage: React.FC = () => {
                                 </p>
                             </div>
                             <div style={{ display: "flex", gap: 10 }}>
-                                <button
-                                    onClick={() => {
-                                        // 1. Find in published trips (check root title and metadata title)
-                                        let oki1: any = trips.find((t: any) =>
-                                            t.title === "오키1" ||
-                                            t.metadata?.title === "오키1"
-                                        );
 
-                                        // 2. If not found, check localStorage drafts
-                                        if (!oki1) {
-                                            const draftKeys = Object.keys(localStorage).filter(k => k.startsWith("trip_draft_v1"));
-                                            for (const key of draftKeys) {
-                                                try {
-                                                    const saved = localStorage.getItem(key);
-                                                    if (!saved) continue;
-                                                    const draft = JSON.parse(saved);
-                                                    if (draft.data?.title === "오키1") {
-                                                        oki1 = draft;
-                                                        break;
-                                                    }
-                                                } catch (e) { }
-                                            }
-                                        }
-
-                                        if (!oki1) {
-                                            showToast("'오키1'이라는 제목의 여행이나 초안을 찾을 수 없습니다. (현재 목록의 제목을 확인해 주세요)", "error");
-                                            return;
-                                        }
-
-                                        // Create 4 Drafts (not published trips)
-                                        let successCount = 0;
-                                        [2, 3, 4, 5].forEach(num => {
-                                            try {
-                                                const newDraft = {
-                                                    step: oki1.step !== undefined ? oki1.step : 0,
-                                                    data: oki1.data ? { ...oki1.data, title: `오키${num}` } : { ...(oki1.metadata || {}), title: `오키${num}` },
-                                                    selectedIds: oki1.selectedIds || (oki1.points ? oki1.points.map((p: any) => p.id) : []),
-                                                    attractions: oki1.attractions || [],
-                                                    hotels: oki1.hotels || [],
-                                                    updated: Date.now()
-                                                };
-                                                localStorage.setItem(`trip_draft_v1_copy_${num}`, JSON.stringify(newDraft));
-                                                successCount++;
-                                            } catch (e) {
-                                                console.error(`Failed to copy draft ${num}:`, e);
-                                            }
-                                        });
-
-                                        if (successCount > 0) {
-                                            showToast(`오키2~5 임시 저장본이 ${successCount}개 생성되었습니다.`, "success");
-                                            // Trigger state update to refresh draft list in UI if needed
-                                            window.location.reload();
-                                        } else {
-                                            showToast("용량 부족으로 복사본을 생성하지 못했습니다.", "error");
-                                        }
-                                    }}
-                                    style={{
-                                        background: "rgba(255, 255, 255, 0.05)",
-                                        border: "1px solid rgba(255, 255, 255, 0.1)",
-                                        borderRadius: "12px",
-                                        padding: "10px 16px",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        color: "var(--text-dim)",
-                                        fontWeight: "bold",
-                                        fontSize: "13px",
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    <RefreshCw size={16} /> 데이터 복사
-                                </button>
                                 <button
                                     onClick={() => startNewPlanning()}
                                     style={{

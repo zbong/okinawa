@@ -2,7 +2,7 @@ export interface LocationPoint {
     id: string;
     name: string;
     originalName?: string;
-    category: 'sightseeing' | 'food' | 'logistics' | 'stay';
+    category: 'sightseeing' | 'food' | 'dining' | 'activity' | 'cafe' | 'logistics' | 'stay';
     day: number;
     mapcode?: string;
     phone?: string;
@@ -10,6 +10,7 @@ export interface LocationPoint {
     tips: string[];
     isCompleted?: boolean;
     description?: string;
+    longDesc?: string;
     weather?: { temp: string; condition: string; wind: string; humidity: string; }
 }
 

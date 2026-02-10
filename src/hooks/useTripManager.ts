@@ -73,8 +73,11 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
     // 3. Save/Update Trip in Supabase
     const isSyncing = React.useRef<Set<string>>(new Set());
 
+    // Track deleted IDs to prevent zombies
+    const deletedTripIds = React.useRef<Set<string>>(new Set());
+
     const saveTripToSupabase = useCallback(async (targetTrip: TripPlan) => {
-        if (!user || isSyncing.current.has(targetTrip.id)) return;
+        if (!user || isSyncing.current.has(targetTrip.id) || deletedTripIds.current.has(targetTrip.id)) return;
 
         // Ensure we have a valid UUID or generate one if it's a legacy string ID
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetTrip.id);
@@ -92,6 +95,13 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
         console.log(`💾 Syncing trip [${targetTrip.id}] "${targetTrip.metadata?.title}"...`);
 
         try {
+            // Check if it was deleted while waiting
+            if (deletedTripIds.current.has(targetTrip.id)) {
+                console.log("Trip was deleted, aborting save.");
+                return;
+            }
+
+            // ... rest of logic
             // Robust Profile Ensure
             const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();
             if (!profile) {
@@ -161,23 +171,6 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
     }, [user, completedItems, userReviews, userLogs, customFiles, analyzedFiles, allPoints, trip]);
 
 
-    // DB Sync Trigger: Debounced to prevent multiple rapid-fire syncs
-    useEffect(() => {
-        if (!user || trips.length === 0) return;
-
-        const timer = setTimeout(() => {
-            const unsyncedTrip = trips.find(t =>
-                !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t.id) &&
-                !isSyncing.current.has(t.id)
-            );
-            if (unsyncedTrip) {
-                saveTripToSupabase(unsyncedTrip);
-            }
-        }, 3000);
-
-        return () => clearTimeout(timer);
-    }, [trips, user, saveTripToSupabase]);
-
     // 4. Sync "trip" -> Sub-states (allPoints, etc.)
     useEffect(() => {
         if (trip) {
@@ -199,25 +192,16 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
         // If logged in, we assume these are already part of the 'trip' object or fetched via sync
     }, [trip?.metadata?.destination, user]);
 
-    // 6. Persistence of sub-data (Auto-sync when interactive items change)
-    useEffect(() => {
-        if (!user || !trip) return;
-
-        // CRITICAL: Only auto-sync if it's an already published trip (has a valid UUID)
-        // This prevents AI-generated previews from being saved as guides automatically
-        const isPublished = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trip.id);
-        if (!isPublished) return;
-
-        const timer = setTimeout(() => {
-            saveTripToSupabase(trip);
-        }, 2000); // 2 second debounce for interactive changes
-
-        return () => clearTimeout(timer);
-    }, [completedItems, userReviews, userLogs, customFiles, analyzedFiles, trip, user, saveTripToSupabase]);
 
     const publishTrip = async (newTrip: TripPlan) => {
-        // 1. Add to local state first for immediate UI feedback
-        setTrips(prev => [newTrip, ...prev]);
+        // 1. Add to local state first for immediate UI feedback (Check for duplicates)
+        setTrips(prev => {
+            const exists = prev.some(t => t.id === newTrip.id);
+            if (exists) {
+                return prev.map(t => t.id === newTrip.id ? newTrip : t);
+            }
+            return [newTrip, ...prev];
+        });
 
         // 2. Trigger immediate save to Supabase
         await saveTripToSupabase(newTrip);
@@ -229,6 +213,7 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
 
         // 1. Block any in-flight syncs for this ID
         isSyncing.current.add(id);
+        deletedTripIds.current.add(id);
 
         try {
             // 2. Remove from local state IMMEDIATELY
