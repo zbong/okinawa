@@ -143,10 +143,26 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       </div>
 
       {/* Custom Files */}
-      {(customFiles || []).map((f) => renderFileCard(f, false))}
+      {/* All Files (Merged & Deduped) */}
+      {(() => {
+        // Merge custom and default files
+        const cFiles = (customFiles || []).map(f => ({ ...f, _isDefault: false }));
+        const dFiles = (trip?.defaultFiles || []).map(f => ({ ...f, _isDefault: true }));
+        const all = [...cFiles, ...dFiles];
 
-      {/* Default Files */}
-      {trip?.defaultFiles?.map((f) => renderFileCard(f, true))}
+        // Filter unique files by name to prevent duplicates
+        const unique = all.filter((f, index, self) =>
+          index === self.findIndex(t => (
+            t.name === f.name
+          ))
+        );
+
+        return unique.map((f, i) => (
+          <React.Fragment key={`${f.name}-${i}`}>
+            {renderFileCard(f, f._isDefault)}
+          </React.Fragment>
+        ));
+      })()}
     </div>
   );
 };

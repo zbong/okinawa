@@ -143,6 +143,7 @@ interface PlannerContextType {
     setDeleteConfirmModal: React.Dispatch<React.SetStateAction<any>>;
 
     // Auth (REAL)
+    isAuthLoading: boolean; // Add this
     isLoggedIn: boolean;
     setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>; // Keep for compatibility if needed, or mock
     currentUser: any;
@@ -256,7 +257,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     // Auth (REAL)
-    const { user, signInWithEmail, signInWithGoogle, signUpWithPassword, signInWithPassword, signOut } = useAuth();
+    const { user, loading: isAuthLoading, signInWithEmail, signInWithGoogle, signUpWithPassword, signInWithPassword, signOut } = useAuth();
     // Maintain compatibility with existing code
     const isLoggedIn = !!user;
     const currentUser = user ? { name: user.email?.split('@')[0] || "User", email: user.email, ...user } : null;
@@ -554,7 +555,8 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         shareToKakao,
         deleteTrip,
         publishTrip,
-        resetPlannerState
+        resetPlannerState,
+        isAuthLoading // Added to value
     }), [
         view, activeTab, overviewMode, scheduleDay, scheduleViewMode, theme, trips, trip,
         allPoints, completedItems, selectedPoint, weatherIndex, selectedWeatherLocation,
@@ -564,8 +566,8 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isPlaceAddedError, userReviews, userLogs, customFiles, weatherData, isLoadingWeather,
         weatherError, jpyAmount, krwAmount, rate, isOcrLoading, analyzedFiles, customAiPrompt,
         isEditingPoint, attractionCategoryFilter, isDragging, isReviewModalOpen,
-        isReEditModalOpen, tripToEdit, deleteConfirmModal, isLoggedIn, currentUser,
-        user, signUpWithPassword, signInWithPassword, // New dependencies
+        tripToEdit, deleteConfirmModal, isLoggedIn, currentUser,
+        user, signUpWithPassword, signInWithPassword, isAuthLoading, // Added isAuthLoading
         selectedFile, calendarDate, isDestinationValidated, isValidatingDestination,
         isPreparingOffline, offlineProgress, shareToKakao,
         setPlannerCustomFiles, setPlannerAnalyzedFiles

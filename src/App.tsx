@@ -36,7 +36,7 @@ const App: React.FC = () => {
     setActivePlannerDetail,
     // States
     analyzedFiles, ticketFileInputRef,
-    isOcrLoading,
+    isOcrLoading, isAuthLoading,
 
     toasts, closeToast, deleteConfirmModal,
     setDeleteConfirmModal,
@@ -69,8 +69,8 @@ const App: React.FC = () => {
   return (
     <>
       <div className="app">
-        {/* Global Loading Overlay for OCR */}
-        <LoadingOverlay isLoading={isOcrLoading} />
+        {/* Global Loading Overlay for OCR & Auth */}
+        <LoadingOverlay isLoading={isOcrLoading || isAuthLoading} />
 
         {/* Landing Page (Handles its own visibility) */}
         <LandingPage />
