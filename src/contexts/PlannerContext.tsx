@@ -230,7 +230,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, [theme]);
 
     // View State
-    const [view, setView] = useState("landing");
+    const [view, setView] = useState("app");
     const [activeTab, setActiveTab] = useState("schedule");
     const [overviewMode, setOverviewMode] = useState<"map" | "text">("map");
     const [scheduleDay, setScheduleDay] = useState(1);
