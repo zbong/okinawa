@@ -1,6 +1,8 @@
+import { retryWithBackoff } from '../utils/ai-parser';
 import { useState } from 'react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { PlannerData } from '../types';
+import { supabase } from '../utils/supabase';
 
 interface UsePlannerAIProps {
     plannerData: PlannerData;
@@ -15,6 +17,7 @@ interface UsePlannerAIProps {
     setDynamicAttractions: React.Dispatch<React.SetStateAction<any[]>>;
     recommendedHotels: any[];
     setRecommendedHotels: React.Dispatch<React.SetStateAction<any[]>>;
+    user: any;
 }
 
 export const usePlannerAI = ({
@@ -29,7 +32,8 @@ export const usePlannerAI = ({
     dynamicAttractions,
     setDynamicAttractions,
     recommendedHotels,
-    setRecommendedHotels
+    setRecommendedHotels,
+    user
 }: UsePlannerAIProps) => {
     const [isValidatingDestination, setIsValidatingDestination] = useState(false);
     const [isDestinationValidated, setIsDestinationValidated] = useState(() => {
@@ -50,67 +54,146 @@ export const usePlannerAI = ({
 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-    const fetchAttractionsWithAI = async (destination: string) => {
+    const fetchAttractionsWithAI = async (destination: string, forceRefresh: boolean = false) => {
         if (!apiKey || !destination) return;
 
-        const CACHE_KEY = "attraction_recommendation_cache";
-        const cachedStr = localStorage.getItem(CACHE_KEY);
-        const cache = cachedStr ? JSON.parse(cachedStr) : {};
         const destinationKey = destination.toLowerCase().trim();
 
-        if (cache[destinationKey]) {
-            const { timestamp, data } = cache[destinationKey];
-            const now = Date.now();
-            const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-            if (now - timestamp < sevenDaysInMs) {
-                setDynamicAttractions(data);
-                return;
+        // 🛡️ Supabase Cache Check
+        try {
+            const { data: cached } = await supabase
+                .from('attraction_cache')
+                .select('*')
+                .eq('destination', destinationKey)
+                .maybeSingle();
+
+            if (!forceRefresh && cached) {
+                const now = new Date();
+                const updatedAt = new Date(cached.updated_at);
+                const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+
+                if (now.getTime() - updatedAt.getTime() < sevenDaysInMs) {
+                    console.log("🏙️ Using attraction cache from Supabase");
+                    setDynamicAttractions(cached.attractions);
+                    return;
+                }
             }
+        } catch (e) {
+            console.warn("Cache fetch failed, proceeding with AI...", e);
         }
 
         setIsSearchingAttractions(true);
         try {
             const genAI = new GoogleGenerativeAI(apiKey);
             const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const prompt = `Search attractions in "${destination}" for ${plannerData.companion}. Return JSON array of objects with id, name, category, desc, longDesc, rating, reviewCount, priceLevel, attractions, tips, coordinates, link. Korean language.`;
-            const result = await model.generateContent(prompt);
+
+            const prompt = `
+Act as a professional travel planner for "${destination}" with companion "${plannerData.companion}".
+I need a diverse list of recommendations across 3 specific categories in a SINGLE JSON array.
+
+Please generate exactly:
+1. 10 Sightseeing spots (Landmarks, Nature, Historical sites) -> set category="sightseeing"
+2. 6 Activities/Tours (Snorkeling, Diving, Island Tours like Kerama/Ishigaki, Cultural experiences) -> set category="activity"
+3. 8 Dining spots (Local food like Soba/Agu Pork, Ocean view cafes, Night markets) -> set category="dining"
+
+For EACH item, return this object structure:
+{
+    "id": "unique_string",
+    "name": "Official Name (Korean)",
+    "category": "sightseeing" | "activity" | "dining",
+    "desc": "Short description (Korean)",
+    "longDesc": "Detailed reason to visit (Korean)",
+    "rating": 4.5,
+    "reviewCount": 100,
+    "priceLevel": "Cheap/Moderate/Expensive",
+    "tips": ["Tip 1", "Tip 2"],
+    "coordinates": { "lat": number, "lng": number },
+    "link": "google map url or homepage"
+}
+
+Ensure all descriptions are in Korean. Return ONLY the JSON array. Do not include markdown code blocks.
+            `;
+
+            console.log("Creating unified attraction request...");
+            const result = await retryWithBackoff(() => model.generateContent(prompt));
             const text = result.response.text().trim();
-            const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-            const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+
+            // 🛠️ Robust JSON Extraction
+            const jsonMatch = text.match(/\[[\s\S]*\]/);
             if (jsonMatch) {
-                const attractions = JSON.parse(jsonMatch[0]);
-                setDynamicAttractions(attractions);
-                cache[destinationKey] = { timestamp: Date.now(), data: attractions };
-                localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+                let jsonStr = jsonMatch[0];
+
+                // Remove some common AI-generated JSON mistakes (like comments or trailing commas)
+                jsonStr = jsonStr.replace(/\/\/.*$/gm, ""); // Remove // comments
+                jsonStr = jsonStr.replace(/,(\s*[\]}])/g, "$1"); // Remove trailing commas
+
+                try {
+                    const items = JSON.parse(jsonStr);
+
+                    const processed = items.map((item: any, idx: number) => ({
+                        ...item,
+                        id: `unified-${Date.now()}-${idx}`,
+                        category: ["sightseeing", "activity", "dining", "food", "cafe"].includes(item.category) ? item.category : 'sightseeing'
+                    }));
+
+                    const uniqueAttractions = processed.filter((v: any, i: number, a: any[]) => a.findIndex((t: any) => t.name === v.name) === i);
+
+                    setDynamicAttractions(uniqueAttractions);
+
+                    // 💾 Save to Supabase Cache
+                    await supabase.from('attraction_cache').upsert({
+                        destination: destinationKey,
+                        attractions: uniqueAttractions,
+                        updated_at: new Date().toISOString()
+                    });
+                } catch (parseError) {
+                    console.error("JSON Parse Error after cleanup:", parseError, "Raw string:", jsonStr);
+                    throw new Error("AI가 생성한 데이터의 형식이 올바르지 않습니다.");
+                }
+            } else {
+                throw new Error("추천 정보를 찾을 수 없습니다.");
             }
+
         } catch (error: any) {
             console.error("Fetch Attractions Error:", error);
             if (error.message?.includes("429") || error.toString().includes("429")) {
                 showToast("AI 요청량이 많아 잠시 후 다시 시도해주세요.", "error");
+            } else {
+                showToast("추천 정보를 가져오는 중 오류가 발생했습니다.", "error");
             }
         } finally {
             setIsSearchingAttractions(false);
         }
     };
 
+
     const fetchHotelsWithAI = async (destination: string) => {
         if (!apiKey || !destination) return;
 
-        const CACHE_KEY = "hotel_recommendation_cache";
-        const cachedStr = localStorage.getItem(CACHE_KEY);
-        const cache = cachedStr ? JSON.parse(cachedStr) : {};
-        const destinationKey = destination.toLowerCase().trim();
+        const destinationKey = (destination.toLowerCase().trim()) + "_hotels";
 
-        // Check cache (7 days)
-        if (cache[destinationKey]) {
-            const { timestamp, data } = cache[destinationKey];
-            const now = Date.now();
-            if (now - timestamp < 7 * 24 * 60 * 60 * 1000) {
-                if (data.strategy) setHotelStrategy(data.strategy);
-                if (data.hotels) setRecommendedHotels(data.hotels);
-                return;
+        // 🛡️ Supabase Cache Check
+        try {
+            const { data: cached } = await supabase
+                .from('attraction_cache')
+                .select('*')
+                .eq('destination', destinationKey)
+                .maybeSingle();
+
+            if (cached) {
+                const now = new Date();
+                const updatedAt = new Date(cached.updated_at);
+                if (now.getTime() - updatedAt.getTime() < 7 * 24 * 60 * 60 * 1000) {
+                    console.log("🏨 Using hotel cache from Supabase");
+                    if (cached.attractions.strategy) setHotelStrategy(cached.attractions.strategy);
+                    if (cached.attractions.hotels) setRecommendedHotels(cached.attractions.hotels);
+                    return;
+                }
             }
+        } catch (e) {
+            console.warn("Hotel cache fetch failed", e);
         }
+
 
         setIsSearchingHotels(true);
         setRecommendedHotels([]);
@@ -137,7 +220,7 @@ export const usePlannerAI = ({
               "hotels": [{"name": "string", "desc": "string", "area": "string", "reason": "string", "priceLevel": "Expensive/Moderate/Cheap", "priceRange": "string (e.g. 15~20만원)", "rating": number, "reviewCount": number, "tags": ["string"]}]
             }`;
 
-            const result = await model.generateContent(prompt);
+            const result = await retryWithBackoff(() => model.generateContent(prompt));
             const text = result.response.text().trim();
             const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
@@ -147,9 +230,12 @@ export const usePlannerAI = ({
                 if (data.strategy) setHotelStrategy(data.strategy);
                 if (data.hotels) setRecommendedHotels(data.hotels);
 
-                // Save to cache
-                cache[destinationKey] = { timestamp: Date.now(), data };
-                localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+                // 💾 Save to Supabase
+                await supabase.from('attraction_cache').upsert({
+                    destination: destinationKey,
+                    attractions: data,
+                    updated_at: new Date().toISOString()
+                });
             }
         } catch (e: any) {
             console.error("Hotel search failed:", e);
@@ -188,7 +274,7 @@ export const usePlannerAI = ({
             const genAI = new GoogleGenerativeAI(apiKey!);
             const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const prompt = `Check if "${name}" exists in "${plannerData.destination}". Return JSON in Korean: {"isValid": boolean, "name": "Official Name (Korean)", "category": "string (Korean)", "desc": "string (Korean summary)", "coordinates": {"lat": number, "lng": number}}`;
-            const result = await model.generateContent(prompt);
+            const result = await retryWithBackoff(() => model.generateContent(prompt));
             const text = result.response.text().trim();
             const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
             const data = JSON.parse(cleaned);
@@ -229,7 +315,7 @@ export const usePlannerAI = ({
             const genAI = new GoogleGenerativeAI(apiKey!);
             const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const prompt = `Hotel "${name}" in "${plannerData.destination}". Return JSON in Korean: {"isValid": boolean, "name": "Official Name (Korean)", "area": "string (Korean)", "desc": "string (Korean summary)", "priceLevel": "string", "rating": number}`;
-            const result = await model.generateContent(prompt);
+            const result = await retryWithBackoff(() => model.generateContent(prompt));
             const text = result.response.text().trim();
             const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
             const data = JSON.parse(cleaned);
@@ -306,7 +392,7 @@ export const usePlannerAI = ({
             }
             - Ensure points are strictly in chronological order.`;
             console.log("📡 AI Plan Generation Prompt:", prompt);
-            const result = await model.generateContent(prompt);
+            const result = await retryWithBackoff(() => model.generateContent(prompt));
             const text = result.response.text().trim();
             console.log("📡 AI Plan Raw Response:", text);
             const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -336,7 +422,7 @@ export const usePlannerAI = ({
             const genAI = new GoogleGenerativeAI(apiKey);
             const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const prompt = `Check if "${destination}" is a valid travel destination. Return JSON: {"isValid": boolean, "correctedName": "Official Name (Korean)", "country": "Country Name", "description": "Short description about 50 chars"}`;
-            const result = await model.generateContent(prompt);
+            const result = await retryWithBackoff(() => model.generateContent(prompt));
             const text = result.response.text();
             const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
             const jsonMatch = cleaned.match(/\{[\s\S]*\}/);

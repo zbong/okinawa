@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 
 import { TripPlan, LocationPoint, PlannerData, CustomFile } from '../types';
-import { supabase } from '../utils/supabase';
 import { usePlannerAI } from '../hooks/usePlannerAI';
 import { useDocumentAnalysis } from '../hooks/useDocumentAnalysis';
 import { useTripManager } from '../hooks/useTripManager';
@@ -10,7 +9,9 @@ import { useCurrency } from '../hooks/useCurrency';
 import { useWeather } from '../hooks/useWeather';
 import { usePlannerState } from '../hooks/planner/usePlannerState';
 import { useFileActions } from '../hooks/planner/useFileActions';
+import { usePlannerActions } from '../hooks/planner/usePlannerActions';
 import { useOfflineMap } from '../hooks/useOfflineMap';
+import { useAuth } from '../hooks/useAuth';
 
 interface PlannerContextType {
     // Navigation & View
@@ -95,6 +96,9 @@ interface PlannerContextType {
     customAiPrompt: string;
     setCustomAiPrompt: React.Dispatch<React.SetStateAction<string>>;
 
+    setPlannerCustomFiles: React.Dispatch<React.SetStateAction<any[]>>;
+    setPlannerAnalyzedFiles: React.Dispatch<React.SetStateAction<any[]>>;
+
     // App Local But Moved to Context
     isEditingPoint: boolean;
     setIsEditingPoint: React.Dispatch<React.SetStateAction<boolean>>;
@@ -138,11 +142,18 @@ interface PlannerContextType {
     };
     setDeleteConfirmModal: React.Dispatch<React.SetStateAction<any>>;
 
-    // Auth
+    // Auth (REAL)
     isLoggedIn: boolean;
-    setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
+    setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>; // Keep for compatibility if needed, or mock
     currentUser: any;
-    setCurrentUser: React.Dispatch<React.SetStateAction<any>>;
+    setCurrentUser: React.Dispatch<React.SetStateAction<any>>; // Keep for compatibility
+    user: any; // Real Supabase User
+    signInWithEmail: (email: string) => Promise<boolean>;
+    signInWithGoogle: () => Promise<void>;
+    signUpWithPassword: (email: string, password: string) => Promise<any>;
+    signInWithPassword: (email: string, password: string) => Promise<any>;
+    signOut: () => Promise<void>;
+
     selectedFile: any | null;
     setSelectedFile: React.Dispatch<React.SetStateAction<any | null>>;
 
@@ -156,7 +167,7 @@ interface PlannerContextType {
     // Utils
     isDraggingRef: React.MutableRefObject<boolean>;
     calculateProgress: () => number;
-    getPoints: () => LocationPoint[];
+    getPoints: (day?: number) => LocationPoint[];
     toggleComplete: (id: string, e: React.MouseEvent) => void;
     updateReview: (id: string, rating: number, text: string) => void;
     updateLog: (id: string, text: string) => void;
@@ -167,7 +178,7 @@ interface PlannerContextType {
     addPoint: (day: number, point: any) => void;
     addAccommodation: (acc: any) => void;
     deleteAccommodation: (index: number) => void;
-    fetchAttractionsWithAI: (destination: string) => Promise<void>;
+    fetchAttractionsWithAI: (destination: string, force?: boolean) => Promise<void>;
     fetchHotelsWithAI: (destination: string) => Promise<void>;
     validateAndAddPlace: (name: string) => Promise<boolean>;
     validateHotel: (name: string) => Promise<void>;
@@ -188,7 +199,10 @@ interface PlannerContextType {
     isPreparingOffline: boolean;
     offlineProgress: number;
     prepareOfflineMap: () => Promise<void>;
-    shareToKakao: (targetTrip?: any) => void;
+    publishTrip: (newTrip: TripPlan) => Promise<void>;
+    shareToKakao: (trip: TripPlan) => void;
+    deleteTrip: (id: string) => Promise<void>;
+    resetPlannerState: () => Promise<void>;
 }
 
 const PlannerContext = createContext<PlannerContextType | undefined>(undefined);
@@ -203,46 +217,54 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     const toggleTheme = () => {
-        setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+        setTheme(prev => {
+            const newTheme = prev === "dark" ? "light" : "dark";
+            localStorage.setItem("theme", newTheme);
+            return newTheme;
+        });
     };
 
     useEffect(() => {
-        localStorage.setItem("theme", theme);
         document.documentElement.setAttribute("data-theme", theme);
     }, [theme]);
 
-    // View
-    const [view, setView] = useState<any>("landing");
-    const [activeTab, setActiveTab] = useState<string>("summary");
+    // View State
+    const [view, setView] = useState("landing");
+    const [activeTab, setActiveTab] = useState("schedule");
     const [overviewMode, setOverviewMode] = useState<"map" | "text">("map");
-    const [scheduleDay, setScheduleDay] = useState<number>(1);
+    const [scheduleDay, setScheduleDay] = useState(1);
     const [scheduleViewMode, setScheduleViewMode] = useState<"map" | "list">("list");
 
-    // Global UI States (Declared early for hooks)
-    // hotelStrategy moved to usePlannerState
+    // Core dependencies
     const [toasts, setToasts] = useState<any[]>([]);
-    const showToast = React.useCallback((message: string, type: "success" | "error" | "info" = "info") => {
-        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+        const id = Math.random().toString(36).substr(2, 9);
         setToasts((prev) => [...prev, { id, message, type }]);
-        setTimeout(() => {
-            setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, 1500);
-    }, []);
-
-    const closeToast = React.useCallback((id: string) => {
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 1000);
+    };
+    const closeToast = (id: string) => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, []);
+    };
 
-    const [deleteConfirmModal, setDeleteConfirmModal] = useState<any>({
+    const [deleteConfirmModal, setDeleteConfirmModal] = useState({
         isOpen: false,
         title: "",
         message: "",
+        onConfirm: () => { },
         confirmText: "삭제",
-        cancelText: "취소",
-        onConfirm: () => { }
+        cancelText: "취소"
     });
 
-    // Trips & Data (Extracted to useTripManager)
+    // Auth (REAL)
+    const { user, signInWithEmail, signInWithGoogle, signUpWithPassword, signInWithPassword, signOut } = useAuth();
+    // Maintain compatibility with existing code
+    const isLoggedIn = !!user;
+    const currentUser = user ? { name: user.email?.split('@')[0] || "User", email: user.email, ...user } : null;
+    // Mock setters for compatibility (do nothing or warn)
+    const setIsLoggedIn = () => { };
+    const setCurrentUser = () => { };
+
+    // Validated Trip Manager
     const {
         trips, setTrips,
         trip, setTrip,
@@ -251,18 +273,20 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         userReviews, setUserReviews,
         userLogs, setUserLogs,
         customFiles: tripCustomFiles, setCustomFiles: setTripCustomFiles,
+        analyzedFiles: tripAnalyzedFiles, setAnalyzedFiles: setTripAnalyzedFiles,
         handleReorder: handleReorderBase,
         deletePoint,
+        deleteTrip,
         addPoint,
         toggleComplete,
         updateReview,
         updateLog,
         getPoints: getPointsBase,
-        calculateProgress
-    } = useTripManager({ showToast, setDeleteConfirmModal });
+        calculateProgress,
+        publishTrip
+    } = useTripManager({ showToast, setDeleteConfirmModal, user });
 
-    // Wrappers to match context signature
-    // Wrappers to match context signature
+    // Wrappers
     const handleReorder = (newOrder: LocationPoint[]) => handleReorderBase(newOrder, scheduleDay);
     const getPoints = () => getPointsBase(scheduleDay);
 
@@ -272,7 +296,8 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [selectedPoint, setSelectedPoint] = useState<LocationPoint | null>(null);
     const [activePlannerDetail, setActivePlannerDetail] = useState<any | null>(null);
 
-    // Planning State (Extracted to usePlannerState)
+    // Planning State
+    const plannerState = usePlannerState({ user, trip, setTrip });
     const {
         isPlanning, setIsPlanning,
         plannerStep, setPlannerStep,
@@ -282,9 +307,12 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         recommendedHotels, setRecommendedHotels,
         hotelStrategy, setHotelStrategy,
         customFiles: plannerCustomFiles, setCustomFiles: setPlannerCustomFiles,
-        analyzedFiles, setAnalyzedFiles,
+        analyzedFiles: plannerAnalyzedFiles, setAnalyzedFiles: setPlannerAnalyzedFiles,
         resetPlannerState
-    } = usePlannerState();
+    } = plannerState;
+
+    const analyzedFiles = isPlanning || plannerStep > 0 ? plannerAnalyzedFiles : tripAnalyzedFiles;
+    const setAnalyzedFiles = isPlanning || plannerStep > 0 ? setPlannerAnalyzedFiles : setTripAnalyzedFiles;
 
     const customFiles = isPlanning || plannerStep > 0 ? plannerCustomFiles : tripCustomFiles;
     const setCustomFiles = isPlanning || plannerStep > 0 ? setPlannerCustomFiles : (setTripCustomFiles as any);
@@ -293,9 +321,6 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [isReEditModalOpen, setIsReEditModalOpen] = useState(false);
     const [tripToEdit, setTripToEdit] = useState<any>(null);
 
-    // Auth
-    const [isLoggedIn, setIsLoggedIn] = useState(true);
-    const [currentUser, setCurrentUser] = useState<any>(null);
     const [selectedFile, setSelectedFile] = useState<any | null>(null);
 
     // Calendar
@@ -330,17 +355,13 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         dynamicAttractions,
         setDynamicAttractions,
         recommendedHotels,
-        setRecommendedHotels
+        setRecommendedHotels,
+        user
     });
-
-    // OCR Lab (Extracted to useDocumentAnalysis)
-    // analyzedFiles is now in usePlannerState
 
     const {
         isOcrLoading,
         setIsOcrLoading,
-        // analyzedFiles, // Removed from destructuring
-        // setAnalyzedFiles, // Removed from destructuring
         ticketFileInputRef,
         customAiPrompt,
         setCustomAiPrompt,
@@ -351,15 +372,12 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         plannerData,
         setPlannerData,
         setCustomFiles,
-        analyzedFiles,     // Passed as prop
-        setAnalyzedFiles,  // Passed as prop
+        analyzedFiles,
+        setAnalyzedFiles,
         showToast
     });
 
-    // Auto-save and Restore effects are handled inside usePlannerState
-
-    // Sync planner destination to active trip for correct data storage (files, logs)
-    // ONLY sync when destination is validated to avoid creating dozens of localStorage entries while typing
+    // Sync planner destination
     useEffect(() => {
         if (isPlanning && isDestinationValidated && plannerData.destination && trip?.metadata?.destination !== plannerData.destination) {
             setTrip((prev: any) => ({
@@ -372,21 +390,18 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     }, [isPlanning, isDestinationValidated, plannerData.destination, trip?.metadata?.destination, setTrip]);
 
-    // Reset day and point on destination change
+    // Reset day on destination change
     useEffect(() => {
         if (!trip?.metadata?.destination) return;
         setScheduleDay(1);
         setSelectedPoint(null);
     }, [trip?.metadata?.destination]);
 
-
-    // App Local But Moved to Context
     const [isEditingPoint, setIsEditingPoint] = useState(false);
     const [attractionCategoryFilter, setAttractionCategoryFilter] = useState<"all" | "sightseeing" | "food" | "cafe">("all");
     const [isDragging, setIsDragging] = useState(false);
 
-
-    // Weather Logic (Extracted to useWeather)
+    // Weather
     const {
         weatherData,
         isLoadingWeather,
@@ -400,22 +415,17 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSelectedWeatherLocation
     } = useWeather();
 
-    // specific wrapper to match Context Type signature
     const getWeatherForDay = (dayIndex: number) => {
         return getLocationWeather(dayIndex, trip?.metadata?.destination || "오키나와 (나하)");
     };
 
-    // Currency (Extracted to useCurrency)
+    // Currency
     const {
         jpyAmount, setJpyAmount,
         krwAmount, setKrwAmount,
         rate, setRate,
         convert
     } = useCurrency();
-
-
-    // Currency
-
 
     const { speak } = useGoogleTTS();
 
@@ -435,8 +445,6 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
     };
 
-
-
     const addAccommodation = (acc: any) => {
         setPlannerData((prev) => ({
             ...prev,
@@ -453,215 +461,47 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         showToast("숙소가 삭제되었습니다.");
     };
 
-    const generatePlanWithAI = async (customPrompt?: string) => {
-        const planData = await generatePlan(customPrompt);
-        if (planData) {
-            const mappedPoints = (planData.points || []).map((p: any) => {
-                // Try to find matching source data to get reliable coordinates
-                const sourceAttr = dynamicAttractions.find(a => a.name === p.name);
-                const sourceAcc = plannerData.accommodations.find(a => a.name === p.name);
-
-                return {
-                    ...p,
-                    id: p.id || `gen-${Math.random().toString(36).substr(2, 9)}`,
-                    // Prioritize coordinates from source data, then AI, then fallback
-                    coordinates: sourceAttr?.coordinates || sourceAcc?.coordinates || p.coordinates || { lat: 26.2124, lng: 127.6809 },
-                    category: sourceAttr?.category || (sourceAcc ? 'stay' : (p.type || p.category || 'sightseeing')),
-                    isCompleted: false,
-                    images: p.images || []
-                };
-            });
-
-            // Group points into days structure for the tab UI
-            const daysMap: Record<number, LocationPoint[]> = {};
-            mappedPoints.forEach((p: any) => {
-                const d = p.day || 1;
-                if (!daysMap[d]) daysMap[d] = [];
-                daysMap[d].push(p);
-            });
-
-            // Calculate duration
-            let dayCount = 3; // Default
-            if (plannerData.startDate && plannerData.endDate) {
-                const start = new Date(plannerData.startDate);
-                const end = new Date(plannerData.endDate);
-                if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-                    dayCount = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-                }
-            }
-
-            const days = Array.from({ length: dayCount }).map((_, i) => ({
-                day: i + 1,
-                points: daysMap[i + 1] || []
-            }));
-
-            const finalPlan: TripPlan = {
-                metadata: {
-                    title: plannerData.title || `${plannerData.destination} 여행`,
-                    destination: plannerData.destination,
-                    period: `${plannerData.startDate} ~ ${plannerData.endDate}`,
-                    startDate: plannerData.startDate,
-                    endDate: plannerData.endDate,
-                    useRentalCar: plannerData.useRentalCar,
-                },
-                id: `trip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-                speechData: [],
-                defaultFiles: [],
-                points: mappedPoints,
-                days: days,
-                customFiles: [...customFiles],
-                recommendations: planData.recommendations || []
-            };
-            // Clear previous points order for this destination to prevent stale localStorage data overwriting new AI results
-            if (plannerData.destination) {
-                localStorage.removeItem(`points_order_${plannerData.destination}`);
-            }
-
-            setTrip(finalPlan);
-            setAllPoints(finalPlan.points);
-            setPlannerStep(8);
-        }
-    };
-
-
-
-
-
-
-
-
-
-    const startNewPlanning = () => {
-        resetPlannerState();
+    const startNewPlanning = async () => {
+        await resetPlannerState();
         setCustomAiPrompt("");
         setValidatedHotel(null);
         setActivePlannerDetail(null);
+        setIsPlanning(true);
+        setView("app");
     };
 
     const { handleFileUpload, deleteFile } = useFileActions({
         setCustomFiles: setCustomFiles as any,
-        showToast
+        showToast,
+        user
     });
 
-    const saveDraft = (step: number, customData: any = {}) => {
-        const draft = {
-            step,
-            data: plannerData,
-            selectedIds: selectedPlaceIds,
-            attractions: dynamicAttractions,
-            hotels: recommendedHotels,
-            hotelStrategy: hotelStrategy,
-            customFiles,
-            analyzedFiles,
-            updated: Date.now(),
-            ...customData
-        };
-        try {
-            localStorage.setItem("trip_draft_v1", JSON.stringify(draft));
-            return true;
-        } catch (e) {
-            console.error("Save draft failed:", e);
-            showToast("용량이 부족하여 저장하지 못했습니다. 불필요한 파일을 삭제해주세요.", "error");
-            return false;
-        }
-    };
-
-    const exportTrip = () => {
-        const data = {
-            version: "2.0",
-            trip,
-            points: allPoints,
-            checklist: completedItems,
-            reviews: userReviews,
-            logs: userLogs,
-            files: customFiles,
-            exportedAt: new Date().toISOString()
-        };
-
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${trip?.metadata?.title || "okinawa_trip"}_export.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast("여행 데이터가 파일로 추출되었습니다.", "success");
-    };
-
-    const importTrip = async (file: File) => {
-        try {
-            const text = await file.text();
-            const data = JSON.parse(text);
-
-            if (data.trip && data.points) {
-                setTrip(data.trip);
-                setAllPoints(data.points);
-                if (data.checklist) setCompletedItems(data.checklist);
-                if (data.reviews) setUserReviews(data.reviews);
-                if (data.logs) setUserLogs(data.logs);
-                if (data.files) setCustomFiles(data.files);
-
-                showToast("여행 가이드를 성공적으로 불러왔습니다.", "success");
-                setActiveTab("summary");
-            } else {
-                throw new Error("Invalid format");
-            }
-        } catch (err) {
-            showToast("파일 형식이 올바르지 않거나 손상되었습니다.", "error");
-        }
-    };
+    const {
+        generatePlanWithAI,
+        saveDraft,
+        exportTrip,
+        importTrip,
+        copyShareLink: shareToKakao
+    } = usePlannerActions({
+        plannerState,
+        setTrip,
+        setAllPoints,
+        setPlannerStep,
+        showToast,
+        generatePlan,
+        setActiveTab,
+        trip,
+        allPoints,
+        completedItems,
+        userReviews,
+        userLogs,
+        setCompletedItems,
+        setUserReviews,
+        setUserLogs,
+        setTripCustomFiles: (setTripCustomFiles as any)
+    });
 
     const { isPreparingOffline, offlineProgress, prepareOfflineMap } = useOfflineMap({ allPoints, showToast });
-
-    const copyShareLink = async (targetTrip?: any) => {
-        const tripData = targetTrip || trip;
-        if (!tripData) return;
-
-        const metadata = tripData.metadata || tripData;
-        const title = metadata.title || "여행 가이드";
-
-        showToast("공유 링크를 생성 중입니다...", "info");
-
-        const shareData = {
-            metadata: {
-                ...metadata,
-                isShared: true
-            },
-            points: tripData.points || allPoints.filter((p: any) => p.day > 0),
-            customFiles: tripData.customFiles || []
-        };
-
-        try {
-            const { data, error } = await supabase
-                .from('shared_trips')
-                .insert([{
-                    trip_data: shareData,
-                    title: title,
-                    destination: metadata.destination || ""
-                }])
-                .select();
-
-            if (error) throw error;
-            const shareId = data[0].id;
-            const VERCEL_DOMAIN = "https://okinawa-lime.vercel.app";
-            const shareUrl = `${VERCEL_DOMAIN}/?id=${shareId}`;
-
-            // 1. Copy to clipboard
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(shareUrl);
-                showToast("링크가 복사되었습니다! 원하는 곳에 붙여넣으세요.", "success");
-            } else {
-                window.prompt("링크를 복사해 주세요:", shareUrl);
-            }
-        } catch (dbError: any) {
-            console.error("Supabase error:", dbError);
-            showToast(`공유 실패: ${dbError.message || "연결 오류"}`, "error");
-        }
-    };
-
-    // Shared trip injection (OLD URL-based) removed in favor of Supabase ID
 
     const value = useMemo(() => ({
         view, setView, activeTab, setActiveTab, overviewMode, setOverviewMode,
@@ -693,6 +533,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteConfirmModal, setDeleteConfirmModal,
         isLoggedIn, setIsLoggedIn,
         currentUser, setCurrentUser,
+        user, signInWithEmail, signInWithGoogle, signUpWithPassword, signInWithPassword, signOut, // New Auth
         selectedFile, setSelectedFile,
         calendarDate, setCalendarDate, prevMonth, nextMonth,
         isDraggingRef, calculateProgress, getPoints,
@@ -700,6 +541,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         handleReorder, deletePoint, addPoint, addAccommodation, deleteAccommodation,
         fetchAttractionsWithAI, fetchHotelsWithAI, validateAndAddPlace, validateHotel, generatePlanWithAI, closeToast,
         handleFileAnalysis, handleTicketOcr, handleMultipleOcr, handleFileUpload, deleteFile,
+        setPlannerCustomFiles, setPlannerAnalyzedFiles,
         validateDestination, isValidatingDestination, isDestinationValidated, setIsDestinationValidated,
         saveAttractionsToCache: () => { },
         startNewPlanning,
@@ -709,7 +551,10 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isPreparingOffline,
         offlineProgress,
         prepareOfflineMap,
-        shareToKakao: copyShareLink
+        shareToKakao,
+        deleteTrip,
+        publishTrip,
+        resetPlannerState
     }), [
         view, activeTab, overviewMode, scheduleDay, scheduleViewMode, theme, trips, trip,
         allPoints, completedItems, selectedPoint, weatherIndex, selectedWeatherLocation,
@@ -720,9 +565,14 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         weatherError, jpyAmount, krwAmount, rate, isOcrLoading, analyzedFiles, customAiPrompt,
         isEditingPoint, attractionCategoryFilter, isDragging, isReviewModalOpen,
         isReEditModalOpen, tripToEdit, deleteConfirmModal, isLoggedIn, currentUser,
+        user, signUpWithPassword, signInWithPassword, // New dependencies
         selectedFile, calendarDate, isDestinationValidated, isValidatingDestination,
-        isPreparingOffline, offlineProgress, copyShareLink
+        isPreparingOffline, offlineProgress, shareToKakao,
+        setPlannerCustomFiles, setPlannerAnalyzedFiles
     ]);
+
+
+
 
     return <PlannerContext.Provider value={value} > {children}</PlannerContext.Provider >;
 };

@@ -3,10 +3,10 @@ import { motion } from "framer-motion";
 import {
     Plane, MapPin, Hotel, FileText, Car, Compass, Upload, Trash2, Save
 } from "lucide-react";
-import { usePlanner } from "../../contexts/PlannerContext";
-import { ConfirmModal } from "../Common/ConfirmModal";
+import { usePlanner } from "../../../contexts/PlannerContext";
+import { ConfirmModal } from "../../Common/ConfirmModal";
 
-import { StepIndicator } from "../Common/StepIndicator";
+import { StepIndicator } from "../../Common/StepIndicator";
 
 export const PlannerStep6: React.FC = () => {
     const {

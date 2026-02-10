@@ -55,6 +55,7 @@ export interface TripPlan {
     speechData: SpeechItem[];
     defaultFiles: TravelFile[];
     customFiles?: any[];
+    analyzedFiles?: any[];
     recommendations?: any[];
 }
 

@@ -90,7 +90,7 @@ export const useDocumentAnalysis = ({ plannerData, setPlannerData, setCustomFile
                 }
 
                 if (i > 0) {
-                    await sleep(1000);
+                    await sleep(2500); // Increased delay to avoid Gemini rate limits
                 }
 
                 currentAnalyzedFiles[fileIdx] = {

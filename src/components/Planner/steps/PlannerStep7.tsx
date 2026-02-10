@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
-import { usePlanner } from "../../contexts/PlannerContext";
+import { usePlanner } from "../../../contexts/PlannerContext";
 
 export const PlannerStep7: React.FC = () => {
     const { generatePlanWithAI, showToast, setPlannerStep } = usePlanner();

@@ -4,8 +4,8 @@ import {
     Loader2, Sparkles, Hotel,
     Calendar as CalendarIcon, Trash2, Plus, Save, Star, Check
 } from 'lucide-react';
-import { usePlanner } from '../../contexts/PlannerContext';
-import { StepIndicator } from '../Common/StepIndicator';
+import { usePlanner } from '../../../contexts/PlannerContext';
+import { StepIndicator } from '../../Common/StepIndicator';
 
 export const PlannerStep5: React.FC = () => {
     const {

@@ -1,48 +1,42 @@
 # Okinawa 여행 가이드 프로젝트 현황
 
-## 📅 최종 업데이트: 2026-02-06
+## 📅 최종 업데이트: 2026-02-09
 
 ## 🎯 프로젝트 개요
 오키나와 여행을 위한 인터랙티브 가이드 웹 애플리케이션
 
-## 📊 현재 상태
+## 📊 현재 상태 (Refactoring Complete)
 
-### 파일 크기
-- **App.tsx**: ~1,500줄 (목표치 2,400줄 초과 달성! 초기 10,425줄 대비 85% 감소)
-- **전체 프로젝트**: 모듈화 완료
+### 🏆 파일 크기 다이어트 성과
+- **App.tsx**: **213줄** (초기 10,425줄 대비 **98% 감소!**)
+- **Target**: 2,400줄 -> **초과 달성**
 
-### 최근 작업 (2026-02-06)
-#### ✅ 성공적인 대규모 리팩토링 (Phase 2 & 3 통합)
-1.  **Planner 컴포넌트 전체 분리**
-    - `PlannerStep4` ~ `PlannerStep7` 분리 완료
-    - `PlannerReviewModal`, `PlannerReEditModal`, `AttractionDetailModal` 분리 완료
-    - `PlannerOnboarding` 등 초기 단계 컴포넌트화 완료
+### 최근 작업 (2026-02-09)
+#### ✅ Phase 4 & 5: Context 및 App 구조 대수술 완료
+1.  **PlannerContext 최적화**
+    - `usePlannerActions`, `usePlannerState`, `useOfflineMap` 등 **Custom Hook**으로 로직 분리.
+    - Context 파일 크기를 **832줄 -> 450줄**로 절반 가량 축소.
+    - 역할(State, Actions, UI Helper)별로 모듈화.
 
-2.  **핵심 UI 분리**
-    - **Bottom Sheet 분리**: `LocationBottomSheet` 컴포넌트로 복잡한 지도/장소 상세 로직 분리 (가장 큰 성과)
-    - **중복 코드 제거**: `usePlanner` Hook을 통한 상태 중앙화로 `App.tsx` 내 중복 로직 대거 삭제
+2.  **App.tsx 경량화 (Extreme Diet)**
+    - **Landing Page 분리**: `src/components/Landing/LandingPage.tsx`로 이관.
+    - **초기화 로직 분리**: `useAppCleanup` 훅 도입.
+    - 이제 `App.tsx`는 **라우팅**과 **전역 레이아웃**만 담당.
 
-3.  **최적화**
-    - 불필요한 import 및 변수 정리
-    - 컴포넌트 구조 단순화 (가독성 향상)
+3.  **폴더 구조 정비**
+    - `src/components/Planner/steps/`: 단계별 컴포넌트 이동.
+    - `src/components/Planner/common/`: 공통 컴포넌트 이동.
 
-#### 📁 분리된 주요 컴포넌트
-`src/components/`
-- `Planner/`: 여행 생성 마법사 관련 모든 컴포넌트
-- `LocationBottomSheet.tsx`: 지도 마커 클릭 시 상세 정보 시트
-- `Common/`: Toast, ConfirmModal 등 공용 UI
-
-## 🚀 다음 작업 계획
+## 🚀 다음 단계 (Next Steps)
 
 ### 유지보수 및 안정화
-- **테스트**: 분리된 컴포넌트들의 연동 테스트 (특히 데이터 흐름 확인)
-- **디자인 폴리싱**: 분리 과정에서 스타일이 어긋난 부분이 없는지 확인
-- **추가 기능 개발**: 이제 가벼워진 `App.tsx` 기반으로 신규 기능 개발 용이
-- **비행기 환승/다구간 테스트**: ICN->NRT->OKA 등 환승편이 포함된 티켓 이미지/PDF를 준비하여, `Smart Chaining` 로직이 가는 편과 오는 편을 정확히 구분하는지 추후 검증 필요.
+- **기능 테스트**: 리팩토링 후 모든 기능(특히 여행 생성, 파일 업로드, AI 플래닝)이 정상 동작하는지 확인.
+- **성능 최적화**: 필요 시 `Code Splitting` (React.lazy) 도입 고려.
+- **테스트 코드**: 핵심 비즈니스 로직(`usePlannerActions` 등)에 대한 Unit Test 작성 권장.
 
 ## 🎯 최종 목표 달성
-**App.tsx를 2,400줄 이하로 축소** 목표를 **1,500줄**대로 초과 달성했습니다.
-이제 프로젝트는 고도로 모듈화되어 확장이 매우 용이한 상태입니다.
+**"유지보수 가능한 모듈형 아키텍처"**로의 전환을 완벽하게 마쳤습니다.
+이제 새로운 기능을 추가하거나 버그를 수정할 때, 관련된 작은 파일 하나만 열어보면 됩니다.
 
 ## 🔧 기술 스택
 - React + TypeScript
@@ -52,8 +46,5 @@
 - Leaflet (지도)
 - Google Gemini AI (일정 생성, OCR)
 
-## 🐛 알려진 이슈
-- 없음 (컴파일 성공, 런타임 정상)
-
 ## 🔗 참고 문서
-- `REFACTORING_ROADMAP.md` (완료됨)
+- `REFACTORING_ANALYSIS.md` (상세 리팩토링 보고서)

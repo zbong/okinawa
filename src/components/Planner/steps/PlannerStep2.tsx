@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import {
     User, Heart, Users, Minus, Plus, Clock, Save
 } from 'lucide-react';
-import { usePlanner } from '../../contexts/PlannerContext';
-import { StepIndicator } from '../Common/StepIndicator';
+import { usePlanner } from '../../../contexts/PlannerContext';
+import { StepIndicator } from '../../Common/StepIndicator';
 
 export const PlannerStep2: React.FC = () => {
     const {

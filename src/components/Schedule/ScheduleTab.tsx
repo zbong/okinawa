@@ -370,7 +370,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
       {scheduleViewMode === "map" ? (
         <div style={{ flex: 1, minHeight: 400, borderRadius: 16, overflow: "hidden" }}>
           <MapComponent
-            points={getPoints()}
+            points={getPoints(scheduleDay)}
             selectedPoint={null}
             theme={theme}
             onPointClick={(p) => {
@@ -384,11 +384,11 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
         <ErrorBoundary>
           <Reorder.Group
             axis="y"
-            values={getPoints()}
+            values={getPoints(scheduleDay)}
             onReorder={handleReorder}
             style={{ padding: 0, margin: 0, listStyle: "none" }}
           >
-            {getPoints().map((p) => {
+            {getPoints(scheduleDay).map((p) => {
               const isDone = !!completedItems[p.id];
               return (
                 <Reorder.Item

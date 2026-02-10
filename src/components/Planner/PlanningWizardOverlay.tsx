@@ -1,14 +1,14 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PlannerOnboarding } from '../Planner/PlannerOnboarding';
-import { PlannerStep1 } from '../Planner/PlannerStep1';
-import { PlannerStep2 } from '../Planner/PlannerStep2';
-import { PlannerStep3 } from '../Planner/PlannerStep3';
-import { PlannerStep4 } from '../Planner/PlannerStep4';
-import { PlannerStep5 } from '../Planner/PlannerStep5';
-import { PlannerStep6 } from '../Planner/PlannerStep6';
-import { PlannerStep7 } from '../Planner/PlannerStep7';
-import { PlannerStep8 } from '../Planner/PlannerStep8';
+import { PlannerOnboarding } from './steps/PlannerOnboarding';
+import { PlannerStep1 } from './steps/PlannerStep1';
+import { PlannerStep2 } from './steps/PlannerStep2';
+import { PlannerStep3 } from './steps/PlannerStep3';
+import { PlannerStep4 } from './steps/PlannerStep4';
+import { PlannerStep5 } from './steps/PlannerStep5';
+import { PlannerStep6 } from './steps/PlannerStep6';
+import { PlannerStep7 } from './steps/PlannerStep7';
+import { PlannerStep8 } from './steps/PlannerStep8';
 
 interface PlanningWizardOverlayProps {
     isPlanning: boolean;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowRight, Trash2 } from 'lucide-react';
-import { formatAirport, formatFlight } from '../../utils/airline-data';
+import { formatAirport, formatFlight } from '../../../utils/airline-data';
 
 interface ExtractedFlightListProps {
     outboundFlights: any[];

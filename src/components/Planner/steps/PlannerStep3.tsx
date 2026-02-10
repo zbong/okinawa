@@ -3,14 +3,14 @@ import { motion } from 'framer-motion';
 import {
     Plane, Save
 } from 'lucide-react';
-import { usePlanner } from '../../contexts/PlannerContext';
-import { extractIata } from '../../utils/airline-data';
-import { StepIndicator } from '../Common/StepIndicator';
-import { FileUploadZone } from '../Common/FileUploadZone';
-import { TransportModeSelector } from './TransportModeSelector';
-import { AnalyzedFilesList } from './AnalyzedFilesList';
-import { ExtractedFlightList } from './ExtractedFlightList';
-import { ExtractedAccommodationList } from './ExtractedAccommodationList';
+import { usePlanner } from '../../../contexts/PlannerContext';
+import { extractIata } from '../../../utils/airline-data';
+import { StepIndicator } from '../../Common/StepIndicator';
+import { FileUploadZone } from '../../Common/FileUploadZone';
+import { TransportModeSelector } from '../common/TransportModeSelector';
+import { AnalyzedFilesList } from '../common/AnalyzedFilesList';
+import { ExtractedFlightList } from '../common/ExtractedFlightList';
+import { ExtractedAccommodationList } from '../common/ExtractedAccommodationList';
 
 export const PlannerStep3: React.FC = () => {
     const {

@@ -96,10 +96,14 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
         initMap();
     }, [isMapLoaded, theme]);
 
+    const lastPointsRef = useRef<string>("");
+
+    const markerMapRef = useRef<Map<string, any>>(new Map());
+    const lastPointsKeyRef = useRef<string>("");
+    const lastSelectedPointIdRef = useRef<string | null>(null);
+
     useEffect(() => {
         if (!isMapInstanceReady || !googleMapRef.current || !window.google) return;
-
-        let isMounted = true;
 
         const updateMap = async () => {
             const validPoints = (points || []).filter(p => {
@@ -108,16 +112,19 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
                 return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
             });
 
-            if (markersRef.current) {
-                markersRef.current.forEach(m => { try { if (m) m.setMap(null); } catch (e) { } });
-                markersRef.current = [];
-            }
+            const currentPointsKey = JSON.stringify(validPoints.map(p => p.id));
+            const pointsChanged = currentPointsKey !== lastPointsKeyRef.current;
+            const selectionChanged = selectedPoint?.id !== lastSelectedPointIdRef.current;
 
-            try {
-                if (!isMounted) return;
+            if (!pointsChanged && !selectionChanged) return;
 
-                const bounds = new window.google.maps.LatLngBounds();
-                const Marker = window.google.maps.Marker;
+            const Marker = window.google.maps.Marker;
+            const bounds = new window.google.maps.LatLngBounds();
+
+            // 1. If points changed, clear all and rebuild
+            if (pointsChanged) {
+                markerMapRef.current.forEach(m => m.setMap(null));
+                markerMapRef.current.clear();
 
                 validPoints.forEach((p) => {
                     const position = { lat: Number(p.coordinates.lat), lng: Number(p.coordinates.lng) };
@@ -138,16 +145,40 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
                     });
 
                     marker.addListener('click', () => onPointClick(p));
-                    markersRef.current.push(marker);
+                    markerMapRef.current.set(p.id, marker);
                     bounds.extend(position);
                 });
 
                 if (validPoints.length > 0) {
                     googleMapRef.current.fitBounds(bounds);
+                }
+                lastPointsKeyRef.current = currentPointsKey;
+            }
+            // 2. If only selection changed, just update icons to avoid flicker
+            else if (selectionChanged) {
+                validPoints.forEach(p => {
+                    const marker = markerMapRef.current.get(p.id);
+                    if (marker) {
+                        const isSelected = p.id === selectedPoint?.id;
+                        marker.setZIndex(isSelected ? 999 : 1);
+                        marker.setIcon({
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: isSelected ? 12 : 8,
+                            fillColor: isSelected ? '#ffffff' : '#4facfe',
+                            fillOpacity: 1,
+                            strokeColor: isSelected ? '#4facfe' : '#ffffff',
+                            strokeWeight: 3,
+                        });
+                    }
+                });
+            }
 
-                    // Draw Polyline
-                    if (polylineRef.current) polylineRef.current.setMap(null);
+            lastSelectedPointIdRef.current = selectedPoint?.id || null;
 
+            // 3. Clear and Draw Polyline (only if points changed)
+            if (pointsChanged) {
+                if (polylineRef.current) polylineRef.current.setMap(null);
+                if (validPoints.length > 0) {
                     const path = validPoints.map(p => ({
                         lat: Number(p.coordinates.lat),
                         lng: Number(p.coordinates.lng)
@@ -162,14 +193,18 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
                         map: googleMapRef.current
                     });
                 }
-            } catch (e) {
-                console.error("Error updating map:", e);
+            }
+
+            // 4. If selected point changed, pan to it
+            if (selectionChanged && selectedPoint?.coordinates) {
+                const pos = { lat: Number(selectedPoint.coordinates.lat), lng: Number(selectedPoint.coordinates.lng) };
+                if (!isNaN(pos.lat) && !isNaN(pos.lng) && pos.lat !== 0) {
+                    googleMapRef.current.panTo(pos);
+                }
             }
         };
 
         updateMap();
-
-        return () => { isMounted = false; };
     }, [points, selectedPoint, onPointClick, isMapInstanceReady]);
 
     return (

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight } from 'lucide-react';
-import { usePlanner } from '../../contexts/PlannerContext';
+import { usePlanner } from '../../../contexts/PlannerContext';
 
 export const PlannerOnboarding: React.FC = () => {
     const { setPlannerStep, setIsPlanning } = usePlanner();

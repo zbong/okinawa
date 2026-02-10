@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import {
     ChevronLeft, ChevronRight, CheckCircle, Loader2
 } from 'lucide-react';
-import { usePlanner } from '../../contexts/PlannerContext';
-import { StepIndicator } from '../Common/StepIndicator';
+import { usePlanner } from '../../../contexts/PlannerContext';
+import { StepIndicator } from '../../Common/StepIndicator';
 
 export const PlannerStep1: React.FC = () => {
     const {

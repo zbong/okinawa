@@ -120,7 +120,7 @@ export const Ocr_labTab: React.FC<Ocr_labTabProps> = ({
         </div>
 
         <div style={{ display: "grid", gap: "30px" }}>
-          {analyzedFiles.map((file, idx) => (
+          {(analyzedFiles || []).map((file, idx) => (
             <div
               key={idx}
               style={{

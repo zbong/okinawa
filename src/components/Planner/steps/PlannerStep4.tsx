@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-    Loader2, Camera, Utensils, Compass, MapPin, CheckCircle, Star, Plus, AlertCircle, Save, Trash2
+    Loader2, Camera, Utensils, Compass, MapPin, CheckCircle, Star, Plus, AlertCircle, Save, Trash2, RefreshCw
 } from 'lucide-react';
-import { usePlanner } from '../../contexts/PlannerContext';
-import { StepIndicator } from '../Common/StepIndicator';
+import { usePlanner } from '../../../contexts/PlannerContext';
+import { StepIndicator } from '../../Common/StepIndicator';
 
 export const PlannerStep4: React.FC = () => {
     const {
@@ -157,6 +157,40 @@ export const PlannerStep4: React.FC = () => {
                             </button>
                         ))}
                     </div>
+
+                    {/* Refresh Button */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px", paddingRight: "4px" }}>
+                        <button
+                            onClick={() => fetchAttractionsWithAI(plannerData.destination, true)}
+                            style={{
+                                background: "rgba(255, 255, 255, 0.05)",
+                                color: "var(--text-dim)",
+                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                borderRadius: "8px",
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                transition: "all 0.2s"
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "rgba(0, 212, 255, 0.1)";
+                                e.currentTarget.style.color = "var(--primary)";
+                                e.currentTarget.style.borderColor = "var(--primary)";
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+                                e.currentTarget.style.color = "var(--text-dim)";
+                                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                            }}
+                        >
+                            <RefreshCw size={14} /> 추천 목록 갱신
+                        </button>
+                    </div>
+
                     <div
                         style={{
                             display: "grid",
@@ -523,7 +557,8 @@ export const PlannerStep4: React.FC = () => {
                         </button>
                     </div>
                 </>
-            )}
+            )
+            }
 
             <div style={{ display: "flex", gap: "15px" }}>
                 <button
@@ -585,6 +620,6 @@ export const PlannerStep4: React.FC = () => {
                     {selectedPlaceIds.length === 0 ? "장소를 선택해주세요" : "다음 단계로 (숙소)"}
                 </button>
             </div>
-        </motion.div>
+        </motion.div >
     );
 };

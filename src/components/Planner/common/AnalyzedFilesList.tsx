@@ -46,7 +46,7 @@ export const AnalyzedFilesList: React.FC<AnalyzedFilesListProps> = ({
                         gap: "12px",
                     }}
                 >
-                    {analyzedFiles.map((file) => (
+                    {(analyzedFiles || []).map((file) => (
                         <div
                             key={file.id || file.name}
                             style={{

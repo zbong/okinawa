@@ -1,17 +1,22 @@
 import React from "react";
+import { DEFAULT_SPEECH_DATA } from "../../../utils/defaults";
 import { motion } from "framer-motion";
 import { Hotel, MapPin, Calendar, Plane, Clock, Save } from "lucide-react";
-import { usePlanner } from "../../contexts/PlannerContext";
+import { usePlanner } from "../../../contexts/PlannerContext";
 
 export const PlannerStep8: React.FC = () => {
     const {
         trip,
         setPlannerStep,
         showToast,
-        setTrips,
         setIsPlanning,
         setView,
-        saveDraft
+        saveDraft,
+        publishTrip,
+        resetPlannerState,
+        customFiles,
+        analyzedFiles,
+        setActiveTab
     } = usePlanner();
 
     const displayPoints = trip?.points || [];
@@ -187,7 +192,7 @@ export const PlannerStep8: React.FC = () => {
                     </button>
                 </div>
                 <button
-                    onClick={() => {
+                    onClick={async () => {
                         if (!trip || !trip.points || trip.points.length === 0) {
                             showToast(
                                 "일정 데이터가 생성되지 않았습니다. 이전 단계로 돌아가 AI 코스 생성을 다시 시도해 주세요.",
@@ -203,18 +208,29 @@ export const PlannerStep8: React.FC = () => {
                             color: trip.metadata?.primaryColor || "#00d4ff",
                             id: `trip-${Date.now()}`,
                             progress: 0,
+                            customFiles: customFiles || [],
+                            analyzedFiles: analyzedFiles || [],
+                            speechData: DEFAULT_SPEECH_DATA
                         };
-                        setTrips((prevTrips) => [
-                            publishedTrip,
-                            ...prevTrips,
-                        ]);
-                        localStorage.removeItem("trip_draft_v1");
-                        setIsPlanning(false);
-                        setPlannerStep(0);
-                        setView("landing");
-                        showToast(
-                            "여행 가이드 발행이 완료되었습니다! 목록에서 확인해 보세요.",
-                        );
+
+                        try {
+                            // 1. Publish to Supabase
+                            await publishTrip(publishedTrip);
+
+                            // 2. Clear Draft from Supabase/Local
+                            await resetPlannerState();
+
+                            // 3. UI Transition
+                            setActiveTab("summary");
+                            setIsPlanning(false);
+                            setPlannerStep(0);
+                            setView("landing");
+
+                            showToast("여행 가이드 발행이 완료되었습니다! 목록에서 확인해 보세요.", "success");
+                        } catch (e) {
+                            console.error("Failed to publish trip:", e);
+                            showToast("가이드 발행 중 오류가 발생했습니다. 다시 시도해 주세요.", "error");
+                        }
                     }}
                     style={{
                         width: "100%",

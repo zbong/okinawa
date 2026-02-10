@@ -25,9 +25,11 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
     const rawData = isDefault ? f.path : f.data;
 
     // For custom files, check if prefix is missing
-    const displaySrc = (!isDefault && isImage && rawData && !rawData.startsWith('data:'))
-      ? `data:image/jpeg;base64,${rawData}`
-      : rawData;
+    // Correctly handle both Base64 and Public URLs
+    let displaySrc = rawData;
+    if (!isDefault && isImage && rawData && !rawData.startsWith('data:') && !rawData.startsWith('http')) {
+      displaySrc = `data:image/jpeg;base64,${rawData}`;
+    }
 
     return (
       <div
@@ -141,7 +143,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       </div>
 
       {/* Custom Files */}
-      {customFiles.map((f) => renderFileCard(f, false))}
+      {(customFiles || []).map((f) => renderFileCard(f, false))}
 
       {/* Default Files */}
       {trip?.defaultFiles?.map((f) => renderFileCard(f, true))}

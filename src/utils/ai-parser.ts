@@ -7,29 +7,29 @@ export const genAI = new GoogleGenerativeAI(apiKey || 'missing-key');
 /**
  * Utility to retry a function with exponential backoff
  */
-async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, initialDelay = 5000): Promise<T> {
+export async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, initialDelay = 4000): Promise<T> {
   let lastError: any;
   for (let i = 0; i <= maxRetries; i++) {
     try {
       return await fn();
     } catch (err: any) {
       lastError = err;
+      const status = err.status || err.response?.status;
       const msg = err.message || '';
 
-      // If it's a 404 (Model not found), don't retry same model - throw so caller can try another model
-      if (msg.includes('404') || msg.includes('not found')) {
+      // 404: Model not found. Don't retry same model.
+      if (status === 404 || msg.includes('404') || msg.includes('not found')) {
         throw err;
       }
 
-      // 429: Rate Limit, 503: Service Unavailable, 500: Internal Error
-      const shouldRetry = msg.includes('429') || msg.includes('503') || msg.includes('500') || msg.includes('Resource exhausted');
+      // 429: Rate Limit, 503: Service Unavailable, 500: Internal Error, 504: Timeout
+      const isRateLimit = status === 429 || msg.includes('429') || msg.includes('Resource exhausted') || msg.includes('Too Many Requests');
+      const isServerErr = status === 500 || status === 503 || status === 504 || msg.includes('500') || msg.includes('503') || msg.includes('504');
 
-      if (shouldRetry && i < maxRetries) {
-        const delay = initialDelay * Math.pow(2, i);
-        // Only log warning if it's not the first standard backoff (reduce noise)
-        if (i > 0) {
-          console.warn(`⏳ Gemini API Rate Limit. Waiting ${delay}ms before retry...`);
-        }
+      if ((isRateLimit || isServerErr) && i < maxRetries) {
+        // Longer backoff for rate limit
+        const delay = initialDelay * Math.pow(2, i) + (isRateLimit ? 2000 : 0);
+        console.warn(`⏳ Gemini API ${isRateLimit ? 'Rate Limited' : 'Server Error'}. Attempt ${i + 1}/${maxRetries}. Waiting ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
