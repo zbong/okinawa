@@ -284,7 +284,7 @@ TIP2: (두 번째 팁)
                 1. Analyze logic and provide a "strategy" (e.g., "North for 1 night, Naha for 2 nights to minimize travel time").
                 2. Recommend 10 best hotels.
                 Return JSON in Korean:
-                {"strategy": "string", "hotels": [{"name": "string", "desc": "string", "area": "string", "reason": "string", "priceLevel": "Expensive/Moderate/Cheap", "rating": number, "reviewCount": number, "tags": ["string"]}]}`;
+                {"strategy": "string", "hotels": [{"name": "string", "desc": "string", "area": "string", "reason": "string", "priceLevel": "Expensive/Moderate/Cheap", "priceRange": "예: 1박 약 10~15만원", "rating": number, "reviewCount": number, "tags": ["string"]}]}`;
                 const result = await retryWithBackoff(() => model.generateContent(prompt));
                 const text = result.response.text();
                 const match = text.match(/[\{\[]([\s\S]*)[\}\]]/);
@@ -594,9 +594,9 @@ TIP2: (두 번째 팁)
             } catch (error: any) {
                 lastError = error;
                 const msg = error.message || '';
-                if (msg.includes('429') || msg.includes('Quota')) {
-                    console.warn(`⏳ [generatePlan] Quota exceeded for ${modelName}. Trying next...`);
-                    showToast(`일정 생성 중 할당량 초과로 다른 모델을 시도합니다...`, "info");
+                if (msg.includes('429') || msg.includes('Quota') || msg.includes('403') || msg.includes('Forbidden')) {
+                    console.warn(`⏳ [generatePlan] Error ${msg} for ${modelName}. Trying next...`);
+                    showToast(`일정 생성 중 문제(${msg.includes('403') ? '권한' : '할당량'})로 다른 모델을 시도합니다...`, "info");
                     continue;
                 }
                 break;

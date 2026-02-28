@@ -418,6 +418,7 @@ export const PlannerStep5: React.FC = () => {
                                                                 nights: 0,
                                                                 area: h.area || "",
                                                                 isConfirmed: false,
+                                                                priceRange: h.priceRange || ""
                                                             };
                                                             setPlannerData(prev => ({
                                                                 ...prev,
@@ -640,6 +641,11 @@ export const PlannerStep5: React.FC = () => {
                                             </div>
                                             <div style={{ fontSize: "12px", opacity: 0.6, marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
                                                 <CalendarIcon size={12} /> 추천 항목
+                                                {acc.priceRange && (
+                                                    <span style={{ fontSize: "11px", padding: "2px 6px", background: "rgba(52, 211, 153, 0.1)", borderRadius: "4px", color: "#6ee7b7", marginLeft: 4 }}>
+                                                        {acc.priceRange}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

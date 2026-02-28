@@ -282,7 +282,10 @@ export const PlannerStep6: React.FC = () => {
                                             <div key={`cand-${i}`} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", borderRadius: "12px", border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div>
                                                     <div style={{ fontSize: "14px", fontWeight: 700 }}>{a.name}</div>
-                                                    <div style={{ fontSize: "11px", opacity: 0.5 }}>{a.area ? `${a.area} 추천` : "후보 보관 중"}</div>
+                                                    <div style={{ fontSize: "11px", opacity: 0.5 }}>
+                                                        {a.area ? `${a.area} 추천` : "후보 보관 중"}
+                                                        {a.priceRange && ` • ${a.priceRange}`}
+                                                    </div>
                                                 </div>
                                                 <button onClick={() => toggleAccConfirmation(originalIdx)} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", border: "none", background: "rgba(255,255,255,0.1)", color: "white", fontWeight: 800, cursor: "pointer" }}>확정하기</button>
                                             </div>

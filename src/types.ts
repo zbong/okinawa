@@ -111,7 +111,7 @@ export interface PlannerData {
     useRentalCar: boolean;
     companion: string;
     transport: 'rental' | 'public' | string;
-    accommodations: { id?: string, name: string, address?: string, startDate: string, endDate: string, nights?: number, area?: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean }[];
+    accommodations: { id?: string, name: string, address?: string, startDate: string, endDate: string, nights?: number, area?: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean, priceRange?: string }[];
     theme: string;
     pace: 'relaxed' | 'normal' | 'tight' | string;
     // Coordinates for travel entry

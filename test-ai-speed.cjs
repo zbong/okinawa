@@ -1,7 +1,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // API 설정 (사용자 .env에서 가져온 키)
-const API_KEY = "AIzaSyDiJD96_L1slI5PFZpkmy4_hxGJyorVI-8";
+const API_KEY = "YOUR_API_KEY";
 const MODEL_NAME = "gemini-2.0-flash";
 
 const genAI = new GoogleGenerativeAI(API_KEY);
