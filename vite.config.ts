@@ -92,9 +92,73 @@ export default defineConfig({
                 statuses: [0, 200]
               }
             }
+          },
+          {
+            // Supabase REST API (trips, profiles 등 DB 쿼리)
+            // NetworkFirst: 온라인이면 항상 최신 데이터, 오프라인이면 캐시 사용
+            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-api',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7일
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            // Supabase Storage (파일/이미지 URL)
+            // CacheFirst: 한번 받은 파일은 오래 유지
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'supabase-storage',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30일
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            // Supabase Auth 엔드포인트
+            // NetworkFirst: 인증은 항상 최신 상태 우선
+            urlPattern: /^https:\/\/.*\.supabase\.co\/auth\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-auth',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 // 1시간
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
           }
         ]
       }
     })
   ],
+  server: {
+    proxy: {
+      '/api/tts': {
+        target: 'https://translate.google.com',
+        changeOrigin: true,
+        followRedirects: true,
+        rewrite: (path) => path.replace(/^\/api\/tts/, '/translate_tts'),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://translate.google.com'
+        }
+      }
+    }
+  }
 })

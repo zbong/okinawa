@@ -14,6 +14,14 @@ export interface LocationPoint {
     weather?: { temp: string; condition: string; wind: string; humidity: string; }
 }
 
+export interface ChecklistItem {
+    id: string;
+    category: string;
+    text: string;
+    isChecked: boolean;
+    isCustom?: boolean;
+}
+
 export interface TravelFile {
     name: string;
     path: string;
@@ -23,9 +31,12 @@ export interface CustomFile {
     id: string;
     name: string;
     type: "image" | "pdf";
-    data: string; // Base64
-    linkedTo?: string; // Point ID
+    data?: string;        // Base64 (legacy / offline fallback)
+    url?: string;         // Supabase Storage public URL (preferred)
+    storagePath?: string; // Supabase Storage path (for deletion)
+    linkedTo?: string;    // Point ID or category ('flight' | 'accommodation' | 'other')
     date: string;
+    parsedData?: any;     // AI 파싱 결과 (for OCR)
 }
 
 export interface SpeechItem {
@@ -34,6 +45,8 @@ export interface SpeechItem {
     jp: string;
     pron: string;
     category: 'basic' | 'shopping' | 'food' | 'emergency' | 'stay';
+    lang?: string;
+    audio?: string; // Base64 audio data for offline use
 }
 
 export interface TripMetadata {
@@ -44,13 +57,23 @@ export interface TripMetadata {
     endDate: string;
     useRentalCar: boolean;
     primaryColor?: string;
-    accommodations?: { id?: string, name: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean }[];
+    accommodations?: { id?: string, name: string, address?: string, startDate: string, endDate: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean }[];
     isShared?: boolean;
+    destinationInfo?: {
+        country: string;
+        language: string;
+        languageName: string;
+        currency: string;
+        currencySymbol: string;
+        currencyName: string;
+        flag: string;
+    };
 }
 
 export interface TripPlan {
     id: string;
     metadata: TripMetadata;
+    checklists?: ChecklistItem[];
     points: LocationPoint[];
     days?: { day: number; points: LocationPoint[] }[]; // Added for AI generated structure
     speechData: SpeechItem[];
@@ -88,7 +111,7 @@ export interface PlannerData {
     useRentalCar: boolean;
     companion: string;
     transport: 'rental' | 'public' | string;
-    accommodations: { id?: string, name: string, startDate: string, endDate: string, nights?: number, area?: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean }[];
+    accommodations: { id?: string, name: string, address?: string, startDate: string, endDate: string, nights?: number, area?: string, coordinates?: { lat: number; lng: number }, isConfirmed?: boolean }[];
     theme: string;
     pace: 'relaxed' | 'normal' | 'tight' | string;
     // Coordinates for travel entry
@@ -100,6 +123,17 @@ export interface PlannerData {
     // Multi-leg flight support
     outboundFlights?: FlightLeg[];
     inboundFlights?: FlightLeg[];
+    destinationInfo?: {
+        country: string;
+        language: string;
+        languageName: string;
+        currency: string;
+        currencySymbol: string;
+        currencyName: string;
+        flag: string;
+    };
+    isDestinationValidated?: boolean;
+    checklists?: ChecklistItem[];
 }
 
 export interface FlightLeg {

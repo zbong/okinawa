@@ -11,7 +11,6 @@ interface MapComponentProps {
 const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPointClick, theme = 'dark' }) => {
     const mapRef = useRef<HTMLDivElement>(null);
     const googleMapRef = useRef<any>(null);
-    const markersRef = useRef<any[]>([]);
     const directionsRendererRef = useRef<any>(null);
     const polylineRef = useRef<any>(null);
 
@@ -96,7 +95,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ points, selectedPoint, onPo
         initMap();
     }, [isMapLoaded, theme]);
 
-    const lastPointsRef = useRef<string>("");
+
 
     const markerMapRef = useRef<Map<string, any>>(new Map());
     const lastPointsKeyRef = useRef<string>("");

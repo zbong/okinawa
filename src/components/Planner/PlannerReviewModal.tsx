@@ -11,7 +11,8 @@ export const PlannerReviewModal: React.FC = () => {
         selectedPlaceIds,
         customAiPrompt,
         setCustomAiPrompt,
-        generatePlanWithAI
+        scheduleDensity,
+        setPlannerStep
     } = usePlanner();
 
     if (!isReviewModalOpen) return null;
@@ -109,11 +110,11 @@ export const PlannerReviewModal: React.FC = () => {
                     const placeCount = selectedPlaceIds.length;
                     let minPerDay = 3;
                     let maxPerDay = 6;
-                    if (plannerData.pace === "slow") {
+                    if (scheduleDensity === "여유롭게") {
                         minPerDay = 1;
                         maxPerDay = 3;
                     }
-                    if (plannerData.pace === "fast") {
+                    if (scheduleDensity === "빡빡하게") {
                         minPerDay = 5;
                         maxPerDay = 8;
                     }
@@ -217,7 +218,7 @@ export const PlannerReviewModal: React.FC = () => {
                         disabled={!(plannerData.destination && plannerData.startDate && plannerData.endDate && selectedPlaceIds.length > 0)}
                         onClick={() => {
                             setIsReviewModalOpen(false);
-                            generatePlanWithAI();
+                            setPlannerStep(7);
                         }}
                         style={{
                             flex: 2,

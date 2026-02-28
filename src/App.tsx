@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import "./styles/design-system.css";
 import { useSharedLink } from "./hooks/useSharedLink";
 import { useAppEvents } from "./hooks/useAppEvents";
@@ -9,6 +9,7 @@ import { ConfirmModal } from "./components/Common/ConfirmModal";
 import { ErrorBoundary } from "./components/Common/ErrorBoundary";
 import { LoadingOverlay } from "./components/Common/LoadingOverlay";
 import { FullScreenImagePreview } from "./components/Common/FullScreenImagePreview";
+import { OfflineBanner } from "./components/Common/OfflineBanner";
 
 import { DebugView } from "./components/Debug/DebugView";
 import { LandingPage } from "./components/Landing/LandingPage";
@@ -44,8 +45,12 @@ const App: React.FC = () => {
     convert, speak,
     handleTicketOcr, handleMultipleOcr, handleFileUpload, deleteFile
   } = usePlanner();
+  // deleteConfirmModal 최신 값을 ref로 추적 (클로저 stale 방지)
+  const deleteConfirmModalRef = useRef(deleteConfirmModal);
+  useEffect(() => {
+    deleteConfirmModalRef.current = deleteConfirmModal;
+  });
 
-  // Handle Shared Link (Supabase)
   useSharedLink();
 
   // Global error handlers & drag prevention
@@ -68,9 +73,16 @@ const App: React.FC = () => {
 
   return (
     <>
+      {/* 오프라인 상태 배너 */}
+      <OfflineBanner />
+
       <div className="app">
         {/* Global Loading Overlay for OCR & Auth */}
-        <LoadingOverlay isLoading={isOcrLoading || isAuthLoading} />
+        <LoadingOverlay
+          isLoading={isOcrLoading || isAuthLoading}
+          message={isAuthLoading ? "로딩 중..." : undefined}
+          subMessage={isAuthLoading ? "앱 데이터를 불러오고 있습니다. 잠시만 기다려 주세요." : undefined}
+        />
 
         {/* Landing Page (Handles its own visibility) */}
         {(view === "landing" || view === "login") && !isAuthLoading && !new URLSearchParams(window.location.search).has("id") && <LandingPage />}
@@ -90,7 +102,6 @@ const App: React.FC = () => {
               display: "flex",
               flexDirection: "column",
               height: "100%",
-              overflow: "hidden",
             }}
           >
             <TabNavigation
@@ -113,6 +124,7 @@ const App: React.FC = () => {
               style={{
                 flex: 1,
                 overflowY: "auto",
+                paddingTop: "6px",
                 paddingBottom: "20px",
                 display: "flex",
                 flexDirection: "column",
@@ -141,45 +153,53 @@ const App: React.FC = () => {
           <DebugView onBack={() => setView("landing")} />
         )}
 
-      </div>
+        {/* Global Modals */}
+        <PlannerReEditModal />
+        <PlannerReviewModal />
 
-      {/* Global Modals */}
-      <PlannerReEditModal />
-      <PlannerReviewModal />
-
-      <ConfirmModal
-        isOpen={deleteConfirmModal.isOpen}
-        title={deleteConfirmModal.title}
-        message={deleteConfirmModal.message}
-        onConfirm={() => {
-          deleteConfirmModal.onConfirm();
-          setDeleteConfirmModal({
-            isOpen: false,
-            title: "",
-            message: "",
-            onConfirm: () => { },
-          });
-        }}
-        onCancel={() =>
-          setDeleteConfirmModal({
-            isOpen: false,
-            title: "",
-            message: "",
-            onConfirm: () => { },
-          })
-        }
-        confirmText={deleteConfirmModal.confirmText || "삭제"}
-        cancelText={deleteConfirmModal.cancelText || "취소"}
-      />
-
-      {selectedFile && (
-        <FullScreenImagePreview
-          file={selectedFile}
-          onClose={() => setSelectedFile(null)}
+        <ConfirmModal
+          isOpen={deleteConfirmModal.isOpen}
+          title={deleteConfirmModal.title}
+          message={deleteConfirmModal.message}
+          onConfirm={() => {
+            const modal = deleteConfirmModalRef.current;
+            if (typeof modal.onConfirm === 'function') modal.onConfirm();
+            setDeleteConfirmModal({
+              isOpen: false,
+              title: "",
+              message: "",
+              onConfirm: () => { },
+              onCancel: undefined,
+            });
+          }}
+          onCancel={() => {
+            const modal = deleteConfirmModalRef.current;
+            if (typeof modal.onCancel === 'function') {
+              modal.onCancel();
+            }
+            setDeleteConfirmModal({
+              isOpen: false,
+              title: "",
+              message: "",
+              onConfirm: () => { },
+              onCancel: undefined,
+            });
+          }}
+          confirmText={deleteConfirmModal.confirmText || "삭제"}
+          cancelText={deleteConfirmModal.cancelText || "취소"}
         />
-      )}
 
-      <Toast toasts={toasts} onClose={closeToast} />
+        {selectedFile && (
+          <FullScreenImagePreview
+            file={selectedFile}
+            isOpen={!!selectedFile}
+            nonFixed={true}
+            onClose={() => setSelectedFile(null)}
+          />
+        )}
+
+        <Toast toasts={toasts} onClose={closeToast} />
+      </div>
     </>
   );
 };

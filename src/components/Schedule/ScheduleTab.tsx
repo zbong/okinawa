@@ -503,7 +503,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
                 name: "새 장소",
                 category: "sightseeing",
                 desc: "장소 설명을 입력하세요.",
-                coordinates: { lat: 26.2124, lng: 127.6809 }
+                coordinates: { lat: 0, lng: 0 }
               })}
               style={{
                 flex: 1,
@@ -528,7 +528,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
                 name: "새 맛집",
                 category: "food",
                 desc: "맛집 정보를 입력하세요.",
-                coordinates: { lat: 26.2124, lng: 127.6809 }
+                coordinates: { lat: 0, lng: 0 }
               })}
               style={{
                 flex: 1,

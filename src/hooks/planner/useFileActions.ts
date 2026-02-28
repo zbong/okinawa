@@ -4,9 +4,12 @@ interface UseFileActionsProps {
     setCustomFiles: React.Dispatch<React.SetStateAction<any[]>>;
     showToast: (message: string, type?: "success" | "error" | "info") => void;
     user: any;
+    saveTripToSupabase?: (targetTrip: any, isImmediate?: boolean, overrides?: any) => Promise<void>;
+    trip?: any;
+    currentFiles: any[];
 }
 
-export const useFileActions = ({ setCustomFiles, showToast, user }: UseFileActionsProps) => {
+export const useFileActions = ({ setCustomFiles, showToast, user, saveTripToSupabase, trip, currentFiles }: UseFileActionsProps) => {
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement> | File[], linkedTo?: string) => {
         if (!user) {
             showToast("로그인이 필요한 기능입니다.", "error");
@@ -32,9 +35,13 @@ export const useFileActions = ({ setCustomFiles, showToast, user }: UseFileActio
                 const filePath = `${user.id}/${fileName}`;
 
                 // 2. Upload to Supabase Storage
-                const { data, error: uploadError } = await supabase.storage
+                const { error: uploadError } = await supabase.storage
                     .from('trip-files')
-                    .upload(filePath, file);
+                    .upload(filePath, file, {
+                        contentType: file.type || 'application/octet-stream',
+                        cacheControl: '3600',
+                        upsert: false
+                    });
 
                 if (uploadError) throw uploadError;
 
@@ -43,11 +50,15 @@ export const useFileActions = ({ setCustomFiles, showToast, user }: UseFileActio
                     .from('trip-files')
                     .getPublicUrl(filePath);
 
+                const isPdf = file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf");
+                const isHtml = file.type.includes("html") || file.name.toLowerCase().endsWith(".html") || file.name.toLowerCase().endsWith(".htm");
+
                 newFiles.push({
                     id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
                     name: file.name,
-                    type: file.type.includes("pdf") ? "pdf" : "image",
+                    type: isPdf ? "pdf" : isHtml ? "html" : "image",
                     data: publicUrl, // Now storing the URL instead of Base64
+                    url: publicUrl,  // Added for consistency with HtmlPreview
                     path: filePath,  // Keeping path for deletion
                     linkedTo,
                     date: new Date().toISOString(),
@@ -59,27 +70,49 @@ export const useFileActions = ({ setCustomFiles, showToast, user }: UseFileActio
         }
 
         if (newFiles.length > 0) {
-            setCustomFiles((prev: any) => [...prev, ...newFiles]);
+            const updatedFiles = [...currentFiles, ...newFiles];
+            setCustomFiles(updatedFiles);
             showToast(`${newFiles.length}건의 서류가 서버에 안전하게 업로드되었습니다.`, "success");
+
+            // 🚀 Persist new files to DB immediately
+            if (saveTripToSupabase && trip) {
+                await saveTripToSupabase(trip, true, { customFiles: updatedFiles });
+            }
         }
     };
 
     const deleteFile = async (id: string, e?: React.MouseEvent) => {
         e?.stopPropagation();
 
-        setCustomFiles((prev: any) => {
-            const fileToDelete = prev.find((f: any) => f.id === id);
+        console.log("🗑️ Starting deletion for file ID:", id);
 
-            // If it's a storage file, try to delete from Supabase storage too
-            if (fileToDelete?.path) {
-                supabase.storage.from('trip-files').remove([fileToDelete.path])
-                    .then(({ error }) => {
-                        if (error) console.error("Failed to delete file from storage:", error);
-                    });
-            }
+        // 1. Calculate the NEW list FIRST (Atomically)
+        const updatedFiles = currentFiles.filter((f: any) => f.id !== id);
 
-            return prev.filter((f: any) => f.id !== id);
-        });
+        console.log(`🗑️ File Count: ${currentFiles.length} -> ${updatedFiles.length}`);
+
+        // 2. Locate the file to delete from storage
+        const fileToDelete = currentFiles.find((f: any) => f.id === id);
+
+        // 3. Update local UI state immediately
+        setCustomFiles(updatedFiles);
+
+        // 4. Update Server IMMEDIATELY with the SPECIFIC updated list
+        if (saveTripToSupabase && trip) {
+            console.log("💾 Triggering immediate sync to server with updated list...");
+            await saveTripToSupabase(trip, true, { customFiles: updatedFiles });
+        }
+
+        // 5. Clean up Storage (Background)
+        if (fileToDelete?.path) {
+            supabase.storage.from('trip-files').remove([fileToDelete.path])
+                .then(({ error }) => {
+                    if (error) console.error("⚠️ Storage Cleanup Failed:", error);
+                    else console.log("✅ Storage Cleanup Success");
+                });
+        }
+
+        showToast("파일이 제거되었습니다.");
     };
 
     return {

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
     Plane, MapPin, Hotel, FileText, Car, Compass, Upload, Trash2, Save
@@ -21,11 +22,31 @@ export const PlannerStep6: React.FC = () => {
         showToast,
         setIsPlanning,
         setView,
-        generatePlanWithAI,
-        saveDraft
+        saveDraft,
+        setCustomFiles,
+        user,
+        trip,
     } = usePlanner();
 
-    const [showAccConfirmModal, setShowAccConfirmModal] = useState(false);
+    React.useEffect(() => {
+        const syncFromDB = async () => {
+            if (!user || !trip?.id) return;
+            try {
+                const { supabase } = await import('../../../utils/supabase');
+                const { data } = await supabase.from('trips').select('custom_files').eq('id', trip.id).single();
+                if (data?.custom_files) {
+                    setCustomFiles(data.custom_files);
+                    console.log("🔄 DB 싱크 완료: 화면 진입 시 최신 상태로 초기화");
+                }
+            } catch (e) {
+                console.error("DB Sync error:", e);
+            }
+        };
+        syncFromDB();
+    }, [user, trip?.id, setCustomFiles]);
+
+    const [showMissingConfirmModal, setShowMissingConfirmModal] = useState(false);
+    const [missingItemsText, setMissingItemsText] = useState("");
     const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
 
     const handleDragOver = (e: React.DragEvent, category: string) => {
@@ -75,17 +96,26 @@ export const PlannerStep6: React.FC = () => {
         const uploadedVouchers = getFilesByCategory("accommodation").length;
 
         if (missing.length > 0) {
-            showToast(`누락된 정보가 있습니다: ${missing.join(", ")}`, "error");
+            showToast(`필수 정보가 누락되었습니다: ${missing.join(", ")}`, "error");
             return;
         }
 
+        const missingSoft = [];
+        if (getFilesByCategory("flight").length === 0) {
+            missingSoft.push("항공권(비행기 표)");
+        }
         if (confirmedCount === 0 && uploadedVouchers === 0) {
-            setShowAccConfirmModal(true);
+            missingSoft.push("확정된 숙소");
+        }
+
+        if (missingSoft.length > 0) {
+            setMissingItemsText(missingSoft.join(", "));
+            setShowMissingConfirmModal(true);
             return;
         }
 
         // Trigger AI plan generation helper in context
-        await generatePlanWithAI();
+        setPlannerStep(7);
     };
 
     return (
@@ -102,18 +132,18 @@ export const PlannerStep6: React.FC = () => {
             }}
         >
             <ConfirmModal
-                isOpen={showAccConfirmModal}
-                title="확정된 숙소 없음"
-                message="현재 확정된 숙소가 없습니다. AI가 추천 숙소를 제안하도록 일정을 생성할까요?"
+                isOpen={showMissingConfirmModal}
+                title="누락된 정보 확인"
+                message={`현재 [ ${missingItemsText} ] 정보가 없습니다.\n그래도 AI가 일정을 생성하도록 진행하시겠습니까?\n(누락된 부분은 AI가 임의로 가장 적절하게 추천하여 일정을 작성합니다)`}
                 onConfirm={async () => {
-                    setShowAccConfirmModal(false);
-                    await generatePlanWithAI();
+                    setShowMissingConfirmModal(false);
+                    setPlannerStep(7);
                 }}
-                onCancel={() => setShowAccConfirmModal(false)}
+                onCancel={() => setShowMissingConfirmModal(false)}
                 confirmText="생성 시작"
-                cancelText="숙소 확인하기"
+                cancelText="다시 확인하기"
             />
-            <StepIndicator currentStep={6} totalSteps={6} />
+            <StepIndicator currentStep={6} totalSteps={8} />
             <h2 style={{ fontSize: "32px", fontWeight: 900, marginBottom: "8px", textAlign: "center" }}>
                 데이터 최종 점검 및 서류 등록
             </h2>
@@ -219,47 +249,51 @@ export const PlannerStep6: React.FC = () => {
 
                     <section className="glass-card" style={{ padding: "20px" }}>
                         <h3 style={{ fontSize: "16px", fontWeight: 800, marginBottom: "16px", display: "flex", alignItems: "center", gap: 8 }}>
-                            <Hotel size={18} color="#818cf8" /> 숙소 확정 및 후보 ({accommodations.length})
+                            <Hotel size={18} color="#818cf8" /> 숙소 정보
                         </h3>
-                        <div style={{ maxHeight: "250px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-                            {accommodations.map((a, i) => (
-                                <div
-                                    key={i}
-                                    style={{
-                                        padding: "12px",
-                                        background: a.isConfirmed ? "rgba(34, 197, 94, 0.08)" : "rgba(255,255,255,0.03)",
-                                        borderRadius: "12px",
-                                        border: a.isConfirmed ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(255,255,255,0.05)',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
-                                    }}
-                                >
-                                    <div>
-                                        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "2px", color: a.isConfirmed ? '#4ade80' : 'white' }}>{a.name}</div>
-                                        <div style={{ fontSize: "11px", opacity: 0.5 }}>{a.startDate} ~ {a.endDate}</div>
-                                    </div>
-                                    <button
-                                        onClick={() => toggleAccConfirmation(i)}
-                                        style={{
-                                            padding: "6px 10px",
-                                            borderRadius: "8px",
-                                            fontSize: "11px",
-                                            border: "none",
-                                            background: a.isConfirmed ? "#22c55e" : "rgba(255,255,255,0.1)",
-                                            color: a.isConfirmed ? "black" : "white",
-                                            fontWeight: 800,
-                                            cursor: "pointer"
-                                        }}
-                                    >
-                                        {a.isConfirmed ? "확정됨" : "후보로 보관"}
-                                    </button>
+                        <div style={{ maxHeight: "300px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 15 }}>
+                            {/* Confirmed Section */}
+                            <div>
+                                <div style={{ fontSize: "12px", fontWeight: 800, opacity: 0.5, marginBottom: "8px", color: "#4ade80" }}>확정된 숙소</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    {accommodations.filter(a => a.isConfirmed).map((a, i) => {
+                                        const originalIdx = accommodations.findIndex(item => item === a);
+                                        return (
+                                            <div key={`conf-${i}`} style={{ padding: "12px", background: "rgba(34, 197, 94, 0.08)", borderRadius: "12px", border: '1px solid rgba(34, 197, 94, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <div style={{ fontSize: "14px", fontWeight: 700, color: '#4ade80' }}>{a.name}</div>
+                                                    <div style={{ fontSize: "11px", opacity: 0.5 }}>{a.startDate} ~ {a.endDate}</div>
+                                                </div>
+                                                <button onClick={() => toggleAccConfirmation(originalIdx)} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", border: "none", background: "#22c55e", color: "black", fontWeight: 800, cursor: "pointer" }}>취소</button>
+                                            </div>
+                                        );
+                                    })}
+                                    {accommodations.filter(a => a.isConfirmed).length === 0 && <div style={{ fontSize: "12px", opacity: 0.3, padding: "8px" }}>확정된 숙소가 없습니다.</div>}
                                 </div>
-                            ))}
-                            {accommodations.length === 0 && <span style={{ opacity: 0.4, fontSize: "13px" }}>선택된 숙소가 없습니다.</span>}
+                            </div>
+
+                            {/* Candidates Section */}
+                            <div>
+                                <div style={{ fontSize: "12px", fontWeight: 800, opacity: 0.5, marginBottom: "8px", color: "var(--primary)" }}>관심/추천 후보</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    {accommodations.filter(a => !a.isConfirmed).map((a, i) => {
+                                        const originalIdx = accommodations.findIndex(item => item === a);
+                                        return (
+                                            <div key={`cand-${i}`} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", borderRadius: "12px", border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <div style={{ fontSize: "14px", fontWeight: 700 }}>{a.name}</div>
+                                                    <div style={{ fontSize: "11px", opacity: 0.5 }}>{a.area ? `${a.area} 추천` : "후보 보관 중"}</div>
+                                                </div>
+                                                <button onClick={() => toggleAccConfirmation(originalIdx)} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", border: "none", background: "rgba(255,255,255,0.1)", color: "white", fontWeight: 800, cursor: "pointer" }}>확정하기</button>
+                                            </div>
+                                        );
+                                    })}
+                                    {accommodations.filter(a => !a.isConfirmed).length === 0 && <div style={{ fontSize: "12px", opacity: 0.3, padding: "8px" }}>후보 숙소가 없습니다.</div>}
+                                </div>
+                            </div>
                         </div>
                         <p style={{ marginTop: "12px", fontSize: "11px", opacity: 0.4, lineHeight: "1.4" }}>
-                            * '확정됨'으로 표시한 숙소만 실제 이동 경로(Stay)에 반영됩니다. 후보 숙소는 별도로 제안됩니다.
+                            * '확정'된 숙소만 일정표의 이동 동선에 포함됩니다. 후보지는 AI가 참고하여 일정을 구성합니다.
                         </p>
                     </section>
                 </div>
@@ -420,79 +454,82 @@ export const PlannerStep6: React.FC = () => {
             </div>
 
             {/* Navigation Buttons */}
-            <div style={{
-                display: "flex",
-                gap: "12px",
-                marginTop: "60px",
-                paddingBottom: "20px"
-            }}>
-                <button
-                    onClick={() => setPlannerStep(5)}
-                    style={{
-                        flex: 1,
-                        padding: "18px",
-                        borderRadius: "18px",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "rgba(255,255,255,0.05)",
-                        color: "white",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        fontSize: "14px"
-                    }}
-                >
-                    이전
-                </button>
-                <button
-                    onClick={() => {
-                        if (saveDraft(6)) {
-                            showToast("현재 정보와 서류가 임시 저장되었습니다.", "success");
-                            // Exit planner
-                            setIsPlanning(false);
-                            setPlannerStep(0);
-                            setView("landing");
-                        }
-                    }}
-                    style={{
-                        flex: 1,
-                        padding: "18px",
-                        borderRadius: "18px",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "rgba(255,255,255,0.1)",
-                        color: "white",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8
-                    }}
-                >
-                    <Save size={16} /> 임시 저장
-                </button>
-                <button
-                    onClick={validateAndNext}
-                    style={{
-                        flex: 2,
-                        padding: "18px",
-                        borderRadius: "18px",
-                        border: "none",
-                        background: "var(--primary)",
-                        color: "black",
-                        fontWeight: 900,
-                        fontSize: "16px",
-                        boxShadow: "0 10px 25px rgba(0, 212, 255, 0.2)",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8
-                    }}
-                >
-                    AI 경로 생성 시작 <Sparkles size={18} />
-                </button>
-            </div>
-        </motion.div>
+            {document.getElementById('planner-nav-actions') && createPortal(
+                <div style={{
+                    display: "flex",
+                    gap: "12px",
+                    width: "100%"
+                }}>
+                    <button
+                        onClick={() => setPlannerStep(5)}
+                        style={{
+                            flex: 1,
+                            padding: "18px",
+                            borderRadius: "18px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "rgba(255,255,255,0.05)",
+                            color: "white",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            fontSize: "14px"
+                        }}
+                    >
+                        이전
+                    </button>
+                    <button
+                        onClick={async () => {
+                            const res = await saveDraft(6);
+                            if (res) {
+                                showToast("현재 정보와 서류가 임시 저장되었습니다.", "success");
+                                // Exit planner
+                                setIsPlanning(false);
+                                setPlannerStep(0);
+                                setView("landing");
+                            }
+                        }}
+                        style={{
+                            flex: 1,
+                            padding: "18px",
+                            borderRadius: "18px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "rgba(255,255,255,0.1)",
+                            color: "white",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8
+                        }}
+                    >
+                        <Save size={16} /> 임시 저장
+                    </button>
+                    <button
+                        onClick={validateAndNext}
+                        style={{
+                            flex: 2,
+                            padding: "18px",
+                            borderRadius: "18px",
+                            border: "none",
+                            background: "var(--primary)",
+                            color: "black",
+                            fontWeight: 900,
+                            fontSize: "16px",
+                            boxShadow: "0 10px 25px rgba(0, 212, 255, 0.2)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8
+                        }}
+                    >
+                        AI 경로 생성 시작 <Sparkles size={18} />
+                    </button>
+                </div>,
+                document.getElementById('planner-nav-actions')!
+            )}
+        </motion.div >
     );
 };
 

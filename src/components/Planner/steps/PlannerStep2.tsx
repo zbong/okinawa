@@ -1,7 +1,8 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
-    User, Heart, Users, Minus, Plus, Clock, Save
+    User, Heart, Users, Minus, Plus, Save
 } from 'lucide-react';
 import { usePlanner } from '../../../contexts/PlannerContext';
 import { StepIndicator } from '../../Common/StepIndicator';
@@ -12,9 +13,38 @@ export const PlannerStep2: React.FC = () => {
         setPlannerData,
         setPlannerStep,
         setIsPlanning,
+        setView,
         showToast,
-        saveDraft
+        saveDraft,
+        user,
+        trip
     } = usePlanner();
+
+    React.useEffect(() => {
+        const syncFromDB = async () => {
+            if (!user || !trip?.id) return;
+            try {
+                const { supabase } = await import('../../../utils/supabase');
+                const { data } = await supabase.from('trips').select('metadata').eq('id', trip.id).single();
+                if (data?.metadata) {
+                    setPlannerData(prev => ({
+                        ...prev,
+                        companion: data.metadata.companion || prev.companion
+                    }));
+                    console.log("🔄 DB 싱크 완료(Step 2): 화면 진입 시 최신 상태로 초기화");
+                }
+            } catch (e) {
+                console.error("DB Sync error:", e);
+            }
+        };
+        syncFromDB();
+    }, [user, trip?.id, setPlannerData]);
+
+    const [isMounted, setIsMounted] = React.useState(false);
+
+    React.useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     return (
         <motion.div
@@ -24,7 +54,7 @@ export const PlannerStep2: React.FC = () => {
             exit={{ opacity: 0 }}
             style={{ width: "100%", maxWidth: "700px" }}
         >
-            <StepIndicator currentStep={2} totalSteps={6} />
+            <StepIndicator currentStep={2} totalSteps={8} />
 
             <h2
                 style={{
@@ -204,140 +234,76 @@ export const PlannerStep2: React.FC = () => {
                 </div>
             </div>
 
-            <div style={{ marginBottom: "40px" }}>
-                <label
-                    style={{
-                        display: "block",
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        marginBottom: "15px",
-                        color: "var(--primary)",
-                        opacity: 0.8,
-                    }}
-                >
-                    여행 속도는 어떤가요?
-                </label>
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "12px",
-                    }}
-                >
-                    {[
-                        {
-                            id: "slow",
-                            label: "여유롭게 (하루 2-3곳)",
-                            icon: <Clock size={20} />,
-                        },
-                        {
-                            id: "normal",
-                            label: "적당히 (하루 4-5곳)",
-                            icon: <Clock size={20} />,
-                        },
-                        {
-                            id: "fast",
-                            label: "빡빡하게 (하루 6곳+)",
-                            icon: <Clock size={20} />,
-                        },
-                    ].map((item) => (
-                        <button
-                            key={item.id}
-                            onClick={() =>
-                                setPlannerData({
-                                    ...plannerData,
-                                    pace: item.id as any,
-                                })
-                            }
-                            style={{
-                                padding: "16px 20px",
-                                borderRadius: "16px",
-                                border:
-                                    plannerData.pace === item.id
-                                        ? "2px solid var(--primary)"
-                                        : "1px solid rgba(255,255,255,0.1)",
-                                background:
-                                    plannerData.pace === item.id
-                                        ? "rgba(0,212,255,0.1)"
-                                        : "rgba(255,255,255,0.03)",
-                                color: "white",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 15,
-                                textAlign: "left",
-                            }}
-                        >
-                            {item.icon}
-                            <span style={{ fontWeight: 700 }}>
-                                {item.label}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div style={{ display: "flex", gap: "15px" }}>
-                <button
-                    onClick={() => setPlannerStep(1)}
-                    style={{
-                        flex: 1,
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "transparent",
-                        color: "white",
-                        fontWeight: 800,
-                    }}
-                >
-                    이전
-                </button>
-                <button
-                    onClick={() => {
-                        if (saveDraft(2)) {
+            {/* Portal Action Buttons */}
+            {isMounted && document.getElementById('planner-nav-actions') && createPortal(
+                <div style={{ display: "flex", gap: "15px", width: "100%" }}>
+                    <button
+                        onClick={() => setPlannerStep(1)}
+                        style={{
+                            flex: 1,
+                            padding: "18px",
+                            borderRadius: "18px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "rgba(255,255,255,0.05)",
+                            color: "white",
+                            fontWeight: 800,
+                            cursor: "pointer",
+                        }}
+                    >
+                        이전
+                    </button>
+                    <button
+                        onClick={async () => {
+                            await saveDraft(2);
                             showToast('여행이 임시 저장되었습니다', 'success');
-                            setTimeout(() => setIsPlanning(false), 500);
-                        }
-                    }}
-                    style={{
-                        flex: 1,
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "1px solid rgba(255,255,255,0.3)",
-                        background: "rgba(255,255,255,0.15)",
-                        color: "white",
-                        fontWeight: 800,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 6,
-                    }}
-                >
-                    <Save size={18} /> 저장
-                </button>
-                <button
-                    onClick={() => setPlannerStep(3)}
-                    disabled={
-                        !plannerData.companion || !plannerData.pace
-                    }
-                    style={{
-                        flex: 2,
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "none",
-                        background:
-                            plannerData.companion && plannerData.pace
-                                ? "var(--primary)"
-                                : "rgba(255,255,255,0.1)",
-                        color:
-                            plannerData.companion && plannerData.pace
-                                ? "black"
-                                : "rgba(255,255,255,0.3)",
-                        fontWeight: 800,
-                    }}
-                >
-                    다음 단계로 (교통편)
-                </button>
-            </div>
+                            setTimeout(() => {
+                                setIsPlanning(false);
+                                setView("landing");
+                            }, 500);
+                        }}
+                        style={{
+                            flex: 1,
+                            padding: "18px",
+                            borderRadius: "18px",
+                            border: "1px solid rgba(255,255,255,0.2)",
+                            background: "rgba(255,255,255,0.1)",
+                            color: "white",
+                            fontWeight: 800,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            cursor: "pointer",
+                        }}
+                    >
+                        <Save size={18} /> 저장
+                    </button>
+                    <button
+                        onClick={() => setPlannerStep(3)}
+                        disabled={!plannerData.companion}
+                        style={{
+                            flex: 2,
+                            padding: "18px",
+                            borderRadius: "18px",
+                            border: "none",
+                            background:
+                                plannerData.companion
+                                    ? "var(--primary)"
+                                    : "rgba(255,255,255,0.05)",
+                            color:
+                                plannerData.companion
+                                    ? "black"
+                                    : "rgba(255,255,255,0.2)",
+                            fontWeight: 800,
+                            cursor: plannerData.companion ? "pointer" : "not-allowed",
+                            boxShadow: plannerData.companion ? "0 8px 25px rgba(0, 212, 255, 0.3)" : "none"
+                        }}
+                    >
+                        다음 단계로 (교통편)
+                    </button>
+                </div>,
+                document.getElementById('planner-nav-actions')!
+            )}
         </motion.div>
     );
 };

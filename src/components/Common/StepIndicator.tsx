@@ -17,25 +17,23 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({
             style={{
                 display: "flex",
                 justifyContent: "center",
-                gap: "8px",
                 marginBottom: "30px",
             }}
         >
-            {Array.from({ length: totalSteps }, (_, i) => (
-                <div
-                    key={i}
-                    style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background:
-                            i === currentStep
-                                ? "var(--primary)"
-                                : "rgba(255,255,255,0.1)",
-                        opacity: i < currentStep ? 0.3 : 1,
-                    }}
-                />
-            ))}
+            <div
+                style={{
+                    padding: "6px 16px",
+                    borderRadius: "20px",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    color: "var(--primary)",
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    letterSpacing: "2px"
+                }}
+            >
+                {currentStep} / {totalSteps}
+            </div>
         </div>
     );
 };

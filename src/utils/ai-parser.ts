@@ -7,7 +7,7 @@ export const genAI = new GoogleGenerativeAI(apiKey || 'missing-key');
 /**
  * Utility to retry a function with exponential backoff
  */
-export async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, initialDelay = 4000): Promise<T> {
+export async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, initialDelay = 1500): Promise<T> {
   let lastError: any;
   for (let i = 0; i <= maxRetries; i++) {
     try {
@@ -27,8 +27,8 @@ export async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, 
       const isServerErr = status === 500 || status === 503 || status === 504 || msg.includes('500') || msg.includes('503') || msg.includes('504');
 
       if ((isRateLimit || isServerErr) && i < maxRetries) {
-        // Longer backoff for rate limit
-        const delay = initialDelay * Math.pow(2, i) + (isRateLimit ? 2000 : 0);
+        // Quick retry for 429
+        const delay = initialDelay * Math.pow(2, i) + (isRateLimit ? 1000 : 0);
         console.warn(`⏳ Gemini API ${isRateLimit ? 'Rate Limited' : 'Server Error'}. Attempt ${i + 1}/${maxRetries}. Waiting ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
@@ -50,12 +50,12 @@ export const parseWithAI = async (text: string, fileData?: { base64: string, mim
   // genAI is now imported from module scope
 
   /**
-   * Verified model list for this account:
-   * 1. gemini-2.0-flash (Strongest stable)
-   * 2. gemini-1.5-flash (Reliable stable)
-   * 3. gemini-1.5-flash-8b (Lightweight fallback)
+   * Verified model list for this environment (Okinawa Trip Web):
+   * 1. gemini-3-flash-preview (Fastest & Latest Batch)
+   * 2. gemini-3.1-pro-preview (Highest Quality Analysis)
+   * 3. gemini-flash-latest (Reliable fallback)
    */
-  const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"];
+  const modelsToTry = ["gemini-2.0-flash", "gemini-flash-latest", "gemini-pro-latest"];
   let lastError: any;
 
   for (const modelName of modelsToTry) {
@@ -79,10 +79,15 @@ export const parseWithAI = async (text: string, fileData?: { base64: string, mim
 3. **포맷 변환**: 발견된 모든 시간은 반드시 'HH:mm' (24시간제)로 변환하세요. (예: 2:15 PM -> 14:15, 0900 -> 09:00)
 4. **절대 규칙**: 요약문(summary)에 시간이 언급되었다면, 데이터 필드(departureTime 등)는 **절대로** null이나 빈 문자열이어서는 안 됩니다. 확신이 없다면 가장 유력한 시간 후보를 넣으세요.
 
+**[숙소(Accommodation) 추출 가이드라인]**
+1. **이름은 글자 그대로(Literal)**: 이미지나 텍스트에서 가장 크게 부각된 숙소 이름을 **절대 번역하거나 고치지 말고 보이는 그대로** 추출하세요. (예: 이미지에 'オキナワグランメール'라고 적혀있으면 그대로 추출, 'Okinawa Grand Mer'라고 적혀있으면 그대로 추출)
+2. **언어 유지**: 일본어면 일본어 그대로, 영어면 영어 그대로 추출하세요. 임의로 한국어로 바꾸지 마세요.
+3. **주소 대조**: 이름이 조금 다르더라도 주소가 같다면 동일한 숙소로 인지할 기초 데이터를 충실히 뽑으세요.
+
 **[응답 형식: JSON]**
 {
   "type": "flight" | "accommodation" | "unknown",
-  "summary": "전체 여정 요약 (반드시 항공사, 편명, 출발/도착 시간을 포함하세요)",
+  "summary": "전체 여정 요약 (반드시 상세 정보를 포함하세요)",
   "title": "요약 제목",
   "startDate": "YYYY-MM-DD",
   "endDate": "YYYY-MM-DD",
@@ -91,13 +96,11 @@ export const parseWithAI = async (text: string, fileData?: { base64: string, mim
     "flightNumber": "편명",
     "departureAirport": "출발공항",
     "arrivalAirport": "도착공항",
-    "departureDate": "YYYY-MM-DD",
-    "arrivalDate": "YYYY-MM-DD",
     "departureTime": "HH:mm",
     "arrivalTime": "HH:mm"
   },
   "accommodation": {
-    "hotelName": "숙소명",
+    "hotelName": "이미지에 적힌 원본 숙소명 (번역 금지, 보이는 그대로)",
     "address": "주소",
     "checkInDate": "YYYY-MM-DD",
     "checkOutDate": "YYYY-MM-DD",
@@ -106,8 +109,7 @@ export const parseWithAI = async (text: string, fileData?: { base64: string, mim
 }
 
 **[데이터 무결성 규칙]**
-- 날짜와 시간이 분리되어 표기된 경우(예: 15JAN 14:30), 이를 결합하여 분석하세요.
-- 도착 시간이 다음 날인 경우(+1) arrivalDate를 하루 뒤로 설정하세요.
+- **강력 권고**: 'hotelName'은 이미지 내의 원본 텍스트(Raw Text)를 100% 보존하세요.
 - 오직 순수 JSON만 출력하세요. 텍스트 설명은 불필요합니다.
 `;
 

@@ -3,18 +3,21 @@ import { MessageCircle, Volume2 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 
 interface PhrasebookTabProps {
-  speak: (text: string) => void;
+  speak: (text: string, lang?: string, audioBase64?: string) => void;
 }
 
-export const PhrasebookTab: React.FC<PhrasebookTabProps> = ({
-  speak
-}) => {
-  const {
-    activeTab,
-    trip
-  } = usePlanner();
+export const PhrasebookTab: React.FC<PhrasebookTabProps> = ({ speak }) => {
+  const { activeTab, trip } = usePlanner();
 
   if (activeTab !== "speech") return null;
+
+  const destination = trip?.metadata?.destination || "";
+  // AI가 생성한 회화 데이터 사용 — fallback 없음
+  const speechItems = trip?.speechData || [];
+  // 재생 버튼용 언어 코드 추정 (Web Speech API)
+  const langCode = trip?.metadata?.destination
+    ? (speechItems[0]?.lang || "ja-JP")
+    : "ja-JP";
 
   return (
     <div className="speech-view" style={{ padding: "16px" }}>
@@ -28,7 +31,7 @@ export const PhrasebookTab: React.FC<PhrasebookTabProps> = ({
         }}
       >
         <MessageCircle size={20} color="var(--primary)" />
-        일본어 필수 회화
+        {destination} 현지 필수 회화
       </h2>
       <div
         style={{
@@ -37,8 +40,8 @@ export const PhrasebookTab: React.FC<PhrasebookTabProps> = ({
           gap: 8,
         }}
       >
-        {trip?.speechData
-          ?.filter((item) => item.category === "basic")
+        {speechItems
+          .filter((item) => item.category === "basic")
           .map((item) => (
             <div
               key={item.id}
@@ -88,7 +91,7 @@ export const PhrasebookTab: React.FC<PhrasebookTabProps> = ({
                 </div>
               </div>
               <button
-                onClick={() => speak(item.jp)}
+                onClick={() => speak(item.jp, langCode, item.audio)}
                 style={{
                   background: "var(--primary)",
                   border: "none",

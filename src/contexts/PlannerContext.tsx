@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 import { TripPlan, LocationPoint, PlannerData, CustomFile } from '../types';
 import { usePlannerAI } from '../hooks/usePlannerAI';
 import { useDocumentAnalysis } from '../hooks/useDocumentAnalysis';
 import { useTripManager } from '../hooks/useTripManager';
 import { useGoogleTTS } from '../hooks/useGoogleTTS';
-import { useCurrency } from '../hooks/useCurrency';
+import { useCurrency, useLiveRate } from '../hooks/useCurrency';
 import { useWeather } from '../hooks/useWeather';
 import { usePlannerState } from '../hooks/planner/usePlannerState';
 import { useFileActions } from '../hooks/planner/useFileActions';
@@ -56,6 +56,8 @@ interface PlannerContextType {
     setPlannerStep: React.Dispatch<React.SetStateAction<number>>;
     plannerData: PlannerData;
     setPlannerData: React.Dispatch<React.SetStateAction<PlannerData>>;
+    scheduleDensity: "여유롭게" | "보통" | "빡빡하게";
+    setScheduleDensity: React.Dispatch<React.SetStateAction<"여유롭게" | "보통" | "빡빡하게">>;
     selectedPlaceIds: string[];
     setSelectedPlaceIds: React.Dispatch<React.SetStateAction<string[]>>;
     dynamicAttractions: any[];
@@ -95,10 +97,8 @@ interface PlannerContextType {
     ticketFileInputRef: React.RefObject<HTMLInputElement>;
     customAiPrompt: string;
     setCustomAiPrompt: React.Dispatch<React.SetStateAction<string>>;
-
-    setPlannerCustomFiles: React.Dispatch<React.SetStateAction<any[]>>;
-    setPlannerAnalyzedFiles: React.Dispatch<React.SetStateAction<any[]>>;
-
+    draftId: string | null;
+    setDraftId: React.Dispatch<React.SetStateAction<string | null>>;
     // App Local But Moved to Context
     isEditingPoint: boolean;
     setIsEditingPoint: React.Dispatch<React.SetStateAction<boolean>>;
@@ -115,9 +115,9 @@ interface PlannerContextType {
     getWeatherForDay: (dayIndex: number) => any;
     getFormattedDate: (daysOffset?: number) => string;
 
-    // JPY/KRW
-    jpyAmount: string;
-    setJpyAmount: React.Dispatch<React.SetStateAction<string>>;
+    // Exchange
+    foreignAmount: string;
+    setForeignAmount: React.Dispatch<React.SetStateAction<string>>;
     krwAmount: string;
     setKrwAmount: React.Dispatch<React.SetStateAction<string>>;
     rate: number;
@@ -137,6 +137,7 @@ interface PlannerContextType {
         title: string;
         message: string;
         onConfirm: () => void;
+        onCancel?: () => void;
         confirmText?: string;
         cancelText?: string;
     };
@@ -172,8 +173,8 @@ interface PlannerContextType {
     toggleComplete: (id: string, e: React.MouseEvent) => void;
     updateReview: (id: string, rating: number, text: string) => void;
     updateLog: (id: string, text: string) => void;
-    speak: (text: string) => void;
-    convert: (val: string, type: "jpy" | "krw") => void;
+    speak: (text: string, lang?: string, audioBase64?: string) => void;
+    convert: (val: string, type: "foreign" | "krw") => void;
     handleReorder: (newOrder: LocationPoint[]) => void;
     deletePoint: (id: string, e?: React.MouseEvent) => void;
     addPoint: (day: number, point: any) => void;
@@ -184,6 +185,7 @@ interface PlannerContextType {
     validateAndAddPlace: (name: string) => Promise<boolean>;
     validateHotel: (name: string) => Promise<void>;
     generatePlanWithAI: (customPrompt?: string) => Promise<void>;
+    generateChecklistWithAI: () => Promise<any[]>;
     handleFileAnalysis: (files: File[], linkedTo?: string) => Promise<void>;
     handleTicketOcr: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
     handleMultipleOcr: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -193,15 +195,19 @@ interface PlannerContextType {
     isValidatingDestination: boolean;
     isDestinationValidated: boolean;
     setIsDestinationValidated: React.Dispatch<React.SetStateAction<boolean>>;
+    fetchAttractionDetailWithAI: (attractionId: string) => Promise<void>;
+    isFetchingDetail: boolean;
     startNewPlanning: () => void;
-    saveDraft: (step: number, customData?: any) => boolean;
+    saveDraft: (step: number, customData?: any) => Promise<string | null>;
     exportTrip: () => void;
     importTrip: (file: File) => Promise<void>;
+    copyShareLink: (targetTrip?: any) => Promise<void>;
     isPreparingOffline: boolean;
     offlineProgress: number;
+    offlinePhase: 'files' | 'map' | 'idle';
     prepareOfflineMap: () => Promise<void>;
     publishTrip: (newTrip: TripPlan) => Promise<void>;
-    shareToKakao: (trip: TripPlan) => void;
+    saveTripToSupabase: (targetTrip: TripPlan, isImmediate?: boolean, overrides?: any) => Promise<void>;
     deleteTrip: (id: string) => Promise<void>;
     resetPlannerState: () => Promise<void>;
 }
@@ -238,20 +244,22 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Core dependencies
     const [toasts, setToasts] = useState<any[]>([]);
-    const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    const showToast = useCallback((message: string, type: "success" | "error" | "info" = "info") => {
         const id = Math.random().toString(36).substr(2, 9);
         setToasts((prev) => [...prev, { id, message, type }]);
-        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 1000);
-    };
-    const closeToast = (id: string) => {
+        const duration = type === "error" ? 5000 : type === "success" ? 3000 : 2000;
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
+    }, []);
+    const closeToast = useCallback((id: string) => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-    };
+    }, []);
 
     const [deleteConfirmModal, setDeleteConfirmModal] = useState({
         isOpen: false,
         title: "",
         message: "",
         onConfirm: () => { },
+        onCancel: undefined as (() => void) | undefined,
         confirmText: "삭제",
         cancelText: "취소"
     });
@@ -273,8 +281,8 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         completedItems, setCompletedItems,
         userReviews, setUserReviews,
         userLogs, setUserLogs,
-        customFiles: tripCustomFiles, setCustomFiles: setTripCustomFiles,
-        analyzedFiles: tripAnalyzedFiles, setAnalyzedFiles: setTripAnalyzedFiles,
+        customFiles, setCustomFiles,
+        analyzedFiles, setAnalyzedFiles,
         handleReorder: handleReorderBase,
         deletePoint,
         deleteTrip,
@@ -284,7 +292,8 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateLog,
         getPoints: getPointsBase,
         calculateProgress,
-        publishTrip
+        publishTrip,
+        saveTripToSupabase
     } = useTripManager({ showToast, setDeleteConfirmModal, user });
 
     // Wrappers
@@ -298,7 +307,15 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [activePlannerDetail, setActivePlannerDetail] = useState<any | null>(null);
 
     // Planning State
-    const plannerState = usePlannerState({ user, trip, setTrip });
+    const plannerState = usePlannerState({
+        user,
+        trip,
+        setTrip,
+        allPoints,
+        setAllPoints,
+        completedItems,
+        setCompletedItems
+    });
     const {
         isPlanning, setIsPlanning,
         plannerStep, setPlannerStep,
@@ -307,16 +324,20 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         dynamicAttractions, setDynamicAttractions,
         recommendedHotels, setRecommendedHotels,
         hotelStrategy, setHotelStrategy,
-        customFiles: plannerCustomFiles, setCustomFiles: setPlannerCustomFiles,
-        analyzedFiles: plannerAnalyzedFiles, setAnalyzedFiles: setPlannerAnalyzedFiles,
-        resetPlannerState
+        scheduleDensity, setScheduleDensity,
+        customAiPrompt, setCustomAiPrompt,
+        draftId, setDraftId,
+        resetPlannerState: resetPlannerStateBase
     } = plannerState;
 
-    const analyzedFiles = isPlanning || plannerStep > 0 ? plannerAnalyzedFiles : tripAnalyzedFiles;
-    const setAnalyzedFiles = isPlanning || plannerStep > 0 ? setPlannerAnalyzedFiles : setTripAnalyzedFiles;
+    const resetPlannerState = useCallback(async () => {
+        resetPlannerStateBase();
+        setView("landing");
+    }, [resetPlannerStateBase, setView]);
 
-    const customFiles = isPlanning || plannerStep > 0 ? plannerCustomFiles : tripCustomFiles;
-    const setCustomFiles = isPlanning || plannerStep > 0 ? setPlannerCustomFiles : (setTripCustomFiles as any);
+    // Unified File State (Single Source of Truth)
+    // No more switching between duplicate lists.
+
 
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
     const [isReEditModalOpen, setIsReEditModalOpen] = useState(false);
@@ -343,29 +364,33 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         validateDestination,
         isValidatingDestination,
         isDestinationValidated,
-        setIsDestinationValidated
+        setIsDestinationValidated,
+        fetchAttractionDetailWithAI,
+        isFetchingDetail,
+        generateChecklistWithAI
     } = usePlannerAI({
         plannerData,
         selectedPlaceIds,
         setSelectedPlaceIds,
-        setPlannerStep,
         showToast,
         hotelStrategy,
         setHotelStrategy,
+        scheduleDensity,
         customFiles,
         dynamicAttractions,
         setDynamicAttractions,
         recommendedHotels,
         setRecommendedHotels,
-        user
+        user,
+        setPlannerData
     });
+
+    const activeTripId = trip?.id ?? 'new-trip';
 
     const {
         isOcrLoading,
         setIsOcrLoading,
         ticketFileInputRef,
-        customAiPrompt,
-        setCustomAiPrompt,
         handleFileAnalysis,
         handleTicketOcr,
         handleMultipleOcr
@@ -375,7 +400,10 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setCustomFiles,
         analyzedFiles,
         setAnalyzedFiles,
-        showToast
+        showToast,
+        setDeleteConfirmModal,
+        user,
+        tripId: activeTripId
     });
 
     // Sync planner destination
@@ -385,11 +413,12 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 ...prev,
                 metadata: {
                     ...(prev?.metadata || {}),
-                    destination: plannerData.destination
+                    destination: plannerData.destination,
+                    destinationInfo: plannerData.destinationInfo // Sync this too
                 }
             }));
         }
-    }, [isPlanning, isDestinationValidated, plannerData.destination, trip?.metadata?.destination, setTrip]);
+    }, [isPlanning, isDestinationValidated, plannerData.destination, plannerData.destinationInfo, trip?.metadata?.destination, setTrip]);
 
     // Reset day on destination change
     useEffect(() => {
@@ -397,6 +426,14 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setScheduleDay(1);
         setSelectedPoint(null);
     }, [trip?.metadata?.destination]);
+
+    // Safety net: If planner is closed but no trip exists in app view, go back to landing
+    useEffect(() => {
+        if (!isPlanning && !trip && view === "app") {
+            console.log("[PlannerContext] No active trip and planning ended, returning to landing.");
+            setView("landing");
+        }
+    }, [isPlanning, trip, view]);
 
     const [isEditingPoint, setIsEditingPoint] = useState(false);
     const [attractionCategoryFilter, setAttractionCategoryFilter] = useState<"all" | "sightseeing" | "food" | "cafe">("all");
@@ -422,11 +459,20 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Currency
     const {
-        jpyAmount, setJpyAmount,
+        foreignAmount, setForeignAmount,
         krwAmount, setKrwAmount,
         rate, setRate,
         convert
     } = useCurrency();
+
+    // 목적지 변경 시 환율 자동 갱신
+    useLiveRate(
+        trip?.metadata?.destination || "",
+        setRate,
+        setForeignAmount,
+        setKrwAmount,
+        trip?.metadata?.destinationInfo as any
+    );
 
     const { speak } = useGoogleTTS();
 
@@ -468,13 +514,16 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setValidatedHotel(null);
         setActivePlannerDetail(null);
         setIsPlanning(true);
-        setView("app");
+        // Do not set view to "app" here; keep it "landing" so the background is the landing page
     };
 
     const { handleFileUpload, deleteFile } = useFileActions({
         setCustomFiles: setCustomFiles as any,
         showToast,
-        user
+        user,
+        saveTripToSupabase,
+        trip,
+        currentFiles: customFiles
     });
 
     const {
@@ -482,7 +531,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         saveDraft,
         exportTrip,
         importTrip,
-        copyShareLink: shareToKakao
+        copyShareLink,
     } = usePlannerActions({
         plannerState,
         setTrip,
@@ -496,13 +545,23 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         completedItems,
         userReviews,
         userLogs,
+        customFiles,
+        analyzedFiles,
         setCompletedItems,
         setUserReviews,
         setUserLogs,
-        setTripCustomFiles: (setTripCustomFiles as any)
+        setCustomFiles,
+        user,
+        setTrips,
+        setPlannerData
     });
 
-    const { isPreparingOffline, offlineProgress, prepareOfflineMap } = useOfflineMap({ allPoints, showToast });
+    const { isPreparingOffline, offlineProgress, offlinePhase, prepareOfflineMap } = useOfflineMap({
+        allPoints,
+        customFiles,
+        defaultFiles: trip?.defaultFiles || [],
+        showToast
+    });
 
     const value = useMemo(() => ({
         view, setView, activeTab, setActiveTab, overviewMode, setOverviewMode,
@@ -513,6 +572,7 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         selectedWeatherLocation, setSelectedWeatherLocation,
         activePlannerDetail, setActivePlannerDetail, isPlanning, setIsPlanning,
         plannerStep, setPlannerStep, plannerData, setPlannerData,
+        scheduleDensity, setScheduleDensity,
         selectedPlaceIds, setSelectedPlaceIds, dynamicAttractions, setDynamicAttractions,
         isSearchingAttractions, setIsSearchingAttractions,
         isSearchingHotels, setIsSearchingHotels,
@@ -525,9 +585,9 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isPlaceAddedError, setIsPlaceAddedError,
         userReviews, setUserReviews, userLogs, setUserLogs, customFiles, setCustomFiles,
         weatherData, isLoadingWeather, weatherError, fetchWeatherData, getWeatherForDay, getFormattedDate,
-        jpyAmount, setJpyAmount, krwAmount, setKrwAmount, rate, setRate,
+        foreignAmount, setForeignAmount, krwAmount, setKrwAmount, rate, setRate,
         isOcrLoading, setIsOcrLoading, analyzedFiles, setAnalyzedFiles, ticketFileInputRef,
-        customAiPrompt, setCustomAiPrompt, isEditingPoint, setIsEditingPoint,
+        customAiPrompt, setCustomAiPrompt, draftId, setDraftId, isEditingPoint, setIsEditingPoint,
         attractionCategoryFilter, setAttractionCategoryFilter, isDragging, setIsDragging,
         toasts, showToast, isReviewModalOpen, setIsReviewModalOpen,
         isReEditModalOpen, setIsReEditModalOpen, tripToEdit, setTripToEdit,
@@ -540,37 +600,44 @@ export const PlannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isDraggingRef, calculateProgress, getPoints,
         toggleComplete, updateReview, updateLog, speak, convert,
         handleReorder, deletePoint, addPoint, addAccommodation, deleteAccommodation,
-        fetchAttractionsWithAI, fetchHotelsWithAI, validateAndAddPlace, validateHotel, generatePlanWithAI, closeToast,
+        fetchAttractionsWithAI, fetchHotelsWithAI, validateAndAddPlace, validateHotel, generatePlanWithAI, generateChecklistWithAI, closeToast,
         handleFileAnalysis, handleTicketOcr, handleMultipleOcr, handleFileUpload, deleteFile,
-        setPlannerCustomFiles, setPlannerAnalyzedFiles,
         validateDestination, isValidatingDestination, isDestinationValidated, setIsDestinationValidated,
+        fetchAttractionDetailWithAI, isFetchingDetail,
         saveAttractionsToCache: () => { },
         startNewPlanning,
         saveDraft,
         exportTrip,
         importTrip,
+        copyShareLink,
         isPreparingOffline,
         offlineProgress,
+        offlinePhase,
         prepareOfflineMap,
-        shareToKakao,
         deleteTrip,
         publishTrip,
+        saveTripToSupabase,
         resetPlannerState,
         isAuthLoading // Added to value
-    }), [
+    }) as PlannerContextType, [
         view, activeTab, overviewMode, scheduleDay, scheduleViewMode, theme, trips, trip,
         allPoints, completedItems, selectedPoint, weatherIndex, selectedWeatherLocation,
-        activePlannerDetail, isPlanning, plannerStep, plannerData, selectedPlaceIds,
+        activePlannerDetail, isPlanning, plannerStep, plannerData, scheduleDensity, selectedPlaceIds,
         dynamicAttractions, isSearchingAttractions, isSearchingHotels, recommendedHotels,
         hotelStrategy, hotelAddStatus, validatedHotel, isValidatingPlace, isPlaceAddedSuccess,
         isPlaceAddedError, userReviews, userLogs, customFiles, weatherData, isLoadingWeather,
-        weatherError, jpyAmount, krwAmount, rate, isOcrLoading, analyzedFiles, customAiPrompt,
+        weatherError, foreignAmount, krwAmount, rate, isOcrLoading, analyzedFiles, customAiPrompt,
         isEditingPoint, attractionCategoryFilter, isDragging, isReviewModalOpen,
-        tripToEdit, deleteConfirmModal, isLoggedIn, currentUser,
-        user, signUpWithPassword, signInWithPassword, isAuthLoading, // Added isAuthLoading
+        tripToEdit, deleteConfirmModal, isLoggedIn, currentUser, draftId,
+        user, signUpWithPassword, signInWithPassword, isAuthLoading,
         selectedFile, calendarDate, isDestinationValidated, isValidatingDestination,
-        isPreparingOffline, offlineProgress, shareToKakao,
-        setPlannerCustomFiles, setPlannerAnalyzedFiles
+        isFetchingDetail, isPreparingOffline, offlineProgress, offlinePhase,
+        fetchAttractionsWithAI, fetchHotelsWithAI, validateAndAddPlace, validateHotel, generatePlanWithAI,
+        handleFileAnalysis, handleTicketOcr, handleMultipleOcr, handleFileUpload, deleteFile,
+        validateDestination, fetchAttractionDetailWithAI, startNewPlanning, saveDraft,
+        exportTrip, importTrip, prepareOfflineMap, deleteTrip, publishTrip, resetPlannerState,
+        toggleComplete, updateReview, updateLog, speak, convert, handleReorder, deletePoint, addPoint, addAccommodation, deleteAccommodation,
+        showToast, closeToast
     ]);
 
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, LogOut, Edit3, RefreshCw, FileText, X, MapPin, Link, Trash2 } from 'lucide-react';
+import { Sparkles, LogOut, Edit3, FileText, X, MapPin, Link, Trash2 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
 import { AppHeader } from './AppHeader';
 import { AuthButtons } from './AuthButtons';
@@ -10,17 +10,16 @@ import { TripPlan } from '../../types';
 export const LandingPage: React.FC = () => {
     const {
         view, setView,
-        trips, setTrips,
+        trips,
         setTrip, setAllPoints,
         isPlanning, setIsPlanning,
         setPlannerStep,
         setPlannerData,
         setDynamicAttractions,
         setSelectedPlaceIds,
-        setPlannerCustomFiles,
-        setPlannerAnalyzedFiles,
         setRecommendedHotels,
         setHotelStrategy,
+        setDraftId,
         setDeleteConfirmModal,
         isLoggedIn, setIsLoggedIn,
         currentUser, setCurrentUser,
@@ -29,7 +28,7 @@ export const LandingPage: React.FC = () => {
         setIsReEditModalOpen, setTripToEdit,
         handleMultipleOcr,
         startNewPlanning,
-        shareToKakao: copyShareLink,
+        copyShareLink,
         signOut,
         deleteTrip
     } = usePlanner();
@@ -202,190 +201,86 @@ export const LandingPage: React.FC = () => {
                                 textAlign: "left",
                             }}
                         >
-                            {/* Draft Section */}
+                            {/* Draft Section - DB based */}
                             {(() => {
-                                const allDraftKeys = Object.keys(localStorage).filter(
-                                    (k) => k.startsWith("trip_draft_v1"),
-                                );
-                                if (allDraftKeys.length === 0) return null;
-
-                                const drafts = allDraftKeys
-                                    .map((key) => {
-                                        try {
-                                            const rawDraft = JSON.parse(
-                                                localStorage.getItem(key)!,
-                                            );
-                                            const draft = rawDraft.data
-                                                ? rawDraft
-                                                : { data: rawDraft, step: 0 };
-                                            return { ...draft, _key: key };
-                                        } catch (e) {
-                                            return null;
-                                        }
-                                    })
-                                    .filter(Boolean) as any[];
-
-                                // Deduplicate by title
-                                const seenTitles = new Set();
-                                const uniqueDrafts = drafts.sort((a, b) => {
-                                    if (a._key === "trip_draft_v1") return -1;
-                                    if (b._key === "trip_draft_v1") return 1;
-                                    return 0;
-                                }).filter(d => {
-                                    const title = d.data?.title || `${d.data?.destination || "여행지"} 여행`;
-                                    if (seenTitles.has(title)) return false;
-                                    seenTitles.add(title);
-                                    return true;
-                                });
-
-                                if (uniqueDrafts.length === 0) return null;
+                                const drafts = trips.filter((t: any) => t.metadata?.is_draft === true);
+                                if (drafts.length === 0) return null;
 
                                 return (
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            gap: 16,
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                padding: "0 8px 12px",
-                                                fontSize: "12px",
-                                                fontWeight: 900,
-                                                color: "#f59e0b",
-                                                letterSpacing: "2px",
-                                                opacity: 0.8,
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 10,
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    height: 1,
-                                                    flex: 1,
-                                                    background:
-                                                        "linear-gradient(to right, rgba(245,158,11,0.5), transparent)",
-                                                }}
-                                            />
-                                            작성 중인 여행 ({uniqueDrafts.length})
-                                            <div
-                                                style={{
-                                                    height: 1,
-                                                    flex: 1,
-                                                    background:
-                                                        "linear-gradient(to left, rgba(245,158,11,0.5), transparent)",
-                                                }}
-                                            />
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                                        <div style={{
+                                            padding: "0 8px 12px",
+                                            fontSize: "12px", fontWeight: 900,
+                                            color: "#f59e0b", letterSpacing: "2px", opacity: 0.8,
+                                            display: "flex", alignItems: "center", gap: 10,
+                                        }}>
+                                            <div style={{ height: 1, flex: 1, background: "linear-gradient(to right, rgba(245,158,11,0.5), transparent)" }} />
+                                            작성 중인 여행 ({drafts.length})
+                                            <div style={{ height: 1, flex: 1, background: "linear-gradient(to left, rgba(245,158,11,0.5), transparent)" }} />
                                         </div>
-                                        {uniqueDrafts.map((draft) => {
-                                            const dest =
-                                                draft.data.destination || "여행지 미정";
-                                            const step = draft.step || 0;
+                                        {drafts.map((draft: any) => {
+                                            const dest = draft.metadata?.destination || draft.destination || "여행지 미정";
+                                            const step = draft.metadata?.draft_step ?? 0;
                                             return (
                                                 <motion.div
-                                                    key={draft._key}
+                                                    key={draft.id}
                                                     whileTap={{ scale: 0.98 }}
                                                     className="glass-card"
                                                     style={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: 16,
-                                                        padding: "16px",
+                                                        display: "flex", alignItems: "center",
+                                                        gap: 16, padding: "16px",
                                                         background: "rgba(245,158,11,0.1)",
                                                         border: "1px solid rgba(245,158,11,0.3)",
-                                                        cursor: "pointer",
-                                                        position: "relative",
+                                                        cursor: "pointer", position: "relative",
                                                     }}
                                                     onClick={() => {
-                                                        // 0. Prevent self-reload backup loop
-                                                        if (draft._key !== "trip_draft_v1") {
-                                                            // 1. Auto-Backup current active draft (trip_draft_v1) to prevent data loss
-                                                            try {
-                                                                const current = localStorage.getItem("trip_draft_v1");
-                                                                if (current) {
-                                                                    const currentData = JSON.parse(current);
-                                                                    // Only backup if it has some data
-                                                                    if (currentData.data?.title || currentData.data?.destination) {
-                                                                        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-                                                                        const backupKey = `trip_draft_v1_autobackup_${timestamp}`;
-                                                                        localStorage.setItem(backupKey, current);
-                                                                        showToast("현재 작업 중이던 내용을 백업했습니다.", "info");
-                                                                    }
-                                                                }
-                                                            } catch (e) {
-                                                                console.error("Backup failed during switch:", e);
-                                                            }
-                                                        }
-
-                                                        // Resume Draft
+                                                        const md = draft.metadata || {};
+                                                        // ✅ Restore draftId so saveDraft upserts (not creates new)
+                                                        setDraftId(draft.id);
                                                         setIsPlanning(true);
-                                                        setPlannerStep(draft.step || 0);
-                                                        setPlannerData(draft.data);
-                                                        if (draft.selectedIds)
-                                                            setSelectedPlaceIds(draft.selectedIds);
-                                                        if (draft.attractions)
-                                                            setDynamicAttractions(draft.attractions);
-                                                        if (draft.customFiles)
-                                                            setPlannerCustomFiles(draft.customFiles);
-                                                        if (draft.analyzedFiles)
-                                                            setPlannerAnalyzedFiles(draft.analyzedFiles);
-                                                        if (draft.trip) {
-                                                            setTrip(draft.trip);
-                                                            setAllPoints(draft.trip.points || []);
+                                                        setPlannerStep(step);
+                                                        setPlannerData({
+                                                            ...md,
+                                                            // Ensure defaults for critical fields if missing
+                                                            title: md.title || "",
+                                                            destination: md.destination || "",
+                                                            startDate: md.startDate || "",
+                                                            endDate: md.endDate || "",
+                                                            travelMode: md.travelMode || "plane",
+                                                            useRentalCar: md.useRentalCar || false,
+                                                            companion: md.companion || "",
+                                                            transport: md.transport || "rental",
+                                                            accommodations: md.accommodations || [],
+                                                            peopleCount: md.peopleCount || 1,
+                                                            theme: md.theme || "",
+                                                            pace: md.pace || "normal",
+                                                        } as any);
+                                                        if (md.selectedIds) setSelectedPlaceIds(md.selectedIds);
+                                                        if (md.attractions) setDynamicAttractions(md.attractions);
+                                                        if (md.hotels) setRecommendedHotels(md.hotels);
+                                                        if (md.hotelStrategy) setHotelStrategy(md.hotelStrategy);
+                                                        if (draft.points) {
+                                                            setTrip({ ...draft, points: draft.points });
+                                                            setAllPoints(draft.points);
                                                         }
-                                                        if (draft.hotels)
-                                                            setRecommendedHotels(draft.hotels);
-                                                        if (draft.hotelStrategy)
-                                                            setHotelStrategy(draft.hotelStrategy);
-
-                                                        setView("app");
-                                                        setActiveTab("summary");
                                                     }}
                                                 >
-                                                    <div
-                                                        style={{
-                                                            width: 50,
-                                                            height: 50,
-                                                            borderRadius: "12px",
-                                                            background: "rgba(245,158,11,0.2)",
-                                                            border: "1px solid rgba(245,158,11,0.5)",
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "center",
-                                                            color: "#f59e0b",
-                                                        }}
-                                                    >
+                                                    <div style={{
+                                                        width: 50, height: 50, borderRadius: "12px",
+                                                        background: "rgba(245,158,11,0.2)",
+                                                        border: "1px solid rgba(245,158,11,0.5)",
+                                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                                        color: "#f59e0b",
+                                                    }}>
                                                         <Edit3 size={24} />
                                                     </div>
                                                     <div style={{ flex: 1, textAlign: "left" }}>
-                                                        <div
-                                                            style={{
-                                                                fontWeight: 800,
-                                                                fontSize: "16px",
-                                                                color: "white",
-                                                            }}
-                                                        >
-                                                            {draft.data.title || `${dest} 여행`}{" "}
-                                                            <span
-                                                                style={{
-                                                                    fontSize: 12,
-                                                                    fontWeight: 400,
-                                                                    opacity: 0.7,
-                                                                }}
-                                                            >
-                                                                작성 중...
-                                                            </span>
+                                                        <div style={{ fontWeight: 800, fontSize: "16px", color: "white" }}>
+                                                            {draft.title || `${dest} 여행`}{" "}
+                                                            <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>작성 중...</span>
                                                         </div>
-                                                        <div
-                                                            style={{
-                                                                fontSize: 13,
-                                                                color: "var(--text-dim)",
-                                                                marginTop: 2,
-                                                            }}
-                                                        >
-                                                            Step {step + 1} 진행 중
+                                                        <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 2 }}>
+                                                            {step} / 8 단계 진행 중
                                                         </div>
                                                     </div>
                                                     <button
@@ -394,29 +289,17 @@ export const LandingPage: React.FC = () => {
                                                             setDeleteConfirmModal({
                                                                 isOpen: true,
                                                                 title: "작성 중인 여행 삭제",
-                                                                message:
-                                                                    "작성 중인 내용을 삭제하시겠습니까?",
+                                                                message: "작성 중인 내용을 삭제하시겠습니까?",
                                                                 onConfirm: () => {
-                                                                    localStorage.removeItem(draft._key);
-                                                                    showToast(
-                                                                        "작성 중인 내용이 삭제되었습니다.",
-                                                                    );
-                                                                    setDeleteConfirmModal({
-                                                                        isOpen: false,
-                                                                        title: "",
-                                                                        message: "",
-                                                                        onConfirm: () => { },
-                                                                    });
+                                                                    deleteTrip(draft.id);
+                                                                    setDeleteConfirmModal({ isOpen: false, title: "", message: "", onConfirm: () => { } });
                                                                 },
                                                             });
                                                         }}
                                                         style={{
-                                                            padding: 8,
-                                                            background: "rgba(0,0,0,0.3)",
-                                                            borderRadius: "50%",
-                                                            border: "none",
-                                                            color: "#ef4444",
-                                                            cursor: "pointer",
+                                                            padding: 8, background: "rgba(0,0,0,0.3)",
+                                                            borderRadius: "50%", border: "none",
+                                                            color: "#ef4444", cursor: "pointer",
                                                         }}
                                                     >
                                                         <X size={16} />
@@ -434,7 +317,10 @@ export const LandingPage: React.FC = () => {
                                 > = {};
                                 const groupKeys: string[] = [];
 
-                                trips.forEach((t: any) => {
+                                // Exclude drafts from published section
+                                const publishedTrips = trips.filter((t: any) => !t.metadata?.is_draft);
+
+                                publishedTrips.forEach((t: any) => {
                                     const period =
                                         t.period ||
                                         (t.metadata && t.metadata.period) ||
@@ -528,7 +414,8 @@ export const LandingPage: React.FC = () => {
                                                                             startDate: tripItem.startDate || tripItem.metadata?.startDate || "",
                                                                             endDate: tripItem.endDate || tripItem.metadata?.endDate || "",
                                                                             useRentalCar: tripItem.useRentalCar || tripItem.metadata?.useRentalCar || false,
-                                                                            primaryColor: tripItem.color || tripItem.metadata?.primaryColor || "#00d4ff"
+                                                                            primaryColor: tripItem.color || tripItem.metadata?.primaryColor || "#00d4ff",
+                                                                            destinationInfo: tripItem.metadata?.destinationInfo || tripItem.destinationInfo || undefined,
                                                                         },
                                                                         points: tripItem.points || [],
                                                                         days: tripItem.days || [],

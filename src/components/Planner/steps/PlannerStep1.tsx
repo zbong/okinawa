@@ -1,7 +1,8 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
-    ChevronLeft, ChevronRight, CheckCircle, Loader2
+    ChevronLeft, ChevronRight, CheckCircle, Loader2, Save
 } from 'lucide-react';
 import { usePlanner } from '../../../contexts/PlannerContext';
 import { StepIndicator } from '../../Common/StepIndicator';
@@ -10,8 +11,8 @@ export const PlannerStep1: React.FC = () => {
     const {
         plannerData,
         setPlannerData,
-        setPlannerStep,
         setIsPlanning,
+        setPlannerStep,
         analyzedFiles,
         setView,
         calendarDate,
@@ -21,11 +22,49 @@ export const PlannerStep1: React.FC = () => {
         isValidatingDestination,
         isDestinationValidated,
         setIsDestinationValidated,
-        setCalendarDate
+        setCalendarDate,
+        resetPlannerState,
+        saveDraft,
+        showToast,
+        user,
+        trip
     } = usePlanner();
+
+    React.useEffect(() => {
+        const syncFromDB = async () => {
+            if (!user || !trip?.id) return;
+            try {
+                const { supabase } = await import('../../../utils/supabase');
+                const { data } = await supabase.from('trips').select('metadata').eq('id', trip.id).single();
+                if (data?.metadata) {
+                    setPlannerData(prev => ({
+                        ...prev,
+                        destination: data.metadata.destination || prev.destination,
+                        startDate: data.metadata.startDate || prev.startDate,
+                        endDate: data.metadata.endDate || prev.endDate,
+                        useRentalCar: data.metadata.useRentalCar ?? prev.useRentalCar,
+                        companion: data.metadata.companion || prev.companion,
+                        title: data.metadata.title || prev.title,
+                        destinationInfo: data.metadata.destinationInfo || prev.destinationInfo,
+                        accommodations: data.metadata.accommodations || prev.accommodations,
+                        outboundFlights: data.metadata.outboundFlights || prev.outboundFlights,
+                        inboundFlights: data.metadata.inboundFlights || prev.inboundFlights
+                    }));
+                    if (data.metadata.destination) setIsDestinationValidated(true); // If loaded from draft, assume validated
+                    console.log("🔄 DB 싱크 완료(Step 1): 화면 진입 시 최신 상태로 초기화");
+                }
+            } catch (e) {
+                console.error("DB Sync error:", e);
+            }
+        };
+        syncFromDB();
+    }, [user, trip?.id, setPlannerData, setIsDestinationValidated]);
+
+    const [isMounted, setIsMounted] = React.useState(false);
 
     // Auto-switch calendar to start date if exists, otherwise show today
     React.useEffect(() => {
+        setIsMounted(true);
         if (plannerData.startDate) {
             const date = new Date(plannerData.startDate);
             if (!isNaN(date.getTime())) {
@@ -44,7 +83,7 @@ export const PlannerStep1: React.FC = () => {
             exit={{ opacity: 0 }}
             style={{ width: "100%", maxWidth: "800px" }}
         >
-            <StepIndicator currentStep={1} totalSteps={6} />
+            <StepIndicator currentStep={1} totalSteps={8} />
             <h2
                 style={{
                     fontSize: "32px",
@@ -174,6 +213,7 @@ export const PlannerStep1: React.FC = () => {
                                     setPlannerData({
                                         ...plannerData,
                                         destination: e.target.value,
+                                        isDestinationValidated: false,
                                     });
                                     setIsDestinationValidated(false); // Reset validation on edit
                                 }}
@@ -561,72 +601,96 @@ export const PlannerStep1: React.FC = () => {
                 </div>
             </div>
 
-            <button
-                onClick={() => setPlannerStep(2)}
-                disabled={
-                    !plannerData.destination ||
-                    !plannerData.startDate ||
-                    !plannerData.endDate ||
-                    !isDestinationValidated
-                }
-                style={{
-                    width: "100%",
-                    marginTop: "30px",
-                    padding: "20px",
-                    borderRadius: "16px",
-                    border: "none",
-                    background:
-                        plannerData.destination &&
-                            plannerData.startDate &&
-                            plannerData.endDate &&
-                            isDestinationValidated
-                            ? "var(--primary)"
-                            : "rgba(255,255,255,0.1)",
-                    color:
-                        plannerData.destination &&
-                            plannerData.startDate &&
-                            plannerData.endDate &&
-                            isDestinationValidated
-                            ? "black"
-                            : "rgba(255,255,255,0.3)",
-                    fontWeight: 900,
-                    fontSize: "18px",
-                    cursor:
-                        plannerData.destination &&
-                            plannerData.startDate &&
-                            plannerData.endDate &&
-                            isDestinationValidated
-                            ? "pointer"
-                            : "not-allowed",
-                    boxShadow:
-                        plannerData.destination &&
-                            plannerData.startDate &&
-                            plannerData.endDate &&
-                            isDestinationValidated
-                            ? "0 10px 30px rgba(0,212,255,0.3)"
-                            : "none",
-                }}
-            >
-                {isDestinationValidated ? "다음 단계로 (여행 스타일)" : "목적지 검증이 필요합니다"}
-            </button>
-
-            <button
-                onClick={() => setIsPlanning(false)}
-                style={{
-                    width: "100%",
-                    marginTop: "12px",
-                    padding: "16px",
-                    borderRadius: "16px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "transparent",
-                    color: "rgba(255,255,255,0.5)",
-                    fontWeight: 600,
-                    fontSize: "15px",
-                    cursor: "pointer",
-                }}
-            >
-                취소하고 돌아가기
-            </button>
+            {/* Portal Action Buttons */}
+            {isMounted && document.getElementById('planner-nav-actions') && createPortal(
+                <div style={{ display: "flex", gap: "10px", width: "100%" }}>
+                    <button
+                        onClick={() => resetPlannerState()}
+                        style={{
+                            flex: 1,
+                            padding: "16px",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "rgba(255,255,255,0.05)",
+                            color: "rgba(255,255,255,0.6)",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                        }}
+                    >
+                        취소
+                    </button>
+                    <button
+                        onClick={async () => {
+                            await saveDraft(1);
+                            showToast('임시 저장되었습니다', 'success');
+                            setTimeout(() => {
+                                setIsPlanning(false);
+                                setView("landing");
+                            }, 500);
+                        }}
+                        style={{
+                            flex: 1,
+                            padding: "16px",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(255,255,255,0.2)",
+                            background: "rgba(255,255,255,0.1)",
+                            color: "white",
+                            fontWeight: 700,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            cursor: "pointer",
+                        }}
+                    >
+                        <Save size={16} /> 저장
+                    </button>
+                    <button
+                        onClick={() => setPlannerStep(2)}
+                        disabled={
+                            !plannerData.destination ||
+                            !plannerData.startDate ||
+                            !plannerData.endDate ||
+                            !isDestinationValidated
+                        }
+                        style={{
+                            flex: 2,
+                            padding: "16px",
+                            borderRadius: "14px",
+                            border: "none",
+                            background:
+                                plannerData.destination &&
+                                    plannerData.startDate &&
+                                    plannerData.endDate &&
+                                    isDestinationValidated
+                                    ? "var(--primary)"
+                                    : "rgba(255,255,255,0.05)",
+                            color:
+                                plannerData.destination &&
+                                    plannerData.startDate &&
+                                    plannerData.endDate &&
+                                    isDestinationValidated
+                                    ? "black"
+                                    : "rgba(255,255,255,0.2)",
+                            fontWeight: 800,
+                            cursor:
+                                plannerData.destination &&
+                                    plannerData.startDate &&
+                                    plannerData.endDate &&
+                                    isDestinationValidated
+                                    ? "pointer"
+                                    : "not-allowed",
+                        }}
+                    >
+                        {!isDestinationValidated
+                            ? "목적지 체크 필요"
+                            : (!plannerData.startDate || !plannerData.endDate)
+                                ? "여행 날짜 선택 필요"
+                                : "다음 단계로"}
+                    </button>
+                </div>,
+                document.getElementById('planner-nav-actions')!
+            )}
         </motion.div>
     );
 };

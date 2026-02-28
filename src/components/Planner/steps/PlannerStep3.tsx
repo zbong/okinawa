@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
     Plane, Save
@@ -26,10 +27,37 @@ export const PlannerStep3: React.FC = () => {
         handleMultipleOcr,
         isOcrLoading,
         handleFileAnalysis,
-        saveDraft
+        saveDraft,
+        setCustomFiles,
+        setView,
+        user,
+        trip
     } = usePlanner();
 
+    React.useEffect(() => {
+        const syncFromDB = async () => {
+            if (!user || !trip?.id) return;
+            try {
+                const { supabase } = await import('../../../utils/supabase');
+                const { data } = await supabase.from('trips').select('custom_files, analyzed_files').eq('id', trip.id).single();
+                if (data) {
+                    if (data.custom_files) setCustomFiles(data.custom_files);
+                    if (data.analyzed_files) setAnalyzedFiles(data.analyzed_files);
+                    console.log("🔄 DB 싱크 완료(Step 3): 화면 진입 시 최신 상태로 초기화");
+                }
+            } catch (e) {
+                console.error("DB Sync error:", e);
+            }
+        };
+        syncFromDB();
+    }, [user, trip?.id, setCustomFiles, setAnalyzedFiles]);
+
+    const [isMounted, setIsMounted] = React.useState(false);
     const [isDragOver, setIsDragOver] = React.useState(false);
+
+    React.useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -60,12 +88,12 @@ export const PlannerStep3: React.FC = () => {
                 width: "100%",
                 maxWidth: "700px",
                 marginTop: "40px",
-                paddingBottom: "100px",
+                paddingBottom: "40px",
                 position: "relative",
                 zIndex: 10,
             }}
         >
-            <StepIndicator currentStep={3} totalSteps={5} />
+            <StepIndicator currentStep={3} totalSteps={8} />
             <h2
                 style={{
                     fontSize: "32px",
@@ -246,6 +274,8 @@ export const PlannerStep3: React.FC = () => {
                 setAnalyzedFiles={setAnalyzedFiles}
                 showToast={showToast}
                 setDeleteConfirmModal={setDeleteConfirmModal}
+                setPlannerData={setPlannerData}
+                setCustomFiles={setCustomFiles}
             />
 
             <div style={{ display: "grid", gap: "20px" }}>
@@ -468,16 +498,19 @@ export const PlannerStep3: React.FC = () => {
                     </>
                 )
                 }
+            </div>
 
-                <div style={{ display: "flex", gap: "15px", marginTop: "30px" }}>
+            {/* Portal Action Buttons */}
+            {isMounted && document.getElementById('planner-nav-actions') && createPortal(
+                <div style={{ display: "flex", gap: "15px", width: "100%" }}>
                     <button
                         onClick={() => setPlannerStep(2)}
                         style={{
                             flex: 1,
-                            padding: "20px",
-                            borderRadius: "20px",
+                            padding: "18px",
+                            borderRadius: "18px",
                             border: "1px solid rgba(255,255,255,0.1)",
-                            background: "transparent",
+                            background: "rgba(255,255,255,0.05)",
                             color: "white",
                             fontWeight: 800,
                             cursor: "pointer",
@@ -486,24 +519,27 @@ export const PlannerStep3: React.FC = () => {
                         이전
                     </button>
                     <button
-                        onClick={() => {
-                            if (saveDraft(3)) {
-                                showToast('여행이 임시 저장되었습니다', 'success');
-                                setTimeout(() => setIsPlanning(false), 500);
-                            }
+                        onClick={async () => {
+                            await saveDraft(3);
+                            showToast('여행이 임시 저장되었습니다', 'success');
+                            setTimeout(() => {
+                                setIsPlanning(false);
+                                setView("landing");
+                            }, 500);
                         }}
                         style={{
                             flex: 1,
-                            padding: "20px",
-                            borderRadius: "20px",
-                            border: "1px solid rgba(255,255,255,0.3)",
-                            background: "rgba(255,255,255,0.15)",
+                            padding: "18px",
+                            borderRadius: "18px",
+                            border: "1px solid rgba(255,255,255,0.2)",
+                            background: "rgba(255,255,255,0.1)",
                             color: "white",
                             fontWeight: 800,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             gap: 6,
+                            cursor: "pointer",
                         }}
                     >
                         <Save size={18} /> 저장
@@ -532,8 +568,8 @@ export const PlannerStep3: React.FC = () => {
                         disabled={!plannerData.travelMode}
                         style={{
                             flex: 2,
-                            padding: "20px",
-                            borderRadius: "20px",
+                            padding: "18px",
+                            borderRadius: "18px",
                             border: "none",
                             background: plannerData.travelMode
                                 ? "var(--primary)"
@@ -543,12 +579,14 @@ export const PlannerStep3: React.FC = () => {
                                 : "rgba(255,255,255,0.3)",
                             fontWeight: 800,
                             cursor: plannerData.travelMode ? "pointer" : "not-allowed",
+                            boxShadow: plannerData.travelMode ? "0 8px 25px rgba(0, 212, 255, 0.3)" : "none"
                         }}
                     >
                         다음 단계로 (명소 추천)
                     </button>
-                </div>
-            </div>
+                </div>,
+                document.getElementById('planner-nav-actions')!
+            )}
         </motion.div>
     );
 };

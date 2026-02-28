@@ -1,21 +1,25 @@
 import React from 'react';
 import { usePlanner } from '../../contexts/PlannerContext';
+import { getDestinationInfo } from '../../utils/destinationHelper';
 
 interface ExchangeTabProps {
-  convert: (val: string, type: "jpy" | "krw") => void;
+  convert: (val: string, type: "foreign" | "krw") => void;
 }
 
-export const ExchangeTab: React.FC<ExchangeTabProps> = ({
-  convert
-}) => {
+export const ExchangeTab: React.FC<ExchangeTabProps> = ({ convert }) => {
   const {
     activeTab,
-    jpyAmount,
+    trip,
+    foreignAmount,
     krwAmount,
-    rate
+    rate,
   } = usePlanner();
 
   if (activeTab !== "exchange") return null;
+
+  const destination = trip?.metadata?.destination || "";
+  // AI가 생성한(또는 하드코딩된) 국가 정보 사용
+  const destInfo = trip?.metadata?.destinationInfo || getDestinationInfo(destination);
 
   return (
     <div
@@ -41,25 +45,30 @@ export const ExchangeTab: React.FC<ExchangeTabProps> = ({
         <h3
           style={{
             color: "var(--text-primary)",
-            marginBottom: 20,
+            marginBottom: 4,
           }}
         >
           💱 환율 계산기
         </h3>
+        <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 20, opacity: 0.7 }}>
+          {destInfo.flag} {destInfo.country} · {destInfo.currencyName} ({destInfo.currencySymbol})
+        </p>
 
+        {/* 외화 입력 */}
         <div style={{ marginBottom: 15 }}>
           <label
             style={{
               color: "var(--text-secondary)",
               fontSize: 12,
+              fontWeight: 600,
             }}
           >
-            JPY
+            {destInfo.currencySymbol} {destInfo.currency}
           </label>
           <input
             type="text"
-            value={jpyAmount}
-            onChange={(e) => convert(e.target.value, "jpy")}
+            value={foreignAmount}
+            onChange={(e) => convert(e.target.value, "foreign")}
             style={{
               width: "100%",
               padding: 10,
@@ -68,18 +77,21 @@ export const ExchangeTab: React.FC<ExchangeTabProps> = ({
               background: "var(--input-bg)",
               color: "var(--text-primary)",
               marginTop: 5,
+              boxSizing: "border-box",
             }}
           />
         </div>
 
+        {/* 원화 입력 */}
         <div style={{ marginBottom: 20 }}>
           <label
             style={{
               color: "var(--text-secondary)",
               fontSize: 12,
+              fontWeight: 600,
             }}
           >
-            KRW
+            ₩ KRW
           </label>
           <input
             type="text"
@@ -93,6 +105,7 @@ export const ExchangeTab: React.FC<ExchangeTabProps> = ({
               background: "var(--input-bg)",
               color: "var(--text-primary)",
               marginTop: 5,
+              boxSizing: "border-box",
             }}
           />
         </div>
@@ -105,7 +118,12 @@ export const ExchangeTab: React.FC<ExchangeTabProps> = ({
             marginBottom: 20,
           }}
         >
-          100 JPY ≈ {Math.round(rate * 100).toLocaleString()} KRW
+          {destInfo.currencySymbol}100 {destInfo.currency} ≈ {Math.round(rate * 100).toLocaleString()} KRW
+        </p>
+
+        {/* 유의사항 */}
+        <p style={{ textAlign: "center", fontSize: 10, color: "var(--text-secondary)", opacity: 0.5 }}>
+          * 기준 환율은 앱 시작 시 자동으로 업데이트됩니다
         </p>
       </div>
     </div>

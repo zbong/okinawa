@@ -1,5 +1,5 @@
-import React from "react";
-import { DEFAULT_SPEECH_DATA } from "../../../utils/defaults";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Hotel, MapPin, Calendar, Plane, Clock, Save } from "lucide-react";
 import { usePlanner } from "../../../contexts/PlannerContext";
@@ -18,6 +18,11 @@ export const PlannerStep8: React.FC = () => {
         analyzedFiles,
         setActiveTab
     } = usePlanner();
+
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const displayPoints = trip?.points || [];
     const [isPublishing, setIsPublishing] = React.useState(false);
@@ -146,116 +151,118 @@ export const PlannerStep8: React.FC = () => {
                     <div style={{ textAlign: 'center', padding: '40px', opacity: 0.5 }}>일정 데이터가 없습니다.</div>
                 )}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div style={{ display: "flex", gap: "12px" }}>
-                    <button
-                        onClick={() => setPlannerStep(6)}
-                        style={{
-                            flex: 1,
-                            padding: "18px",
-                            borderRadius: "18px",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            background: "rgba(255,255,255,0.05)",
-                            color: "white",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            fontSize: "14px"
-                        }}
-                    >
-                        이전 단계
-                    </button>
-                    <button
-                        onClick={() => {
-                            if (saveDraft(8)) {
+            {/* Portal Action Buttons */}
+            {isMounted && document.getElementById('planner-nav-actions') && createPortal(
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
+                    <div style={{ display: "flex", gap: "15px" }}>
+                        <button
+                            onClick={() => setPlannerStep(6)}
+                            style={{
+                                flex: 1,
+                                padding: "18px",
+                                borderRadius: "18px",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                background: "rgba(255,255,255,0.05)",
+                                color: "white",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                            }}
+                        >
+                            이전 단계
+                        </button>
+                        <button
+                            onClick={async () => {
+                                await saveDraft(8);
                                 showToast("현재 기획 상태가 초안으로 저장되었습니다.", "success");
                                 setIsPlanning(false);
                                 setPlannerStep(0);
                                 setView("landing");
+                            }}
+                            style={{
+                                flex: 2,
+                                padding: "18px",
+                                borderRadius: "18px",
+                                border: "1px solid rgba(255,255,255,0.2)",
+                                background: "rgba(255,255,255,0.1)",
+                                color: "white",
+                                fontWeight: 800,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 6,
+                                cursor: "pointer",
+                            }}
+                        >
+                            <Save size={18} /> 현재까지의 기획 저장
+                        </button>
+                    </div>
+                    <button
+                        disabled={isPublishing}
+                        onClick={async () => {
+                            if (isPublishing) return;
+                            if (!trip || !trip.points || trip.points.length === 0) {
+                                showToast(
+                                    "일정 데이터가 생성되지 않았습니다. 이전 단계로 돌아가 AI 코스 생성을 다시 시도해 주세요.",
+                                    "error"
+                                );
+                                return;
+                            }
+                            setIsPublishing(true);
+                            console.log("[PlannerStep8] Publishing trip [metadata]:", trip?.metadata);
+                            const publishedTrip = {
+                                ...trip,
+                                metadata: {
+                                    ...trip?.metadata,
+                                    title: trip?.metadata?.title || "나의 멋진 여행",
+                                    period: trip?.metadata?.period || "기간 미정",
+                                    destination: trip?.metadata?.destination || "목적지 미정",
+                                    primaryColor: trip?.metadata?.primaryColor || "#00d4ff",
+                                },
+                                title: trip.metadata?.title || "나의 멋진 여행",
+                                period: trip.metadata?.period || "기간 미정",
+                                destination: trip.metadata?.destination || "목적지 미정",
+                                color: trip.metadata?.primaryColor || "#00d4ff",
+                                id: (trip.id && !trip.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ? trip.id : `trip-${Date.now()}`,
+                                progress: 0,
+                                customFiles: customFiles || [],
+                                analyzedFiles: analyzedFiles || [],
+                                speechData: trip.speechData || []
+                            };
+
+                            try {
+                                await publishTrip(publishedTrip);
+                                await resetPlannerState();
+                                setActiveTab("summary");
+                                setIsPlanning(false);
+                                setPlannerStep(0);
+                                setView("landing");
+                                showToast("여행 가이드 발행이 완료되었습니다! 목록에서 확인해 보세요.", "success");
+                            } catch (e) {
+                                console.error("Failed to publish trip:", e);
+                                showToast("가이드 발행 중 오류가 발생했습니다. 다시 시도해 주세요.", "error");
+                            } finally {
+                                setIsPublishing(false);
                             }
                         }}
                         style={{
-                            flex: 1,
+                            width: "100%",
                             padding: "18px",
                             borderRadius: "18px",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            background: "rgba(255,255,255,0.1)",
-                            color: "white",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            fontSize: "14px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 8
+                            border: "none",
+                            background: "var(--primary)",
+                            color: "black",
+                            fontWeight: 900,
+                            fontSize: "18px",
+                            cursor: isPublishing ? "default" : "pointer",
+                            boxShadow: "0 8px 25px rgba(0, 212, 255, 0.3)",
+                            opacity: isPublishing ? 0.7 : 1
                         }}
                     >
-                        <Save size={16} /> 현재까지의 기획 저장
+                        {isPublishing ? "가이드 생성 중..." : "최종 가이드 생성 및 저장 완료"}
                     </button>
-                </div>
-                <button
-                    onClick={async () => {
-                        if (isPublishing) return;
-                        if (!trip || !trip.points || trip.points.length === 0) {
-                            showToast(
-                                "일정 데이터가 생성되지 않았습니다. 이전 단계로 돌아가 AI 코스 생성을 다시 시도해 주세요.",
-                                "error"
-                            );
-                            return;
-                        }
-                        setIsPublishing(true);
-                        const publishedTrip = {
-                            ...trip,
-                            title: trip.metadata?.title || "나의 멋진 여행",
-                            period: trip.metadata?.period || "기간 미정",
-                            destination: trip.metadata?.destination || "목적지 미정",
-                            color: trip.metadata?.primaryColor || "#00d4ff",
-                            id: (trip.id && !trip.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ? trip.id : `trip-${Date.now()}`,
-                            progress: 0,
-                            customFiles: customFiles || [],
-                            analyzedFiles: analyzedFiles || [],
-                            speechData: DEFAULT_SPEECH_DATA
-                        };
-
-                        try {
-                            // 1. Publish to Supabase
-                            await publishTrip(publishedTrip);
-
-                            // 2. Clear Draft from Supabase/Local
-                            await resetPlannerState();
-
-                            // 3. UI Transition
-                            setActiveTab("summary");
-                            setIsPlanning(false);
-                            setPlannerStep(0);
-                            setView("landing");
-
-                            showToast("여행 가이드 발행이 완료되었습니다! 목록에서 확인해 보세요.", "success");
-                        } catch (e) {
-                            console.error("Failed to publish trip:", e);
-                            showToast("가이드 발행 중 오류가 발생했습니다. 다시 시도해 주세요.", "error");
-                        } finally {
-                            setIsPublishing(false);
-                        }
-                    }}
-                    style={{
-                        width: "100%",
-                        padding: "20px",
-                        borderRadius: "20px",
-                        border: "none",
-                        background: "var(--primary)",
-                        color: "black",
-                        fontWeight: 900,
-                        fontSize: "18px",
-                        cursor: "pointer",
-                        zIndex: 10,
-                        position: "relative",
-                        marginTop: "10px",
-                        boxShadow: "0 10px 25px rgba(0, 212, 255, 0.3)"
-                    }}
-                >
-                    {isPublishing ? "생성중입니다..." : "최종 가이드 생성 및 저장"}
-                </button>
-            </div>
+                </div>,
+                document.getElementById('planner-nav-actions')!
+            )}
         </motion.div>
     );
 };

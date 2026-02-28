@@ -240,14 +240,18 @@ export const parseUniversalDocument = (text: string) => {
     return { type: 'unknown', startDate: uniqueDates[0] || '미확인', endDate: uniqueDates[uniqueDates.length - 1] || '미확인' };
 };
 
+export const extractRawTextFromFile = async (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsText(file);
+    });
+};
+
 export const extractTextFromFile = async (file: File): Promise<string> => {
     const fileName = file.name.toLowerCase();
     if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(extractTextFromHtml(e.target?.result as string));
-            reader.readAsText(file);
-        });
+        return extractRawTextFromFile(file);
     }
     if (fileName.endsWith('.pdf')) return extractTextFromPdf(file);
     return extractTextFromImage(file);

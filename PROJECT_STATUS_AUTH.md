@@ -13,15 +13,12 @@ Authentication is fully integrated, and the Database persistence layer (Supabase
    - Automatically migrates/saves new plans to the cloud if the user is logged in.
    - Fallback to `localStorage` for guest users remains active.
 4. **Context Ordering**: Fixed hook dependency order in `PlannerContext.tsx` to allow `useTripManager` to access `user` data.
+5. **SQL Execution**: Performed. Table schema and RLS policies applied.
+6. **File Storage**: Supabase Storage (`trip-files`) bucket fully integrated for OCR & user file uploads.
+7. **Sharing Improvements**: Link generation optimized and using DB persistence seamlessly (Now includes conversational data).
 
 ## 📋 Next Steps
-1. **SQL Execution (USER ACTION REQUIRED)**:
-   - 복사해서 Supabase SQL Editor에서 실행해야 할 파일: **`SUPABASE_SCHEMA.sql`**
-   - 이 스크립트를 실행해야 실제 데이터를 저장할 테이블이 생성됩니다.
-2. **File Storage**:
-   - OCR이나 사용자 업로드 파일을 Supabase Storage bucket (`trip-files`)에 저장하도록 확장.
-3. **Sharing Improvements**:
-   - DB에 저장된 실제 여행 ID를 기반으로 공유 링크 생성 최적화.
+- (All major Auth & DB integrations are complete. Monitoring for edge cases.)
 
 ---
-*Recorded at: 2026-02-09 19:55 (Local)*
+*Updated at: 2026-02-23*

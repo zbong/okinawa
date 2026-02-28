@@ -2,17 +2,21 @@ import React from 'react';
 import { Plane, Hotel, Loader2, Trash2 } from 'lucide-react';
 
 interface AnalyzedFilesListProps {
-    analyzedFiles: any[]; // Replace 'any' with proper type if available
+    analyzedFiles: any[];
     setAnalyzedFiles: (files: any[]) => void;
     showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
     setDeleteConfirmModal: (modalConfig: any) => void;
+    setPlannerData: (updater: (prev: any) => any) => void;
+    setCustomFiles: (updater: (prev: any[]) => any[]) => void;
 }
 
 export const AnalyzedFilesList: React.FC<AnalyzedFilesListProps> = ({
     analyzedFiles,
     setAnalyzedFiles,
     showToast,
-    setDeleteConfirmModal
+    setDeleteConfirmModal,
+    setPlannerData,
+    setCustomFiles,
 }) => {
     return (
         <div style={{ marginTop: "30px", marginBottom: "30px" }}>
@@ -21,6 +25,17 @@ export const AnalyzedFilesList: React.FC<AnalyzedFilesListProps> = ({
                 <button
                     onClick={() => {
                         setAnalyzedFiles([]);
+                        // 분석 파일에서 추출된 flight legs와 customFiles도 같이 초기화
+                        setPlannerData((prev: any) => ({
+                            ...prev,
+                            outboundFlights: [],
+                            inboundFlights: [],
+                        }));
+                        setCustomFiles((prev: any[]) =>
+                            prev.filter((f: any) =>
+                                !analyzedFiles.some(af => af.name === f.name)
+                            )
+                        );
                         showToast("분석 내역이 초기화되었습니다.");
                     }}
                     style={{
@@ -87,6 +102,20 @@ export const AnalyzedFilesList: React.FC<AnalyzedFilesListProps> = ({
                                                 analyzedFiles.filter(
                                                     (f) => f.id !== file.id && f.name !== file.name,
                                                 ),
+                                            );
+                                            // 해당 파일과 연결된 flight leg도 제거
+                                            setPlannerData((prev: any) => ({
+                                                ...prev,
+                                                outboundFlights: (prev.outboundFlights || []).filter(
+                                                    (leg: any) => leg.linkedFileId !== file.name
+                                                ),
+                                                inboundFlights: (prev.inboundFlights || []).filter(
+                                                    (leg: any) => leg.linkedFileId !== file.name
+                                                ),
+                                            }));
+                                            // customFiles에서도 제거
+                                            setCustomFiles((prev: any[]) =>
+                                                prev.filter((f: any) => f.name !== file.name)
                                             );
                                             setDeleteConfirmModal({
                                                 isOpen: false,

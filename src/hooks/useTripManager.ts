@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { TripPlan, LocationPoint, CustomFile } from '../types';
 import { supabase } from '../utils/supabase';
+import { saveTripsToDB, getTripsFromDB, saveSingleTripToDB, deleteTripFromDB } from '../utils/tripCache';
 
 interface UseTripManagerProps {
     showToast: (message: string, type?: "success" | "error" | "info") => void;
@@ -48,21 +49,37 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
                         user_reviews: t.user_reviews || {},
                         user_logs: t.user_logs || {},
                         speechData: t.speech_data || [],
+                        checklists: t.metadata?.checklists || [],
                         defaultFiles: []
                     }));
 
-                    // Merge: Keep local trips that are currently syncing (not yet on server)
+                    // ✅ IndexedDB에 스냅샷 저장 (오프라인 대비)
+                    saveTripsToDB(serverTrips).catch(e => console.warn('[TripCache] snapshot failed:', e));
+
+                    // Merge: Keep local trips that are currently syncing OR preserve their state
                     setTrips(prev => {
-                        const syncingLocal = prev.filter(t =>
-                            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t.id) &&
-                            isSyncing.current.has(t.id)
-                        );
-                        return [...syncingLocal, ...serverTrips];
+                        const syncingTrips = prev.filter(t => isSyncing.current.has(t.id));
+                        const filteredServer = serverTrips.filter(t => !isSyncing.current.has(t.id));
+                        return [...syncingTrips, ...filteredServer];
                     });
                 }
             } catch (err) {
                 console.error("❌ Failed to load trips from Supabase:", err);
-                showToast("여행 목록을 불러오는 중 오류가 발생했습니다.", "error");
+
+                // 🔌 오프라인 fallback: IndexedDB에서 읽기
+                try {
+                    const cachedTrips = await getTripsFromDB();
+                    if (cachedTrips.length > 0) {
+                        console.log(`[TripCache] Loaded ${cachedTrips.length} trips from IndexedDB (offline).`);
+                        setTrips(cachedTrips);
+                        showToast("오프라인 모드 - 저장된 데이터를 불러왔습니다.", "info");
+                    } else {
+                        showToast("여행 목록을 불러올 수 없습니다. 인터넷 연결을 확인해주세요.", "error");
+                    }
+                } catch (cacheErr) {
+                    console.error('[TripCache] IndexedDB fallback failed:', cacheErr);
+                    showToast("여행 목록을 불러오는 중 오류가 발생했습니다.", "error");
+                }
             }
         };
 
@@ -76,14 +93,16 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
     // Track deleted IDs to prevent zombies
     const deletedTripIds = React.useRef<Set<string>>(new Set());
 
-    const saveTripToSupabase = useCallback(async (targetTrip: TripPlan) => {
-        if (!user || isSyncing.current.has(targetTrip.id) || deletedTripIds.current.has(targetTrip.id)) return;
+    const saveTripToSupabase = useCallback(async (targetTrip: TripPlan, isImmediate: boolean = false, overrides: any = {}) => {
+        if (!user || deletedTripIds.current.has(targetTrip.id)) return;
 
-        // Ensure we have a valid UUID or generate one if it's a legacy string ID
+
+        // Skip check if immediate
+        if (!isImmediate && isSyncing.current.has(targetTrip.id)) return;
+
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetTrip.id);
         const tripId = isUuid ? targetTrip.id : undefined;
 
-        // Date Format Helper
         const formatDate = (dateStr: string | undefined) => {
             if (!dateStr || dateStr.trim() === "" || dateStr === "미정") return null;
             const cleaned = dateStr.replace(/\./g, '-').trim();
@@ -92,57 +111,36 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
         };
 
         isSyncing.current.add(targetTrip.id);
-        console.log(`💾 Syncing trip [${targetTrip.id}] "${targetTrip.metadata?.title}"...`);
+        console.log(`💾 Syncing trip [${targetTrip.id}]${isImmediate ? ' (IMMEDIATE)' : ''}...`);
 
         try {
-            // Check if it was deleted while waiting
-            if (deletedTripIds.current.has(targetTrip.id)) {
-                console.log("Trip was deleted, aborting save.");
-                return;
-            }
+            if (deletedTripIds.current.has(targetTrip.id)) return;
 
-            // ... rest of logic
-            // Robust Profile Ensure
-            const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();
-            if (!profile) {
-                await supabase.from('profiles').upsert({
-                    id: user.id,
-                    email: user.email,
-                    username: user.email?.split('@')[0] || 'User',
-                    updated_at: new Date().toISOString()
-                });
-            }
-
-            // Determine the definitive data to save
-            const isActive = trip?.id === targetTrip.id;
-
-            const pointsToSave = (isActive && allPoints.length > 0) ? allPoints : (targetTrip.points || []);
-            const customFilesToSave = (isActive && customFiles.length > 0) ? customFiles : (targetTrip.customFiles || []);
-            const analyzedFilesToSave = (isActive && analyzedFiles.length > 0) ? analyzedFiles : (targetTrip.analyzedFiles || []);
-            const completedToSave = isActive ? completedItems : ((targetTrip as any).completed_items || {});
-            const reviewsToSave = isActive ? userReviews : ((targetTrip as any).user_reviews || {});
-            const logsToSave = isActive ? userLogs : ((targetTrip as any).user_logs || {});
-
-            // CRITICAL: Protection against accidental empty save
-            if (pointsToSave.length === 0 && targetTrip.points && targetTrip.points.length > 0) {
-                console.warn("⚠️ Attempted to save empty points for a trip that has points in object. Aborting sync.");
-                return;
-            }
+            // Ensure profile exists
+            await supabase.from('profiles').upsert({
+                id: user.id,
+                email: user.email,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
 
             const payload: any = {
                 user_id: user.id,
-                title: targetTrip.metadata?.title || (targetTrip as any).title || "제목 없음",
-                destination: targetTrip.metadata?.destination || (targetTrip as any).destination || "목적지 없음",
-                start_date: formatDate(targetTrip.metadata?.startDate || (targetTrip as any).startDate),
-                end_date: formatDate(targetTrip.metadata?.endDate || (targetTrip as any).endDate),
-                metadata: targetTrip.metadata || {},
-                points: pointsToSave,
-                custom_files: customFilesToSave,
-                analyzed_files: analyzedFilesToSave,
-                completed_items: completedToSave,
-                user_reviews: reviewsToSave,
-                user_logs: logsToSave,
-                speech_data: targetTrip.speechData || []
+                title: overrides.title || targetTrip.metadata?.title || "제목 없음",
+                destination: overrides.destination || targetTrip.metadata?.destination || "목적지 없음",
+                start_date: formatDate(overrides.startDate || targetTrip.metadata?.startDate),
+                end_date: formatDate(overrides.endDate || targetTrip.metadata?.endDate),
+                metadata: {
+                    ...(overrides.metadata || targetTrip.metadata || {}),
+                    checklists: overrides.checklists || targetTrip.checklists || []
+                },
+                // 🛑 CRITICAL: Overrides must take ABSOLUTE priority over local state
+                points: overrides.points || allPoints,
+                custom_files: overrides.customFiles || overrides.custom_files || customFiles,
+                analyzed_files: overrides.analyzedFiles || overrides.analyzed_files || analyzedFiles,
+                completed_items: overrides.completed_items || completedItems,
+                user_reviews: overrides.user_reviews || userReviews,
+                user_logs: overrides.user_logs || userLogs,
+                speech_data: overrides.speechData || targetTrip.speechData || []
             };
 
             if (tripId) payload.id = tripId;
@@ -152,39 +150,112 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
                 .upsert(payload, { onConflict: 'id' })
                 .select();
 
-            if (error) {
-                console.error("❌ Supabase Save Error:", error);
-            } else if (data && !tripId) {
-                const newId = data[0].id;
-                console.log(`✅ Trip published with new UUID: ${newId}`);
-                setTrips(prev => prev.map(t => t.id === targetTrip.id ? { ...t, id: newId } : t));
-                if (trip?.id === targetTrip.id) setTrip(prev => prev ? { ...prev, id: newId } : null);
-            } else {
-                console.log(`✅ Trip [${targetTrip.id}] synced successfully.`);
+            if (error) throw error;
+
+            const updatedCount = data?.[0]?.custom_files?.length || 0;
+            console.log(`✅ Sync Success: DB now has ${updatedCount} files.`);
+
+            if (data) {
+                const updatedServerTrip = data[0];
+                const newId = updatedServerTrip.id;
+
+                // Update lists and active trip
+                setTrips(prev => prev.map(t => t.id === targetTrip.id ? {
+                    ...t,
+                    id: newId,
+                    customFiles: updatedServerTrip.custom_files || []
+                } : t));
+
+                if (trip?.id === targetTrip.id) {
+                    setTrip(prev => prev ? {
+                        ...prev,
+                        id: newId,
+                        customFiles: updatedServerTrip.custom_files || []
+                    } : null);
+
+                    // 🚀 CRITICAL: Sync Sub-states IMMEDIATELY with server truth
+                    setCustomFiles(updatedServerTrip.custom_files || []);
+                    setAnalyzedFiles(updatedServerTrip.analyzed_files || []);
+                    setAllPoints(updatedServerTrip.points || []);
+                    setCompletedItems(updatedServerTrip.completed_items || {});
+                    setUserReviews(updatedServerTrip.user_reviews || {});
+                    setUserLogs(updatedServerTrip.user_logs || {});
+                }
+
+                // ✅ IndexedDB에도 최신 상태 저장
+                const cacheTrip = {
+                    id: newId,
+                    metadata: updatedServerTrip.metadata,
+                    points: updatedServerTrip.points || [],
+                    customFiles: updatedServerTrip.custom_files || [],
+                    analyzedFiles: updatedServerTrip.analyzed_files || [],
+                    completed_items: updatedServerTrip.completed_items || {},
+                    user_reviews: updatedServerTrip.user_reviews || {},
+                    user_logs: updatedServerTrip.user_logs || {},
+                    speechData: updatedServerTrip.speech_data || [],
+                    checklists: updatedServerTrip.metadata?.checklists || [],
+                    defaultFiles: []
+                };
+                saveSingleTripToDB(cacheTrip).catch(e => console.warn('[TripCache] update failed:', e));
             }
         } catch (error: any) {
-            console.error("Critical error in sync:", error);
+            console.error("❌ Sync Error Details:", error);
         } finally {
-            // Allow re-sync after 3 seconds
-            setTimeout(() => isSyncing.current.delete(targetTrip.id), 3000);
+            setTimeout(() => isSyncing.current.delete(targetTrip.id), 1000);
         }
-    }, [user, completedItems, userReviews, userLogs, customFiles, analyzedFiles, allPoints, trip]);
+    }, [user, allPoints, customFiles, analyzedFiles, completedItems, userReviews, userLogs, trip?.id]);
 
 
     // 4. Sync "trip" -> Sub-states (allPoints, etc.)
     useEffect(() => {
         if (trip) {
-            setAllPoints(trip.points || []);
-            setCustomFiles(trip.customFiles || []);
-            setAnalyzedFiles(trip.analyzedFiles || []);
+            // trip 객체(ID)가 바뀔 때만 하위 상태를 갱신
+            const isDifferentTrip = prevTripId.current !== trip.id;
 
-            // Sync user interaction data if available in the trip object
-            const t = trip as any;
-            if (t.completed_items) setCompletedItems(t.completed_items);
-            if (t.user_reviews) setUserReviews(t.user_reviews);
-            if (t.user_logs) setUserLogs(t.user_logs);
+            if (isDifferentTrip) {
+                console.log("🔄 Loading sub-states for trip:", trip.id);
+                setAllPoints(trip.points || []);
+                setCustomFiles(trip.customFiles || []);
+                setAnalyzedFiles(trip.analyzedFiles || []);
+
+                const t = trip as any;
+                setCompletedItems(t.completed_items || {});
+                setUserReviews(t.user_reviews || {});
+                setUserLogs(t.user_logs || {});
+
+                prevTripId.current = trip.id;
+            }
         }
     }, [trip]);
+
+    const prevTripId = React.useRef<string | null>(null);
+
+    // 💾 Persist only the active trip's ID for session restore
+    useEffect(() => {
+        if (trip?.id) {
+            localStorage.setItem('active_trip_id', trip.id);
+        } else {
+            localStorage.removeItem('active_trip_id');
+        }
+    }, [trip?.id]);
+
+    // 🔄 On initial load (after trips are fetched), restore the last active trip
+    const hasRestored = React.useRef(false);
+    useEffect(() => {
+        if (hasRestored.current || trips.length === 0) return;
+        const lastId = localStorage.getItem('active_trip_id');
+        if (lastId) {
+            const found = trips.find(t => t.id === lastId);
+            if (found) {
+                setTrip(found);
+                setAllPoints(found.points || []);
+                hasRestored.current = true;
+            }
+        }
+    }, [trips]);
+
+    // 💾 4.1 Auto-Save REMOVED: No more background updates.
+
 
     // 5. Load sub-data (checklist, etc.)
     useEffect(() => {
@@ -194,17 +265,27 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
 
 
     const publishTrip = async (newTrip: TripPlan) => {
-        // 1. Add to local state first for immediate UI feedback (Check for duplicates)
+        // Strip draft flags from metadata before publishing
+        const publishedTrip: TripPlan = {
+            ...newTrip,
+            metadata: {
+                ...newTrip.metadata,
+                is_draft: undefined,
+                draft_step: undefined,
+            } as any
+        };
+
+        // 1. Add to local state first for immediate UI feedback
         setTrips(prev => {
-            const exists = prev.some(t => t.id === newTrip.id);
+            const exists = prev.some(t => t.id === publishedTrip.id);
             if (exists) {
-                return prev.map(t => t.id === newTrip.id ? newTrip : t);
+                return prev.map(t => t.id === publishedTrip.id ? publishedTrip : t);
             }
-            return [newTrip, ...prev];
+            return [publishedTrip, ...prev];
         });
 
         // 2. Trigger immediate save to Supabase
-        await saveTripToSupabase(newTrip);
+        await saveTripToSupabase(publishedTrip);
     };
 
     // Actions
@@ -227,12 +308,14 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
                     const { error } = await supabase.from('trips').delete().eq('id', id);
                     if (error) {
                         console.error("Error deleting trip from Supabase:", error);
-                        // showToast is optional here as we already updated UI
                     } else {
                         console.log("✅ Successfully deleted from Supabase");
                     }
                 }
             }
+
+            // ✅ IndexedDB에서도 삭제
+            deleteTripFromDB(id).catch(e => console.warn('[TripCache] delete failed:', e));
             showToast("여행 가이드가 삭제되었습니다.");
         } catch (e) {
             console.error("Delete failed:", e);
@@ -340,7 +423,8 @@ export const useTripManager = ({ showToast, setDeleteConfirmModal, user }: UseTr
         updateReview,
         updateLog,
         getPoints,
-        calculateProgress
+        calculateProgress,
+        saveTripToSupabase
     };
 };
 

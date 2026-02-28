@@ -4,9 +4,11 @@ import { Loader2, FileText } from 'lucide-react';
 
 interface LoadingOverlayProps {
     isLoading: boolean;
+    message?: string;
+    subMessage?: string;
 }
 
-export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isLoading }) => {
+export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isLoading, message, subMessage }) => {
     return (
         <AnimatePresence>
             {isLoading && (
@@ -56,10 +58,10 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isLoading }) => 
                                 marginBottom: "8px",
                             }}
                         >
-                            AI 문서 분석 중
+                            {message || "AI 문서 분석 중"}
                         </h3>
                         <p style={{ opacity: 0.7, color: "white", fontSize: "15px" }}>
-                            서류에서 정보를 추출하고 있습니다. 잠시만 기다려 주세요.
+                            {subMessage || "서류에서 정보를 추출하고 있습니다. 잠시만 기다려 주세요."}
                         </p>
                         <div
                             style={{

@@ -4,7 +4,7 @@ import { Sparkles, ArrowRight } from 'lucide-react';
 import { usePlanner } from '../../../contexts/PlannerContext';
 
 export const PlannerOnboarding: React.FC = () => {
-    const { setPlannerStep, setIsPlanning } = usePlanner();
+    const { setPlannerStep, setIsPlanning, setView } = usePlanner();
 
     return (
         <motion.div
@@ -64,7 +64,10 @@ export const PlannerOnboarding: React.FC = () => {
             </button>
 
             <button
-                onClick={() => setIsPlanning(false)}
+                onClick={() => {
+                    setIsPlanning(false);
+                    setView("landing");
+                }}
                 style={{
                     marginTop: "24px",
                     padding: "16px 32px",
