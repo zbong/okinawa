@@ -1,7 +1,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// API 설정
-const API_KEY = "YOUR_API_KEY";
+require('dotenv').config();
+const API_KEY = process.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 const modelsToTest = [
