@@ -108,7 +108,7 @@ ${targetLangName} 등 외국어라면 한국어로 번역하세요.
 번역할 문장: "${inputText}"
 `;
 
-            const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" }); // Use stable fallback model since 2.0-flash hit 429 earlier, and 2.5-flash is not found
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Reverted to the original requested model
             const result = await model.generateContent(prompt);
             const responseText = result.response.text().trim();
 
@@ -127,9 +127,11 @@ ${targetLangName} 등 외국어라면 한국어로 번역하세요.
                 speak(responseText, targetLangCode);
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Translation error:", error);
-            alert("번역 중 오류가 발생했습니다.");
+            // 보여줄 구체적인 에러 메시지
+            const errMsg = error?.message || String(error);
+            alert(`[에러 상세]\n${errMsg}`);
         } finally {
             setIsTranslating(false);
         }
