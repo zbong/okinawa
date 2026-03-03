@@ -1,6 +1,7 @@
 import React from 'react';
 import { MessageCircle, Volume2 } from 'lucide-react';
 import { usePlanner } from '../../contexts/PlannerContext';
+import { LiveTranslator } from './LiveTranslator';
 
 interface PhrasebookTabProps {
   speak: (text: string, lang?: string, audioBase64?: string) => void;
@@ -21,6 +22,11 @@ export const PhrasebookTab: React.FC<PhrasebookTabProps> = ({ speak }) => {
 
   return (
     <div className="speech-view" style={{ padding: "16px" }}>
+      <LiveTranslator
+        destination={destination}
+        targetLangCode={langCode}
+        speak={speak}
+      />
       <h2
         style={{
           marginBottom: 16,

@@ -143,9 +143,6 @@ const App: React.FC = () => {
           </motion.div>
         )}
 
-        {/* Planning Wizard Overlay */}
-        <PlanningWizardOverlay isPlanning={isPlanning} plannerStep={plannerStep} />
-
         {/* Attraction Detail Modal */}
         <AttractionDetailModal />
 
@@ -200,6 +197,9 @@ const App: React.FC = () => {
 
         <Toast toasts={toasts} onClose={closeToast} />
       </div>
+
+      {/* Planning Wizard Overlay (모바일 가이드와 독립적으로 풀와이드 사용) */}
+      <PlanningWizardOverlay isPlanning={isPlanning} plannerStep={plannerStep} />
     </>
   );
 };
