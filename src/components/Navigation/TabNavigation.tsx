@@ -45,6 +45,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
                     border: "none",
                     color: "var(--text-primary)",
                     marginRight: "8px",
+                    flexShrink: 0
                 }}
             >
                 <X size={20} />
@@ -91,10 +92,12 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
                     marginLeft: "auto",
                     padding: "6px 10px",
                     minWidth: "auto",
+                    flexShrink: 0
                 }}
             >
                 {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+            <div style={{ width: "4px", flexShrink: 0 }} />
         </nav>
     );
 };
