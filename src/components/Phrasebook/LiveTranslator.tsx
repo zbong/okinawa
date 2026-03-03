@@ -16,6 +16,7 @@ export const LiveTranslator: React.FC<LiveTranslatorProps> = ({ destination, tar
     const [pronunciation, setPronunciation] = useState("");
     const [resultLangCode, setResultLangCode] = useState("");
     const [micLang, setMicLang] = useState<'ko' | 'target'>('ko');
+    const [errorDetail, setErrorDetail] = useState("");
 
     const recognitionRef = useRef<any>(null);
 
@@ -77,6 +78,7 @@ export const LiveTranslator: React.FC<LiveTranslatorProps> = ({ destination, tar
             setInputText("");
             setTranslatedText("");
             setPronunciation("");
+            setErrorDetail("");
             setMicLang(lang);
             recognitionRef.current.lang = lang === 'ko' ? 'ko-KR' : targetLangCode;
             recognitionRef.current.start();
@@ -89,6 +91,7 @@ export const LiveTranslator: React.FC<LiveTranslatorProps> = ({ destination, tar
         setTranslatedText("");
         setPronunciation("");
         setResultLangCode("");
+        setErrorDetail("");
 
         try {
             const targetLangName = getTargetLanguageName(targetLangCode, destination);
@@ -129,9 +132,8 @@ ${targetLangName} 등 외국어라면 한국어로 번역하세요.
 
         } catch (error: any) {
             console.error("Translation error:", error);
-            // 보여줄 구체적인 에러 메시지
             const errMsg = error?.message || String(error);
-            alert(`[에러 상세]\n${errMsg}`);
+            setErrorDetail(errMsg);
         } finally {
             setIsTranslating(false);
         }
@@ -248,6 +250,49 @@ ${targetLangName} 등 외국어라면 한국어로 번역하세요.
                     </button>
                 </div>
             </div>
+
+            {errorDetail && (
+                <div style={{
+                    background: "rgba(239, 68, 68, 0.1)",
+                    borderRadius: "16px",
+                    padding: "16px",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    marginBottom: "16px",
+                    position: "relative"
+                }}>
+                    <h4 style={{ color: "#ef4444", fontSize: "14px", marginTop: 0, marginBottom: "8px" }}>번역 오류 발생</h4>
+                    <pre style={{
+                        fontSize: "12px",
+                        color: "var(--text-secondary)",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        margin: 0,
+                        paddingRight: "60px"
+                    }}>
+                        {errorDetail}
+                    </pre>
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(errorDetail);
+                            alert("에러 메시지가 복사되었습니다.");
+                        }}
+                        style={{
+                            position: "absolute",
+                            top: "16px",
+                            right: "16px",
+                            background: "var(--bg-secondary)",
+                            border: "1px solid var(--glass-border)",
+                            borderRadius: "8px",
+                            padding: "6px 12px",
+                            fontSize: "12px",
+                            color: "var(--text-primary)",
+                            cursor: "pointer"
+                        }}
+                    >
+                        복사
+                    </button>
+                </div>
+            )}
 
             {(translatedText || isTranslating) && (
                 <div style={{
