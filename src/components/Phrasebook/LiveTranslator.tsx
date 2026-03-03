@@ -108,7 +108,7 @@ ${targetLangName} 등 외국어라면 한국어로 번역하세요.
 번역할 문장: "${inputText}"
 `;
 
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Use stable model
+            const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" }); // Use stable fallback model since 2.0-flash hit 429 earlier, and 2.5-flash is not found
             const result = await model.generateContent(prompt);
             const responseText = result.response.text().trim();
 
