@@ -109,6 +109,10 @@
 
 ## 🚀 다음 단계 (Next Steps)
 
+### 🔮 향후 추가 예정 기능 (Future Features)
+- **가계부 / N빵 정산 (Expense Tracker)**: 지출 내역 입력 시 현재 환율을 연동해 한화로 자동 계산 및 일행 간 N빵 정산 기능.
+- **"기사님 여기로 가주세요" 택시 카드 (Taxi Card)**: 목적지 일본어 이름/주소를 전체 화면에 큰 글씨로 띄워 택시 기사와의 의사소통을 돕는 기능.
+
 ### 남은 정리 사항
 - **`useWeather.ts`**: localStorage 날씨 캐시 제거 여부 결정
 - **`DebugView.tsx`**: localStorage 대신 Supabase 데이터 표시로 전환
